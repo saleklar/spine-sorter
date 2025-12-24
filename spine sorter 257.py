@@ -899,6 +899,27 @@ class MainWindow(QMainWindow):
 			if val:
 				self.config['spine_exe_selected'] = val
 				self._save_config()
+				
+				# Auto-update JSON version to match selected Spine executable
+				try:
+					# Use the scanner thread to detect version (it has fast paths for Windows)
+					ver = self.scanner_thread.detect_spine_version(val)
+					if ver:
+						# Check if version exists in combo
+						found_idx = -1
+						for i in range(self.json_version_combo.count()):
+							if self.json_version_combo.itemText(i) == ver:
+								found_idx = i
+								break
+						
+						if found_idx != -1:
+							self.json_version_combo.setCurrentIndex(found_idx)
+						else:
+							# Add it and select it
+							self.json_version_combo.insertItem(0, ver)
+							self.json_version_combo.setCurrentIndex(0)
+				except Exception:
+					pass
 		except Exception:
 			pass
 
@@ -1071,6 +1092,1082 @@ class MainWindow(QMainWindow):
 		self.info_panel.append("<b><font color='red'>Stopping process...</font></b>")
 		self.stop_btn.setEnabled(False)
 
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, 
+								 file_scanner, base_output_root, spine_exe, base_progress, name,
+								 errors, results, all_file_stats, jpeg_forced_png_warnings):
+		# Collect image file paths from json, atlas/info and by scanning the export folder
+		image_paths = set()
+		try:
+			# parse json for image references (use structured parsing when possible)
+			if found_json and os.path.exists(found_json):
+				try:
+					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
+						obj = json.load(fh)
+					def collect_from_json(x):
+						if isinstance(x, str):
+							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
+								image_paths.add(x)
+						elif isinstance(x, dict):
+							for k, v in x.items():
+								if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
+									image_paths.add(k)
+								collect_from_json(v)
+						elif isinstance(x, list):
+							for v in x:
+								collect_from_json(v)
+					collect_from_json(obj)
+					# also collect keys (attachment names) which may be basenames without extension
+					# ignore common non-image keys (e.g. 'skins', 'skeleton', 'slots') to reduce noise
+					IGNORE_KEYS = {
+						'skins', 'skeleton', 'slots', 'bones', 'animations', 'attachment', 'attachments',
+						'audio', 'path', 'name', 'width', 'height', 'x', 'y', 'scale', 'scalex', 'scaley',
+						'translate', 'translatex', 'translatey', 'rotate', 'rotation', 'rgba', 'color',
+						'blend', 'start', 'time', 'delay', 'sequence', 'mode', 'count', 'length', 'hash',
+						'icon', 'logo', 'parent', 'value', 'spine'
+					}
+					def collect_keys(x):
+						if isinstance(x, dict):
+							for k, v in x.items():
+								if isinstance(k, str):
+									kl = k.lower()
+									# add explicit image filenames
+									if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
+										image_paths.add(k)
+									# add bare keys only if they're not in the ignore list
+									elif kl not in IGNORE_KEYS:
+										image_paths.add(k)
+								collect_keys(v)
+						elif isinstance(x, list):
+							for v in x:
+								collect_keys(v)
+					collect_keys(obj)
+				except Exception:
+					# fallback to raw text regex if JSON parsing fails
+					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
+						data = fh.read()
+						for m in re.findall(r'([\w\-/\\]+\.(?:png|jpg|jpeg|webp|bmp|tga))', data, flags=re.IGNORECASE):
+							image_paths.add(m)
+
+			# parse any atlas files placed in the export folder
+			for f in os.listdir(result_dir):
+				if f.lower().endswith('.atlas'):
+					atlas_path = os.path.join(result_dir, f)
+					with open(atlas_path, 'r', encoding='utf-8', errors='ignore') as ah:
+						for line in ah:
+							line = line.strip()
+							if not line:
+								continue
+							# atlas files commonly list image names (one per section)
+							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
+								image_paths.add(line)
+
+			# parse any info/text files (found_info) for image names
+			if found_info and os.path.exists(found_info):
+				with open(found_info, 'r', encoding='utf-8', errors='ignore') as fh:
+					for line in fh:
+						line = line.strip()
+						if not line:
+							continue
+						if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
+							image_paths.add(line)
+
+			# also include any image files physically present in the export folder (recursive)
+			for root, dirs, files in os.walk(result_dir):
+				for fn in files:
+					if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', fn, flags=re.IGNORECASE):
+						# store relative path to result_dir so later resolution can join correctly
+						rel = os.path.relpath(os.path.join(root, fn), result_dir)
+						image_paths.add(rel)
+		except Exception as e:
+			errors.append(f"{name}: error parsing exports: {e}")
+
+		# Debug: show collected image references from exports
+		try:
+			if image_paths:
+				self.info_panel.append("Collected image refs: " + ", ".join(sorted(image_paths)))
+		except Exception:
+			pass
+
+		# Resolve image paths to filesystem paths relative to the temporary result_dir, folder, or input folder
+		resolved = set()
+		# directories to search (priority order)
+		search_dirs = [result_dir, folder, os.path.dirname(input_path)]
+		
+		# Add sibling 'Spine/images' folder if it exists (common project structure)
+		# If folder is 'sorted', parent is project root.
+		project_root = os.path.dirname(folder)
+		spine_images = os.path.join(project_root, 'Spine', 'images')
+		if os.path.exists(spine_images):
+			search_dirs.append(spine_images)
+		
+		# Also add 'images' subdir of folder if exists
+		img_subdir = os.path.join(folder, 'images')
+		if os.path.exists(img_subdir):
+			search_dirs.append(img_subdir)
+		for ip in image_paths:
+			# absolute path check (must be a file)
+			if os.path.isabs(ip) and os.path.isfile(ip):
+				resolved.add(ip)
+				continue
+			# try direct joins first
+			found = None
+			for d in search_dirs:
+				candidate = os.path.join(d, ip)
+				# only accept actual files (not directories)
+				if os.path.isfile(candidate):
+					found = candidate
+					break
+			if found:
+				resolved.add(found)
+				continue
+			# fallback: search for matching basename in the search_dirs recursively
+			base = os.path.basename(ip)
+			for d in search_dirs:
+				if not d or not os.path.exists(d):
+					continue
+				for full_path, f_lower in file_scanner.scan(d):
+					# Ensure we only match image files
+					if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
+						continue
+					fname_noext = os.path.splitext(f_lower)[0]
+					if f_lower == base.lower() or fname_noext == base.lower():
+						resolved.add(full_path)
+						break
+		
+		# Smart scan: Only add files that match referenced images or their sequences
+		try:
+			self.info_panel.append("Scanning source directories for relevant image files...")
+			
+			# Build prefixes from JSON references
+			prefixes = set()
+			for ip in image_paths:
+				# clean up path separators
+				ip_clean = ip.replace('\\', '/')
+				base = os.path.basename(ip_clean)
+				base_no_ext = os.path.splitext(base)[0]
+				if base_no_ext:
+					prefixes.add(base_no_ext.lower())
+			
+			scanned_count = 0
+			for d in search_dirs:
+				if not d or not os.path.exists(d):
+					continue
+				
+				# Use cached directory scan
+				for full_path, f_lower in file_scanner.scan(d):
+					if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
+						continue
+					
+					# Check if file matches any prefix (exact or sequence)
+					f_base = os.path.splitext(f_lower)[0]
+					is_relevant = False
+					
+					# Quick check
+					if f_base in prefixes:
+						is_relevant = True
+					else:
+						# Sequence check
+						for p in prefixes:
+							if f_base.startswith(p):
+								rem = f_base[len(p):]
+								# Match if remainder is empty, or starts with separator/digit
+								if not rem or rem[0] in ('_', '-') or rem[0].isdigit():
+									is_relevant = True
+									break
+					
+					if is_relevant:
+						if full_path not in resolved:
+							resolved.add(full_path)
+							scanned_count += 1
+
+			self.info_panel.append(f"Added {scanned_count} relevant files from disk scan.")
+		except Exception as e:
+			self.info_panel.append(f"Disk scan warning: {e}")
+
+		# convert to list for further processing and log resolved files
+		resolved = list(resolved)
+		self.progress_bar.setValue(base_progress + 20)
+		QApplication.processEvents()
+		try:
+			if resolved:
+				self.info_panel.append("Resolved image files: " + ", ".join(sorted(resolved)[:50]))  # Show first 50
+				if len(resolved) > 50:
+					self.info_panel.append(f"  ... and {len(resolved) - 50} more")
+		except Exception:
+			pass
+		
+		# DEBUG: Log all resolved files with details for debugging sequences
+		try:
+			basenames = {}
+			for r in resolved:
+				bn = os.path.basename(r).lower()
+				if bn not in basenames:
+					basenames[bn] = []
+				basenames[bn].append(r)
+			
+			# Show files that look like sequences (have numeric suffixes)
+			seq_like = [bn for bn in basenames if re.search(r'\d+\.(?:png|jpg|jpeg)', bn)]
+			if seq_like:
+				self.info_panel.append(f"DEBUG: Found {len(seq_like)} files with numeric patterns (likely sequences)")
+				for bn in sorted(seq_like)[:20]:
+					self.info_panel.append(f"  - {bn} ({len(basenames[bn])} instance(s))")
+		except Exception as e:
+			pass
+
+		opaque_results = []
+		total_images = len(resolved)
+		for img_idx, img_path in enumerate(resolved):
+			if self.stop_requested:
+				break
+
+			# Skip non-image files (e.g. json files picked up by loose matching)
+			if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', img_path, re.IGNORECASE):
+				continue
+
+			# Update progress for image analysis
+			if total_images > 0:
+				# Map 20->50 range (30 points)
+				p = base_progress + 20 + int((img_idx / total_images) * 30)
+				self.progress_bar.setValue(p)
+				# Process events frequently to allow stopping
+				QApplication.processEvents()
+
+			try:
+				# Check cache first
+				cached_data = self.image_cache.get(img_path)
+				current_alpha_cutoff = int(self.config.get("alpha_cutoff", 250))
+				current_threshold = float(self.config.get("opacity_threshold", self.opacity_slider.value())) / 100.0
+				
+				if cached_data and isinstance(cached_data, dict):
+					if (cached_data.get('alpha_cutoff') == current_alpha_cutoff and 
+						cached_data.get('threshold') == current_threshold):
+						fully_opaque = cached_data['fully_opaque']
+						has_transparent_corners = cached_data['has_transparent_corners']
+						opaque_results.append((img_path, fully_opaque, has_transparent_corners))
+						continue
+
+				# Increase Pillow's text chunk limit to handle large metadata
+				Image.MAX_IMAGE_PIXELS = None # Disable decompression bomb check if needed
+				from PIL import PngImagePlugin
+				# Increase both chunk size and total memory limits for text chunks
+				# Some PNGs have massive metadata (e.g. 70MB+)
+				PngImagePlugin.MAX_TEXT_CHUNK = 500 * 1024 * 1024 # 500MB limit
+				PngImagePlugin.MAX_TEXT_MEMORY = 500 * 1024 * 1024 # 500MB limit
+
+				im = Image.open(img_path)
+				# convert to RGBA to reliably access alpha channel
+				rgba = im.convert('RGBA')
+				alpha = rgba.split()[-1]
+				data = list(alpha.getdata())
+				total = len(data)
+				if total == 0:
+					# treat empty images as opaque to avoid divide-by-zero
+					ratio = 1.0
+				else:
+					# use configured alpha cutoff (count pixels with alpha >= cutoff as opaque)
+					alpha_cutoff = current_alpha_cutoff
+					opaque_count = sum(1 for v in data if v >= alpha_cutoff)
+					ratio = opaque_count / total
+				# threshold from slider (percentage)
+				threshold = current_threshold
+				fully_opaque = (ratio >= threshold)
+				
+				# Check for transparent corners (round edges detection)
+				has_transparent_corners = False
+				w, h = im.size
+				if w > 1 and h > 1:
+					corners = [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]
+					for cx, cy in corners:
+						# getpixel returns (R, G, B, A) for RGBA
+						if rgba.getpixel((cx, cy))[3] < alpha_cutoff:
+							has_transparent_corners = True
+							break
+				
+				# log percentage for visibility
+				try:
+					corner_msg = " [Round/Transp Corners]" if has_transparent_corners else ""
+					self.info_panel.append(f"Opacity for {img_path}: {ratio*100:.2f}% ({opaque_count}/{total}){corner_msg}")
+				except Exception:
+					pass
+				
+				# Update cache
+				self.image_cache.set(img_path, {
+					'fully_opaque': fully_opaque,
+					'has_transparent_corners': has_transparent_corners,
+					'alpha_cutoff': current_alpha_cutoff,
+					'threshold': current_threshold
+				})
+
+				opaque_results.append((img_path, fully_opaque, has_transparent_corners))
+			except Exception as e:
+				errors.append(f"{name}: image analyze failed {img_path}: {e}")
+
+		# Write opaque results to file
+		try:
+			json_base = os.path.splitext(os.path.basename(found_json or input_path))[0]
+			out_file = os.path.join(result_dir, f"opaque_{json_base}.txt")
+			with open(out_file, 'w', encoding='utf-8') as fh:
+				for p, opaque, corners in opaque_results:
+					fh.write(f"{p}\t{int(bool(opaque))}\t{int(bool(corners))}\n")
+			results.append(out_file)
+			self.info_panel.append(f"Wrote result: {out_file}")
+		except Exception as e:
+			errors.append(f"{name}: could not write result file: {e}")
+			self.info_panel.append(f"Could not write result file: {e}")
+
+		self.progress_bar.setValue(base_progress + 50)
+		QApplication.processEvents()
+
+		# --- Sorting algorithm: copy attachments into jpeg/png and rebuild JSON ---
+		new_json_path = None
+		try:
+			if found_json and os.path.exists(found_json):
+				# build opaque map (basename or full path -> (opaque, has_transparent_corners))
+				opaque_map = {}
+				for p, ok, corners in opaque_results:
+					opaque_map[os.path.normpath(p)] = (bool(ok), bool(corners))
+					opaque_map[os.path.basename(p)] = (bool(ok), bool(corners))
+
+				# load json
+				with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
+					j = json.load(fh)
+
+				# skeleton name
+				skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
+
+				# build slot blend map
+				slot_blend = {}
+				for s in j.get('slots', []):
+					slot_blend[s.get('name')] = s.get('blend', 'normal')
+
+				# prepare final output image folders under the chosen output root
+				# structure: <output_root>/images/<skeleton>/{jpeg,png}
+				output_root = base_output_root
+				images_root = os.path.join(output_root, 'images', skeleton_name)
+				jpeg_dir = os.path.join(images_root, 'jpeg')
+				png_dir = os.path.join(images_root, 'png')
+				os.makedirs(jpeg_dir, exist_ok=True)
+				os.makedirs(png_dir, exist_ok=True)
+
+				# helper: find source file for an image reference
+				def find_source_image(ref_name):
+					# Debug: log the reference being searched
+					try:
+						self.info_panel.append(f"find_source_image: looking for ref '{ref_name}'")
+					except Exception:
+						pass
+					# try absolute -> return as single-item list for consistency
+					if os.path.isabs(ref_name) and os.path.isfile(ref_name):
+						return [ref_name]
+					# normalized key lookup against opaque_map: return all matching resolved candidates
+					norm = os.path.normpath(ref_name)
+					if norm in opaque_map:
+						matches = []
+						norm_base = os.path.basename(norm).lower()
+						for cand in resolved:
+							if os.path.basename(cand).lower() == norm_base:
+								matches.append(cand)
+						if matches:
+							try:
+								self.info_panel.append(f"find_source_image: exact match found {len(matches)} candidates")
+							except Exception:
+								pass
+							return matches
+					# basename without extension
+					base = os.path.splitext(os.path.basename(ref_name))[0]
+					base_l = base.lower()
+					# normalize a core base by stripping trailing separators so 'particles_' -> 'particles'
+					base_core = base_l.rstrip('_-')
+					# Debug
+					try:
+						self.info_panel.append(f"find_source_image: base='{base}' core='{base_core}' ref_name='{ref_name}'")
+					except Exception:
+						pass
+					# prepare containers
+					seq_matches = []
+					prefix_matches = []
+					exact_matches = []
+					# regex to capture numeric suffix after the core base
+					seq_re = re.compile(r'^' + re.escape(base_core) + r'(?:[_\-]?)(\d+)$')
+					for cand in resolved:
+						name_noext = os.path.splitext(os.path.basename(cand))[0].lower()
+						# exact match (filename equals reference basename)
+						if name_noext == base_l:
+							exact_matches.append(cand)
+						# numeric sequence match (e.g., base_core + sep + digits)
+						m = seq_re.match(name_noext)
+						if m:
+							num = int(m.group(1))
+							seq_matches.append((num, cand))
+						# prefix match (starts with the reference basename)
+						elif name_noext.startswith(base_l) or name_noext.startswith(base_core):
+							prefix_matches.append(cand)
+					
+					# DEBUG: Log what we found
+					try:
+						self.info_panel.append(f"find_source_image DEBUG: seq_matches={len(seq_matches)}, exact_matches={len(exact_matches)}, prefix_matches={len(prefix_matches)}")
+						if seq_matches:
+							self.info_panel.append(f"  seq_matches: {[(n, os.path.basename(p)) for n, p in seq_matches]}")
+					except Exception:
+						pass
+					
+					# PRIORITY CHANGE: If we have an exact match and the reference name does NOT end with '_',
+					# prefer the exact match. This prevents 'h2_glow' from matching 'h2_glow_01' if 'h2_glow.png' exists.
+					if exact_matches and not ref_name.endswith('_'):
+						try:
+							self.info_panel.append(f"Exact match found for '{ref_name}' (not a declared sequence), ignoring {len(seq_matches)} sequence matches.")
+						except Exception:
+							pass
+						return exact_matches
+
+					# prefer numeric sequences if found
+					if seq_matches:
+						seq_matches.sort(key=lambda x: x[0])
+						try:
+							self.info_panel.append(f"Sequence detected for '{ref_name}': {len(seq_matches)} frames")
+						except Exception:
+							pass
+						# return ordered list of candidates
+						return [p for _, p in seq_matches]
+					# then prefer an exact match
+					if exact_matches:
+						# return all exact matches (could be multiple in different folders)
+						try:
+							self.info_panel.append(f"Exact matches for '{ref_name}': {len(exact_matches)} found")
+						except Exception:
+							pass
+						return exact_matches
+					# then prefix matches: sort intelligently (numeric suffixes first)
+					if prefix_matches:
+						# Check if any candidate is an exact match for base_core (e.g. 'coins.png' for 'coins_')
+						# If found, prefer it over loose prefix matches like 'coins_glow.png'
+						core_exact = [p for p in prefix_matches if os.path.splitext(os.path.basename(p))[0].lower() == base_core]
+						if core_exact:
+							try:
+								self.info_panel.append(f"Found exact match for core '{base_core}' within prefix matches. Using it.")
+							except Exception:
+								pass
+							return core_exact
+
+						# Filter prefix matches: if we have 'image' and 'image_old', and ref is 'image',
+						# 'image_old' is a prefix match but shouldn't be used if it's not a sequence.
+						# Only accept prefix matches that look like sequences (end in digits) OR if we have no other choice.
+						
+						# attempt numeric-suffix ordering: extract trailing digits from basename
+						def _num_key(path):
+							bn = os.path.splitext(os.path.basename(path))[0]
+							m = re.search(r'(\d+)$', bn)
+							if m:
+								return (0, int(m.group(1)))
+							# no trailing digits: fallback to alphabetical
+							return (1, bn)
+						try:
+							prefix_matches.sort(key=_num_key)
+						except Exception:
+							prefix_matches.sort()
+						
+						# If the top match doesn't look like a sequence (no digits), and we have multiple matches,
+						# it might be picking up unrelated files.
+						# But if we are here, we have no exact match and no clear sequence match.
+						
+						try:
+							self.info_panel.append(f"Prefix matches for '{ref_name}': {len(prefix_matches)} found, representative: {os.path.basename(prefix_matches[0])}")
+						except Exception:
+							pass
+						return prefix_matches
+					# nothing found
+					try:
+						self.info_panel.append(f"find_source_image: NO MATCHES FOUND for '{ref_name}'")
+					except Exception:
+						pass
+					return None
+
+				# iterate skins -> slots -> attachments
+				skins = j.get('skins', {})
+				# build a list of all skin dicts (slot->attachments) regardless of skins being dict or list
+				ALL_SKIN_DICTS = []
+				if isinstance(skins, dict):
+					for _, sdict in skins.items():
+						if isinstance(sdict, dict):
+							ALL_SKIN_DICTS.append(sdict)
+				elif isinstance(skins, list):
+					for item in skins:
+						if isinstance(item, dict):
+							# case: {'name': 'default', 'attachments': {...}}
+							if 'attachments' in item and isinstance(item.get('attachments'), dict):
+								ALL_SKIN_DICTS.append(item.get('attachments'))
+							else:
+								# case: {skinName: skinDict, ...}
+								for v in item.values():
+									if isinstance(v, dict):
+										ALL_SKIN_DICTS.append(v)
+				# helper to process a single skin dict (slot -> attachments)
+				stats = {'total': 0, 'jpeg': 0, 'png': 0}
+				def process_skin_dict(skin_dict):
+					if not isinstance(skin_dict, dict):
+						return skin_dict
+					for slot_name, attachments in list(skin_dict.items()):
+						if not isinstance(attachments, dict):
+							self.info_panel.append(f"Skipping slot {slot_name}: unexpected attachments type {type(attachments)}")
+							continue
+						for attach_name, attach_val in list(attachments.items()):
+							if self.stop_requested:
+								raise Exception("Process stopped by user")
+							stats['total'] += 1
+							# determine referenced image name
+							src = None
+							ref = None
+							
+							# 1. Try to find source based on existing 'path' or 'name' property first
+							# This preserves explicit overrides (like 'coins' attachment pointing to 'placeholder.png')
+							if isinstance(attach_val, dict):
+								alt_ref = None
+								if 'path' in attach_val:
+									alt_ref = os.path.basename(attach_val['path'])
+								elif 'name' in attach_val:
+									alt_ref = os.path.basename(attach_val['name'])
+								
+								if alt_ref:
+									src = find_source_image(alt_ref)
+									if src:
+										ref = alt_ref # for logging
+										try:
+											self.info_panel.append(f"Found source via existing path/name: {alt_ref}")
+										except Exception:
+											pass
+
+							# 2. If not found, try to find source based on attachment name (the key)
+							if not src:
+								# IMPORTANT: For sequence detection, we should use attach_name (the key),
+								# NOT the stored 'path' field, because sequences need to be identified by
+								# their expected naming pattern, not by what might be stored from a previous run
+								if isinstance(attach_val, dict):
+									# Use basename of attach_name as the search reference
+									# This allows find_source_image to search for sequence patterns
+									ref = os.path.basename(attach_name)
+								else:
+									# attach_name may include folder-like segments (e.g. 'h1_particles/jpeg/h1_particles_')
+									ref = os.path.basename(attach_name)
+								# find real source file
+								src = find_source_image(ref)
+
+							# Fallback: if not found, try 'path' or 'name' from the attachment data
+							# This handles cases where attachment name (e.g. 'png/wd_face') differs from file name (e.g. 'face.png')
+							# (This is now redundant with step 1 but kept for safety if step 1 failed but step 2 also failed)
+							if not src and isinstance(attach_val, dict):
+								alt_ref = None
+								if 'path' in attach_val:
+									alt_ref = os.path.basename(attach_val['path'])
+								elif 'name' in attach_val:
+									alt_ref = os.path.basename(attach_val['name'])
+								
+								if alt_ref:
+									# Strip extension if present, as find_source_image handles extensions
+									alt_ref_base = os.path.splitext(alt_ref)[0]
+									if alt_ref_base != ref:
+										src = find_source_image(alt_ref_base)
+										if src:
+											try:
+												self.info_panel.append(f"Found match using attachment path/name for '{attach_name}': {alt_ref_base}")
+											except Exception:
+												pass
+
+							# determine blend(s) for this slot
+							blend = slot_blend.get(slot_name, 'normal')
+							# determine opaque status and corner transparency
+							is_opaque = False
+							has_transparent_corners = False
+							if src:
+								# src may be a single path or a list of matches; consider all matches opaque to be opaque
+								matches_check = src if isinstance(src, (list, tuple)) else [src]
+								opaque_vals = []
+								corner_vals = []
+								for m in matches_check:
+									# opaque_map now returns (is_opaque, has_transparent_corners)
+									# default to (False, False) if not found
+									res = opaque_map.get(os.path.normpath(m), opaque_map.get(os.path.basename(m), (False, False)))
+									# Handle case where map might still have old boolean values (unlikely but safe)
+									if isinstance(res, bool):
+										opaque_vals.append(res)
+										corner_vals.append(False)
+									else:
+										opaque_vals.append(res[0])
+										corner_vals.append(res[1])
+								
+								# require all frames/matches to be opaque to treat as opaque
+								is_opaque = all(opaque_vals) if opaque_vals else False
+								# if ANY frame has transparent corners, treat as having transparent corners
+								has_transparent_corners = any(corner_vals) if corner_vals else False
+
+							# If attachment appears in slots, collect those slots and their blends
+							slots_found = []
+							for skin2 in ALL_SKIN_DICTS:
+								for slot2, slot_val in skin2.items():
+									try:
+										if attach_name in slot_val:
+											slots_found.append(slot2)
+									except Exception:
+										continue
+
+							# decide destination:
+							# - If source file is .jpg/.jpeg -> `jpeg`
+							# - If attachment appears in one or more slots and ALL such slots use a non-normal blend -> `jpeg`
+							# - Otherwise, if the image is opaque AND DOES NOT HAVE TRANSPARENT CORNERS -> `jpeg`
+							# - Otherwise -> `png`
+							dest_dir = None
+							appears_only_in_non_normal = False
+							if slots_found:
+								appears_only_in_non_normal = all(slot_blend.get(s, 'normal') != 'normal' for s in slots_found)
+
+							# Check if source is explicitly JPEG file
+							is_explicit_jpeg = False
+							if src:
+								matches_check = src if isinstance(src, (list, tuple)) else [src]
+								for m in matches_check:
+									if m.lower().endswith(('.jpg', '.jpeg')):
+										is_explicit_jpeg = True
+										break
+
+							if is_explicit_jpeg:
+								dest_dir = jpeg_dir
+								stats['jpeg'] += 1
+								try:
+									self.info_panel.append(f"Decision for '{attach_name}': JPEG (Source is .jpg/.jpeg)")
+								except Exception:
+									pass
+							elif slots_found and appears_only_in_non_normal:
+								dest_dir = jpeg_dir
+								stats['jpeg'] += 1
+								try:
+									self.info_panel.append(f"Decision for '{attach_name}': JPEG (Only non-normal slots)")
+								except Exception:
+									pass
+							elif is_opaque and not has_transparent_corners:
+								dest_dir = jpeg_dir
+								stats['jpeg'] += 1
+								try:
+									self.info_panel.append(f"Decision for '{attach_name}': JPEG (Opaque & Square)")
+								except Exception:
+									pass
+							else:
+								dest_dir = png_dir
+								stats['png'] += 1
+								try:
+									reason = []
+									if not is_opaque: reason.append("Not Opaque")
+									if has_transparent_corners: reason.append("Transparent Corners")
+									if not reason: reason.append("Default/Mixed")
+									
+									# Check if source was likely intended as JPEG
+									is_jpeg_source = False
+									if src:
+										matches_check = src if isinstance(src, (list, tuple)) else [src]
+										if matches_check:
+											for m in matches_check:
+												m_lower = m.lower()
+												# Strict check: only consider it a JPEG source if extension matches
+												# OR if 'jpeg' is a distinct folder name in the path (not just a substring)
+												if m_lower.endswith(('.jpg', '.jpeg')):
+													is_jpeg_source = True
+													break
+												
+												# Check path components for 'jpeg' folder
+												parts = m_lower.replace('\\', '/').split('/')
+												if 'jpeg' in parts:
+													is_jpeg_source = True
+													break
+									
+									if is_jpeg_source:
+										msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manualy or change blend mode !!!"
+										self.info_panel.append(msg)
+										jpeg_forced_png_warnings.append(f"[{name}] {msg}")
+									else:
+										self.info_panel.append(f"Decision for '{attach_name}': PNG ({', '.join(reason)})")
+								except Exception:
+									pass
+							# copy file(s) if found
+							if src:
+								matches = src if isinstance(src, (list, tuple)) else [src]
+								# DEBUG: Log what find_source_image returned
+								try:
+									self.info_panel.append(f"DEBUG: find_source_image('{ref}') returned {len(matches)} items: {[os.path.basename(m) for m in matches]}")
+								except Exception:
+									pass
+								
+								# Detect if this is a sequence: multiple matches OR explicit sequence metadata
+								# A sequence implies multiple DIFFERENT frames (different filenames).
+								# If we have multiple matches but they are the same filename (duplicates), it's static.
+								unique_basenames = set(os.path.basename(m) for m in matches)
+								is_sequence = len(unique_basenames) > 1
+								
+								if not is_sequence:
+									# Check for explicit sequence declaration in attachment metadata
+									try:
+										if isinstance(attach_val, dict) and 'sequence' in attach_val:
+											is_sequence = True
+										# Only treat trailing underscore as sequence if we actually found multiple files
+										# or if it's a known convention. But if we only found 1 file, it's likely static.
+										elif str(attach_name).endswith('_') and len(matches) > 1:
+											is_sequence = True
+									except Exception:
+										pass
+								
+								# DEBUG: Log sequence detection
+								try:
+									self.info_panel.append(f"DEBUG: is_sequence={is_sequence}, len(matches)={len(matches)}, attach_name={attach_name}")
+								except Exception:
+									pass
+								
+								if is_sequence and len(matches) > 1:
+									try:
+										self.info_panel.append(f"Copying sequence of {len(matches)} frames for '{attach_name}' to {dest_dir}")
+									except Exception:
+										pass
+								
+								# Extract nested folder structure from ATTACHMENT NAME (the source of truth)
+								# attach_name might be: "coin_rotation/anticipation/anticipation_blue_" 
+								# or incorrectly: "symbols/jpeg/coin_rotation/anticipation/anticipation_blue_"
+								# We need to extract ONLY the folder structure that should go in the output
+								attach_name_str = str(attach_name).replace('\\', '/')
+								nested_folders_str = ""
+								base_name = os.path.basename(str(attach_name))
+								
+								# Remove any family markers (jpeg/png) and skeleton name from the path
+								# Split by '/' and filter out unwanted parts
+								parts = attach_name_str.split('/')
+								filtered_parts = []
+								for part in parts[:-1]:  # Exclude the last part (basename)
+									part_lower = part.lower()
+									# Skip family markers and common skeleton-like names
+									# Also skip the skeleton name itself to avoid duplication (e.g. ambient/jpeg/ambient/file.png)
+									if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower != skeleton_name.lower():
+										filtered_parts.append(part)
+								
+								if filtered_parts:
+									nested_folders_str = '/'.join(filtered_parts)
+								
+								first_rel = None
+								copy_succeeded = False
+								
+								for idx, m in enumerate(matches):
+									if self.stop_requested:
+										raise Exception("Process stopped by user")
+									QApplication.processEvents()
+									# DEBUG: Log each iteration
+									try:
+										self.info_panel.append(f"DEBUG LOOP: Processing match {idx+1}/{len(matches)}: {os.path.basename(m)}")
+									except Exception:
+										pass
+									
+									# Build destination path with nested folder structure
+									if nested_folders_str:
+										# Convert forward slashes to OS-specific separators
+										nested_path = nested_folders_str.replace('/', os.path.sep)
+										dst = os.path.join(dest_dir, nested_path, os.path.basename(m))
+									else:
+										dst = os.path.join(dest_dir, os.path.basename(m))
+									
+									# Create parent directories if needed
+									try:
+										os.makedirs(os.path.dirname(dst), exist_ok=True)
+									except Exception:
+										pass
+									
+									# Copy the file
+									try:
+										import shutil
+										shutil.copy2(m, dst)
+										copy_succeeded = True
+										if is_sequence:
+											self.info_panel.append(f"[SEQ] Copied frame {idx+1}/{len(matches)}: {os.path.basename(m)}")
+										else:
+											self.info_panel.append(f"[STATIC] Copied: {os.path.basename(m)}")
+									except Exception as e:
+										self.info_panel.append(f"COPY ERROR on iteration {idx+1}: Failed to copy {m} -> {dst}: {e}")
+										continue
+									
+									# Build JSON path only once (on first successful copy)
+									if first_rel is None:
+										family = os.path.basename(dest_dir)
+										
+										if is_sequence:
+											# For sequences: derive prefix from the file name to respect separators (run1 vs run_1)
+											# Use the current file 'm' (which is the first one processed)
+											m_base = os.path.splitext(os.path.basename(m))[0]
+											base_no_digits = re.sub(r"\d+$", "", m_base)
+											
+											# Build JSON path with nested structure
+											if nested_folders_str:
+												first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{base_no_digits}".replace('\\', '/')
+											else:
+												first_rel = f"{skeleton_name}/{family}/{base_no_digits}".replace('\\', '/')
+										else:
+											# For static: use basename WITHOUT extension
+											# Spine automatically adds .png/.jpg to the path lookup
+											name_no_ext = os.path.splitext(os.path.basename(m))[0]
+											if nested_folders_str:
+												first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{name_no_ext}".replace('\\', '/')
+											else:
+												first_rel = f"{skeleton_name}/{family}/{name_no_ext}".replace('\\', '/')
+										
+										# Clean up any duplicate family tokens
+										first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
+								
+								# Update JSON with the path if ANY file was successfully copied
+								if first_rel and copy_succeeded:
+									if isinstance(attach_val, dict):
+										attach_val['path'] = first_rel
+									else:
+										attachments[attach_name] = {'path': first_rel}
+									if is_sequence:
+										self.info_panel.append(f"[SEQ] JSON path: {first_rel}")
+									else:
+										self.info_panel.append(f"[STATIC] JSON path: {first_rel}")
+							else:
+								# src is None: no files found, but check if this is a declared sequence
+								is_sequence = False
+								try:
+									if isinstance(attach_val, dict) and 'sequence' in attach_val:
+										is_sequence = True
+									elif str(attach_name).endswith('_'):
+										is_sequence = True
+								except Exception:
+									pass
+								
+								if is_sequence:
+									# For declared sequences with no files found, create placeholder using attachment name structure
+									family = os.path.basename(dest_dir)
+									
+									# Extract nested folders from ATTACHMENT NAME, filtering out family markers and skeleton names
+									attach_name_str = str(attach_name).replace('\\', '/')
+									nested_folders_str = ""
+									base_name = os.path.basename(str(attach_name))
+									
+									# Remove any family markers (jpeg/png) and skeleton name from the path
+									parts = attach_name_str.split('/')
+									filtered_parts = []
+									for part in parts[:-1]:  # Exclude the last part (basename)
+										part_lower = part.lower()
+										# Skip family markers and common skeleton-like names
+										if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton']:
+											filtered_parts.append(part)
+									
+									if filtered_parts:
+										nested_folders_str = '/'.join(filtered_parts)
+									
+									# Extract basename without digits for sequence placeholder
+									base_no_digits = re.sub(r"\d+$", "", base_name)
+									if base_no_digits and not base_no_digits.endswith('_'):
+										base_no_digits = base_no_digits + '_'
+									
+									# Build JSON path with nested structure
+									if nested_folders_str:
+										first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{base_no_digits}".replace('\\', '/')
+									else:
+										first_rel = f"{skeleton_name}/{family}/{base_no_digits}".replace('\\', '/')
+									first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
+									
+									# Create placeholder file ONLY if no real files were found
+									try:
+										if nested_folders_str:
+											nested_path = nested_folders_str.replace('/', os.path.sep)
+											ph_dst = os.path.join(dest_dir, nested_path, base_no_digits)
+										else:
+											ph_dst = os.path.join(dest_dir, base_no_digits)
+										os.makedirs(os.path.dirname(ph_dst), exist_ok=True)
+										if not os.path.exists(ph_dst):
+											with open(ph_dst, 'wb') as ph:
+												pass
+											self.info_panel.append(f"[SEQ] Created placeholder (no files found): {nested_folders_str + '/' if nested_folders_str else ''}{base_no_digits}")
+									except Exception as e:
+										self.info_panel.append(f"[SEQ] Failed to create placeholder: {e}")
+									
+									# Update JSON
+									if isinstance(attach_val, dict):
+										attach_val['path'] = first_rel
+									else:
+										attachments[attach_name] = {'path': first_rel}
+									self.info_panel.append(f"[SEQ] JSON path (missing files): {first_rel}")
+					return skin_dict
+
+				if isinstance(skins, dict):
+					for skin_name, skin in list(skins.items()):
+						if not isinstance(skin, dict):
+							self.info_panel.append(f"Skipping skin {skin_name}: unexpected type {type(skin)}")
+							continue
+						skins[skin_name] = process_skin_dict(skin)
+				elif isinstance(skins, list):
+					# preserve list shape: process each element which may be a dict mapping skinName->skinDict or a skinDict directly
+					new_list = []
+					for item in skins:
+						if isinstance(item, dict):
+							# detect if item is {skinName: {..}} or a skin dict (slot->attachments)
+							# if any value is a dict, treat as mapping skinName->skinDict
+							if any(isinstance(v, dict) for v in item.values()):
+								new_item = {}
+								for k, v in item.items():
+									if isinstance(v, dict):
+										new_item[k] = process_skin_dict(v)
+									else:
+										new_item[k] = v
+								new_list.append(new_item)
+							else:
+								# item itself is a skin dict
+								new_list.append(process_skin_dict(item))
+						else:
+							new_list.append(item)
+					j['skins'] = new_list
+
+				self.progress_bar.setValue(base_progress + 80)
+				QApplication.processEvents()
+
+				# Collect statistics for this file
+				all_file_stats.append((name, stats))
+
+				# normalize skeleton images path (remove leading './') so Spine can resolve images inside archive
+				skel = j.get('skeleton')
+				if isinstance(skel, dict):
+					# ensure skeleton.images points to the images folder relative to the JSON
+					skel['images'] = './images/'
+					
+					# Update Spine version in JSON if specified in UI
+					try:
+						target_ver = self.json_version_combo.currentText().strip()
+						if target_ver:
+							skel['spine'] = target_ver
+							self.info_panel.append(f"Updated JSON skeleton version to: {target_ver}")
+					except Exception:
+						pass
+						
+				# save modified json into the output root
+				# Removed '_sorted' suffix as requested
+				new_json_path = os.path.join(output_root, os.path.splitext(os.path.basename(found_json))[0] + '.json')
+				with open(new_json_path, 'w', encoding='utf-8') as nj:
+					json.dump(j, nj, indent=2)
+				self.info_panel.append(f"Wrote sorted json: {new_json_path}")
+
+				# create a .spine package in the output folder root (JSON + images)
+				try:
+					spine_pkg = os.path.join(output_root, skeleton_name + '.spine')
+					
+					# Ensure we don't have a stale file
+					if os.path.exists(spine_pkg):
+						try:
+							os.remove(spine_pkg)
+						except Exception:
+							pass
+
+					# Try Spine CLI import first
+					import_success = False
+					try:
+						run_exe = spine_exe
+						if os.name == 'nt' and spine_exe.lower().endswith('.exe'):
+							com_path = os.path.splitext(spine_exe)[0] + '.com'
+							if os.path.exists(com_path):
+								run_exe = com_path
+						
+						# Quote paths to be safe, though subprocess handles it
+						cmd = [run_exe, '-i', new_json_path, '-o', spine_pkg, '--import']
+						self.info_panel.append(f"Running CLI import: {' '.join(cmd)}")
+						
+						# Use creationflags to hide console window on Windows if using .com
+						creationflags = 0x08000000 if os.name == 'nt' else 0
+						# Try running without creationflags first if it fails? No, just log better.
+						
+						# Use Popen to allow stopping
+						process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=creationflags)
+						
+						while process.poll() is None:
+							if self.stop_requested:
+								process.kill()
+								self.info_panel.append("Spine CLI import process killed.")
+								raise Exception("Process stopped by user")
+							QApplication.processEvents()
+							time.sleep(0.1)
+							
+						stdout, stderr = process.communicate()
+						
+						if stdout: self.info_panel.append(f"CLI STDOUT: {stdout}")
+						if stderr: self.info_panel.append(f"CLI STDERR: {stderr}")
+						
+						# Check if file exists and has some size (empty zip is ~22 bytes)
+						if os.path.exists(spine_pkg):
+							size = os.path.getsize(spine_pkg)
+							self.info_panel.append(f"Generated file size: {size} bytes")
+							if process.returncode == 0 and size > 500:
+								import_success = True
+								self.info_panel.append(f"Successfully created .spine via CLI: {spine_pkg}")
+							else:
+								self.info_panel.append(f"CLI import finished but file seems too small or return code {process.returncode} != 0.")
+						else:
+							self.info_panel.append(f"CLI import failed: Output file not found.")
+					except Exception as cli_err:
+						self.info_panel.append(f"CLI import exception: {cli_err}")
+
+					if not import_success:
+						self.info_panel.append("Falling back to manual zip creation...")
+						import zipfile
+						# Removed '_sorted' suffix as requested
+						with zipfile.ZipFile(spine_pkg, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+							# add json using the package base name so Spine can find the project JSON inside the .spine
+							pkg_json_name = os.path.splitext(os.path.basename(spine_pkg))[0] + '.json'
+							zf.write(new_json_path, arcname=pkg_json_name.replace(os.path.sep, '/'))
+							# add images under images/..
+							for root, dirs, files in os.walk(images_root):
+								for f in files:
+									full = os.path.join(root, f)
+									arc = os.path.relpath(full, output_root).replace(os.path.sep, '/')
+									zf.write(full, arcname=arc)
+						self.info_panel.append(f"Wrote new spine package (zip): {spine_pkg}")
+					
+					# Verify package creation
+					if not os.path.exists(spine_pkg) or os.path.getsize(spine_pkg) < 100:
+						self.info_panel.append(f"WARNING: Package file seems invalid or empty: {spine_pkg}")
+
+					self.progress_bar.setValue(base_progress + 95)
+					QApplication.processEvents()
+
+					# Validate package using included tool
+					try:
+						if self.config.get("keep_temp_files", False):
+							self.info_panel.append(f"Validating package: {os.path.basename(spine_pkg)}")
+							# Use internal validator class
+							is_valid = SpinePackageValidator.diagnose(spine_pkg, log_callback=self.info_panel.append)
+							if not is_valid:
+								QMessageBox.warning(self, "Package validation", f"Validation reported issues. See Info log for details.")
+					except Exception as e:
+						self.info_panel.append(f"Validation step failed: {e}")
+
+					# Optionally open the generated .spine in Spine
+					try:
+						should_open = self.config.get("open_after_export") or self.open_after_checkbox.isChecked()
+						if should_open:
+							if os.path.isfile(spine_exe):
+								self.info_panel.append(f"Attempting to open in Spine: {spine_exe} \"{spine_pkg}\"")
+								# Use subprocess.Popen to avoid blocking the UI
+								subprocess.Popen([spine_exe, spine_pkg])
+								self.info_panel.append(f"Launched Spine.")
+							else:
+								self.info_panel.append(f"Cannot open Spine: Executable not found at {spine_exe}")
+						else:
+							self.info_panel.append("Open after export is disabled.")
+					except Exception as e:
+						self.info_panel.append(f"Could not open in Spine: {e}")
+				except Exception as e:
+					self.info_panel.append(f"Could not write spine package: {e}")
+		except Exception as e:
+			self.info_panel.append(f"Sorting step failed: {e}")
+		
+		# Cleanup temporary JSON if configured
+		try:
+			keep_temp = self.config.get("keep_temp_files", False)
+			if not keep_temp:
+				if new_json_path and os.path.exists(new_json_path):
+					os.remove(new_json_path)
+					self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
+		except Exception as e:
+			self.info_panel.append(f"Failed to cleanup temporary files: {e}")
+
 	def process_selected(self):
 		self.stop_requested = False
 		# use selected Spine executable from dropdown (fall back to config/default)
@@ -1130,6 +2227,32 @@ class MainWindow(QMainWindow):
 			self.stop_btn.setEnabled(False)
 			return
 
+		# Create temporary export settings file
+		export_settings_path = os.path.join(os.getcwd(), "temp_export_settings.json")
+		export_settings = {
+			"class": "export-json",
+			"name": "JSON",
+			"project": "",
+			"output": ".",
+			"extension": ".json",
+			"format": "JSON",
+			"prettyPrint": False,
+			"nonessential": False,
+			"cleanUp": True,
+			"packAtlas": None,
+			"packSource": "attachments",
+			"packTarget": "pers",
+			"warnings": True
+		}
+		try:
+			with open(export_settings_path, 'w') as f:
+				json.dump(export_settings, f, indent=2)
+		except Exception as e:
+			self.info_panel.append(f"Failed to create export settings: {e}")
+			self.process_btn.setEnabled(True)
+			self.stop_btn.setEnabled(False)
+			return
+
 		timestamp = int(time.time())
 		results = []
 		errors = []
@@ -1164,7 +2287,7 @@ class MainWindow(QMainWindow):
 			try:
 				last_stdout = last_stderr = ""
 				self.info_panel.append(f"Processing: {name}")
-				cmd = [spine_exe, '-i', input_path, '-o', result_dir, '-e', 'json']
+				cmd = [spine_exe, '-i', input_path, '-o', result_dir, '-e', export_settings_path]
 				self.info_panel.append(f"Running fixed CLI: {' '.join(cmd)}")
 				self.info_panel.append(f"Temporary export folder: {result_dir}")
 				self.info_panel.append(f"Working directory: {os.getcwd()}")
@@ -1173,17 +2296,27 @@ class MainWindow(QMainWindow):
 				creationflags = 0x08000000 if os.name == 'nt' else 0
 				
 				# Use Popen to allow stopping
-				process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=creationflags)
+				# FIX: Use explicit files in result_dir to avoid pipe buffer deadlock
+				stdout_path = os.path.join(result_dir, "spine_stdout.txt")
+				stderr_path = os.path.join(result_dir, "spine_stderr.txt")
 				
-				while process.poll() is None:
-					if self.stop_requested:
-						process.kill()
-						self.info_panel.append("Spine CLI process killed.")
-						raise Exception("Process stopped by user")
-					QApplication.processEvents()
-					time.sleep(0.1)
-				
-				last_stdout, last_stderr = process.communicate()
+				with open(stdout_path, 'w+', encoding='utf-8') as stdout_f, open(stderr_path, 'w+', encoding='utf-8') as stderr_f:
+					process = subprocess.Popen(cmd, stdout=stdout_f, stderr=stderr_f, text=True, creationflags=creationflags)
+					
+					while process.poll() is None:
+						if self.stop_requested:
+							process.kill()
+							self.info_panel.append("Spine CLI process killed.")
+							raise Exception("Process stopped by user")
+						QApplication.processEvents()
+						time.sleep(0.1)
+					
+					# Read back the output
+					stdout_f.seek(0)
+					stderr_f.seek(0)
+					last_stdout = stdout_f.read()
+					last_stderr = stderr_f.read()
+
 				self.info_panel.append(f"--- STDOUT ---\n{last_stdout}")
 				self.info_panel.append(f"--- STDERR ---\n{last_stderr}")
 				ran = True
@@ -1196,20 +2329,27 @@ class MainWindow(QMainWindow):
 			# Wait a short while for exported files to appear in the temporary result_dir
 			found_json = None
 			found_info = None
+			all_jsons = []
 			for _ in range(15):
 				if self.stop_requested:
 					break
+				
+				all_jsons = [os.path.join(result_dir, f) for f in os.listdir(result_dir) if f.lower().endswith('.json')]
+				if all_jsons:
+					found_json = all_jsons[0]
+
 				for f in os.listdir(result_dir):
 					lf = f.lower()
-					if lf.endswith('.json') and not found_json:
-						found_json = os.path.join(result_dir, f)
 					if (lf.endswith('.atlas') or lf.endswith('.txt') or 'info' in lf) and not found_info:
 						found_info = os.path.join(result_dir, f)
 				if found_json or found_info:
 					break
 				QApplication.processEvents()
 				time.sleep(1)
-
+			
+			if len(all_jsons) > 1:
+				self.info_panel.append(f"Found {len(all_jsons)} JSON files (multiple skeletons). Processing all...")
+			
 			if not (found_json or found_info):
 				# allow maybe Spine exported next to .spine file; look there
 				base = os.path.splitext(input_path)[0]
@@ -1217,6 +2357,7 @@ class MainWindow(QMainWindow):
 				alt_atlas = base + '.atlas'
 				if os.path.exists(alt_json):
 					found_json = alt_json
+					all_jsons = [alt_json]
 				if os.path.exists(alt_atlas):
 					found_info = alt_atlas
 
@@ -1234,1043 +2375,35 @@ class MainWindow(QMainWindow):
 				QMessageBox.warning(self, "Spine CLI output", msg)
 				continue
 
-			# Collect image file paths from json, atlas/info and by scanning the export folder
-			image_paths = set()
-			try:
-				# parse json for image references (use structured parsing when possible)
-				if found_json and os.path.exists(found_json):
-					try:
-						with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
-							obj = json.load(fh)
-						def collect_from_json(x):
-							if isinstance(x, str):
-								if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
-									image_paths.add(x)
-							elif isinstance(x, dict):
-								for k, v in x.items():
-									if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-										image_paths.add(k)
-									collect_from_json(v)
-							elif isinstance(x, list):
-								for v in x:
-									collect_from_json(v)
-						collect_from_json(obj)
-						# also collect keys (attachment names) which may be basenames without extension
-						# ignore common non-image keys (e.g. 'skins', 'skeleton', 'slots') to reduce noise
-						IGNORE_KEYS = {
-							'skins', 'skeleton', 'slots', 'bones', 'animations', 'attachment', 'attachments',
-							'audio', 'path', 'name', 'width', 'height', 'x', 'y', 'scale', 'scalex', 'scaley',
-							'translate', 'translatex', 'translatey', 'rotate', 'rotation', 'rgba', 'color',
-							'blend', 'start', 'time', 'delay', 'sequence', 'mode', 'count', 'length', 'hash',
-							'icon', 'logo', 'parent', 'value', 'spine'
-						}
-						def collect_keys(x):
-							if isinstance(x, dict):
-								for k, v in x.items():
-									if isinstance(k, str):
-										kl = k.lower()
-										# add explicit image filenames
-										if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-											image_paths.add(k)
-										# add bare keys only if they're not in the ignore list
-										elif kl not in IGNORE_KEYS:
-											image_paths.add(k)
-									collect_keys(v)
-							elif isinstance(x, list):
-								for v in x:
-									collect_keys(v)
-						collect_keys(obj)
-					except Exception:
-						# fallback to raw text regex if JSON parsing fails
-						with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
-							data = fh.read()
-							for m in re.findall(r'([\w\-/\\]+\.(?:png|jpg|jpeg|webp|bmp|tga))', data, flags=re.IGNORECASE):
-								image_paths.add(m)
-
-				# parse any atlas files placed in the export folder
-				for f in os.listdir(result_dir):
-					if f.lower().endswith('.atlas'):
-						atlas_path = os.path.join(result_dir, f)
-						with open(atlas_path, 'r', encoding='utf-8', errors='ignore') as ah:
-							for line in ah:
-								line = line.strip()
-								if not line:
-									continue
-								# atlas files commonly list image names (one per section)
-								if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
-									image_paths.add(line)
-
-				# parse any info/text files (found_info) for image names
-				if found_info and os.path.exists(found_info):
-					with open(found_info, 'r', encoding='utf-8', errors='ignore') as fh:
-						for line in fh:
-							line = line.strip()
-							if not line:
-								continue
-							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
-								image_paths.add(line)
-
-				# also include any image files physically present in the export folder (recursive)
-				for root, dirs, files in os.walk(result_dir):
-					for fn in files:
-						if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', fn, flags=re.IGNORECASE):
-							# store relative path to result_dir so later resolution can join correctly
-							rel = os.path.relpath(os.path.join(root, fn), result_dir)
-							image_paths.add(rel)
-			except Exception as e:
-				errors.append(f"{name}: error parsing exports: {e}")
-
-			# Debug: show collected image references from exports
-			try:
-				if image_paths:
-					self.info_panel.append("Collected image refs: " + ", ".join(sorted(image_paths)))
-			except Exception:
-				pass
-
-			# Resolve image paths to filesystem paths relative to the temporary result_dir, folder, or input folder
-			resolved = set()
-			# directories to search (priority order)
-			search_dirs = [result_dir, folder, os.path.dirname(input_path)]
+			# Process each found JSON (skeleton)
+			# If no JSONs found but we have info/atlas (unlikely for export-json), we might skip or handle differently.
+			# But typically export-json produces at least one JSON.
+			if not all_jsons and found_json:
+				all_jsons = [found_json]
 			
-			# Add sibling 'Spine/images' folder if it exists (common project structure)
-			# If folder is 'sorted', parent is project root.
-			project_root = os.path.dirname(folder)
-			spine_images = os.path.join(project_root, 'Spine', 'images')
-			if os.path.exists(spine_images):
-				search_dirs.append(spine_images)
-			
-			# Also add 'images' subdir of folder if exists
-			img_subdir = os.path.join(folder, 'images')
-			if os.path.exists(img_subdir):
-				search_dirs.append(img_subdir)
-			for ip in image_paths:
-				# absolute path check (must be a file)
-				if os.path.isabs(ip) and os.path.isfile(ip):
-					resolved.add(ip)
-					continue
-				# try direct joins first
-				found = None
-				for d in search_dirs:
-					candidate = os.path.join(d, ip)
-					# only accept actual files (not directories)
-					if os.path.isfile(candidate):
-						found = candidate
-						break
-				if found:
-					resolved.add(found)
-					continue
-				# fallback: search for matching basename in the search_dirs recursively
-				base = os.path.basename(ip)
-				for d in search_dirs:
-					if not d or not os.path.exists(d):
-						continue
-					for full_path, f_lower in file_scanner.scan(d):
-						# Ensure we only match image files
-						if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
-							continue
-						fname_noext = os.path.splitext(f_lower)[0]
-						if f_lower == base.lower() or fname_noext == base.lower():
-							resolved.add(full_path)
-							break
-			
-			# Smart scan: Only add files that match referenced images or their sequences
-			try:
-				self.info_panel.append("Scanning source directories for relevant image files...")
-				
-				# Build prefixes from JSON references
-				prefixes = set()
-				for ip in image_paths:
-					# clean up path separators
-					ip_clean = ip.replace('\\', '/')
-					base = os.path.basename(ip_clean)
-					base_no_ext = os.path.splitext(base)[0]
-					if base_no_ext:
-						prefixes.add(base_no_ext.lower())
-				
-				scanned_count = 0
-				for d in search_dirs:
-					if not d or not os.path.exists(d):
-						continue
-					
-					# Use cached directory scan
-					for full_path, f_lower in file_scanner.scan(d):
-						if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
-							continue
-						
-						# Check if file matches any prefix (exact or sequence)
-						f_base = os.path.splitext(f_lower)[0]
-						is_relevant = False
-						
-						# Quick check
-						if f_base in prefixes:
-							is_relevant = True
-						else:
-							# Sequence check
-							for p in prefixes:
-								if f_base.startswith(p):
-									rem = f_base[len(p):]
-									# Match if remainder is empty, or starts with separator/digit
-									if not rem or rem[0] in ('_', '-') or rem[0].isdigit():
-										is_relevant = True
-										break
-						
-						if is_relevant:
-							if full_path not in resolved:
-								resolved.add(full_path)
-								scanned_count += 1
-
-				self.info_panel.append(f"Added {scanned_count} relevant files from disk scan.")
-			except Exception as e:
-				self.info_panel.append(f"Disk scan warning: {e}")
-
-			# convert to list for further processing and log resolved files
-			resolved = list(resolved)
-			self.progress_bar.setValue(base_progress + 20)
-			QApplication.processEvents()
-			try:
-				if resolved:
-					self.info_panel.append("Resolved image files: " + ", ".join(sorted(resolved)[:50]))  # Show first 50
-					if len(resolved) > 50:
-						self.info_panel.append(f"  ... and {len(resolved) - 50} more")
-			except Exception:
-				pass
-			
-			# DEBUG: Log all resolved files with details for debugging sequences
-			try:
-				basenames = {}
-				for r in resolved:
-					bn = os.path.basename(r).lower()
-					if bn not in basenames:
-						basenames[bn] = []
-					basenames[bn].append(r)
-				
-				# Show files that look like sequences (have numeric suffixes)
-				seq_like = [bn for bn in basenames if re.search(r'\d+\.(?:png|jpg|jpeg)', bn)]
-				if seq_like:
-					self.info_panel.append(f"DEBUG: Found {len(seq_like)} files with numeric patterns (likely sequences)")
-					for bn in sorted(seq_like)[:20]:
-						self.info_panel.append(f"  - {bn} ({len(basenames[bn])} instance(s))")
-			except Exception as e:
-				pass
-
-			opaque_results = []
-			total_images = len(resolved)
-			for img_idx, img_path in enumerate(resolved):
+			for json_idx, current_json in enumerate(all_jsons):
 				if self.stop_requested:
 					break
-
-				# Skip non-image files (e.g. json files picked up by loose matching)
-				if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', img_path, re.IGNORECASE):
-					continue
-
-				# Update progress for image analysis
-				if total_images > 0:
-					# Map 20->50 range (30 points)
-					p = base_progress + 20 + int((img_idx / total_images) * 30)
-					self.progress_bar.setValue(p)
-					# Process events frequently to allow stopping
-					QApplication.processEvents()
-
-				try:
-					# Check cache first
-					cached_data = self.image_cache.get(img_path)
-					current_alpha_cutoff = int(self.config.get("alpha_cutoff", 250))
-					current_threshold = float(self.config.get("opacity_threshold", self.opacity_slider.value())) / 100.0
-					
-					if cached_data and isinstance(cached_data, dict):
-						if (cached_data.get('alpha_cutoff') == current_alpha_cutoff and 
-							cached_data.get('threshold') == current_threshold):
-							fully_opaque = cached_data['fully_opaque']
-							has_transparent_corners = cached_data['has_transparent_corners']
-							opaque_results.append((img_path, fully_opaque, has_transparent_corners))
-							continue
-
-					# Increase Pillow's text chunk limit to handle large metadata
-					Image.MAX_IMAGE_PIXELS = None # Disable decompression bomb check if needed
-					from PIL import PngImagePlugin
-					# Increase both chunk size and total memory limits for text chunks
-					# Some PNGs have massive metadata (e.g. 70MB+)
-					PngImagePlugin.MAX_TEXT_CHUNK = 500 * 1024 * 1024 # 500MB limit
-					PngImagePlugin.MAX_TEXT_MEMORY = 500 * 1024 * 1024 # 500MB limit
-
-					im = Image.open(img_path)
-					# convert to RGBA to reliably access alpha channel
-					rgba = im.convert('RGBA')
-					alpha = rgba.split()[-1]
-					data = list(alpha.getdata())
-					total = len(data)
-					if total == 0:
-						# treat empty images as opaque to avoid divide-by-zero
-						ratio = 1.0
-					else:
-						# use configured alpha cutoff (count pixels with alpha >= cutoff as opaque)
-						alpha_cutoff = current_alpha_cutoff
-						opaque_count = sum(1 for v in data if v >= alpha_cutoff)
-						ratio = opaque_count / total
-					# threshold from slider (percentage)
-					threshold = current_threshold
-					fully_opaque = (ratio >= threshold)
-					
-					# Check for transparent corners (round edges detection)
-					has_transparent_corners = False
-					w, h = im.size
-					if w > 1 and h > 1:
-						corners = [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]
-						for cx, cy in corners:
-							# getpixel returns (R, G, B, A) for RGBA
-							if rgba.getpixel((cx, cy))[3] < alpha_cutoff:
-								has_transparent_corners = True
-								break
-					
-					# log percentage for visibility
-					try:
-						corner_msg = " [Round/Transp Corners]" if has_transparent_corners else ""
-						self.info_panel.append(f"Opacity for {img_path}: {ratio*100:.2f}% ({opaque_count}/{total}){corner_msg}")
-					except Exception:
-						pass
-					
-					# Update cache
-					self.image_cache.set(img_path, {
-						'fully_opaque': fully_opaque,
-						'has_transparent_corners': has_transparent_corners,
-						'alpha_cutoff': current_alpha_cutoff,
-						'threshold': current_threshold
-					})
-
-					opaque_results.append((img_path, fully_opaque, has_transparent_corners))
-				except Exception as e:
-					errors.append(f"{name}: image analyze failed {img_path}: {e}")
-
-			# Write opaque results to file
-			try:
-				json_base = os.path.splitext(os.path.basename(found_json or input_path))[0]
-				out_file = os.path.join(result_dir, f"opaque_{json_base}.txt")
-				with open(out_file, 'w', encoding='utf-8') as fh:
-					for p, opaque, corners in opaque_results:
-						fh.write(f"{p}\t{int(bool(opaque))}\t{int(bool(corners))}\n")
-				results.append(out_file)
-				self.info_panel.append(f"Wrote result: {out_file}")
-			except Exception as e:
-				errors.append(f"{name}: could not write result file: {e}")
-				self.info_panel.append(f"Could not write result file: {e}")
-
-			self.progress_bar.setValue(base_progress + 50)
-			QApplication.processEvents()
-
-			# --- Sorting algorithm: copy attachments into jpeg/png and rebuild JSON ---
-			new_json_path = None
-			try:
-				if found_json and os.path.exists(found_json):
-					# build opaque map (basename or full path -> (opaque, has_transparent_corners))
-					opaque_map = {}
-					for p, ok, corners in opaque_results:
-						opaque_map[os.path.normpath(p)] = (bool(ok), bool(corners))
-						opaque_map[os.path.basename(p)] = (bool(ok), bool(corners))
-
-					# load json
-					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
-						j = json.load(fh)
-
-					# skeleton name
-					skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
-
-					# build slot blend map
-					slot_blend = {}
-					for s in j.get('slots', []):
-						slot_blend[s.get('name')] = s.get('blend', 'normal')
-
-					# prepare final output image folders under the chosen output root
-					# structure: <output_root>/images/<skeleton>/{jpeg,png}
-					output_root = base_output_root
-					images_root = os.path.join(output_root, 'images', skeleton_name)
-					jpeg_dir = os.path.join(images_root, 'jpeg')
-					png_dir = os.path.join(images_root, 'png')
-					os.makedirs(jpeg_dir, exist_ok=True)
-					os.makedirs(png_dir, exist_ok=True)
-
-					# helper: find source file for an image reference
-					def find_source_image(ref_name):
-						# Debug: log the reference being searched
-						try:
-							self.info_panel.append(f"find_source_image: looking for ref '{ref_name}'")
-						except Exception:
-							pass
-						# try absolute -> return as single-item list for consistency
-						if os.path.isabs(ref_name) and os.path.isfile(ref_name):
-							return [ref_name]
-						# normalized key lookup against opaque_map: return all matching resolved candidates
-						norm = os.path.normpath(ref_name)
-						if norm in opaque_map:
-							matches = []
-							norm_base = os.path.basename(norm).lower()
-							for cand in resolved:
-								if os.path.basename(cand).lower() == norm_base:
-									matches.append(cand)
-							if matches:
-								try:
-									self.info_panel.append(f"find_source_image: exact match found {len(matches)} candidates")
-								except Exception:
-									pass
-								return matches
-						# basename without extension
-						base = os.path.splitext(os.path.basename(ref_name))[0]
-						base_l = base.lower()
-						# normalize a core base by stripping trailing separators so 'particles_' -> 'particles'
-						base_core = base_l.rstrip('_-')
-						# Debug
-						try:
-							self.info_panel.append(f"find_source_image: base='{base}' core='{base_core}' ref_name='{ref_name}'")
-						except Exception:
-							pass
-						# prepare containers
-						seq_matches = []
-						prefix_matches = []
-						exact_matches = []
-						# regex to capture numeric suffix after the core base
-						seq_re = re.compile(r'^' + re.escape(base_core) + r'(?:[_\-]?)(\d+)$')
-						for cand in resolved:
-							name_noext = os.path.splitext(os.path.basename(cand))[0].lower()
-							# exact match (filename equals reference basename)
-							if name_noext == base_l:
-								exact_matches.append(cand)
-							# numeric sequence match (e.g., base_core + sep + digits)
-							m = seq_re.match(name_noext)
-							if m:
-								num = int(m.group(1))
-								seq_matches.append((num, cand))
-							# prefix match (starts with the reference basename)
-							elif name_noext.startswith(base_l) or name_noext.startswith(base_core):
-								prefix_matches.append(cand)
-						
-						# DEBUG: Log what we found
-						try:
-							self.info_panel.append(f"find_source_image DEBUG: seq_matches={len(seq_matches)}, exact_matches={len(exact_matches)}, prefix_matches={len(prefix_matches)}")
-							if seq_matches:
-								self.info_panel.append(f"  seq_matches: {[(n, os.path.basename(p)) for n, p in seq_matches]}")
-						except Exception:
-							pass
-						
-						# PRIORITY CHANGE: If we have an exact match and the reference name does NOT end with '_',
-						# prefer the exact match. This prevents 'h2_glow' from matching 'h2_glow_01' if 'h2_glow.png' exists.
-						if exact_matches and not ref_name.endswith('_'):
-							try:
-								self.info_panel.append(f"Exact match found for '{ref_name}' (not a declared sequence), ignoring {len(seq_matches)} sequence matches.")
-							except Exception:
-								pass
-							return exact_matches
-
-						# prefer numeric sequences if found
-						if seq_matches:
-							seq_matches.sort(key=lambda x: x[0])
-							try:
-								self.info_panel.append(f"Sequence detected for '{ref_name}': {len(seq_matches)} frames")
-							except Exception:
-								pass
-							# return ordered list of candidates
-							return [p for _, p in seq_matches]
-						# then prefer an exact match
-						if exact_matches:
-							# return all exact matches (could be multiple in different folders)
-							try:
-								self.info_panel.append(f"Exact matches for '{ref_name}': {len(exact_matches)} found")
-							except Exception:
-								pass
-							return exact_matches
-						# then prefix matches: sort intelligently (numeric suffixes first)
-						if prefix_matches:
-							# Check if any candidate is an exact match for base_core (e.g. 'coins.png' for 'coins_')
-							# If found, prefer it over loose prefix matches like 'coins_glow.png'
-							core_exact = [p for p in prefix_matches if os.path.splitext(os.path.basename(p))[0].lower() == base_core]
-							if core_exact:
-								try:
-									self.info_panel.append(f"Found exact match for core '{base_core}' within prefix matches. Using it.")
-								except Exception:
-									pass
-								return core_exact
-
-							# Filter prefix matches: if we have 'image' and 'image_old', and ref is 'image',
-							# 'image_old' is a prefix match but shouldn't be used if it's not a sequence.
-							# Only accept prefix matches that look like sequences (end in digits) OR if we have no other choice.
-							
-							# attempt numeric-suffix ordering: extract trailing digits from basename
-							def _num_key(path):
-								bn = os.path.splitext(os.path.basename(path))[0]
-								m = re.search(r'(\d+)$', bn)
-								if m:
-									return (0, int(m.group(1)))
-								# no trailing digits: fallback to alphabetical
-								return (1, bn)
-							try:
-								prefix_matches.sort(key=_num_key)
-							except Exception:
-								prefix_matches.sort()
-							
-							# If the top match doesn't look like a sequence (no digits), and we have multiple matches,
-							# it might be picking up unrelated files.
-							# But if we are here, we have no exact match and no clear sequence match.
-							
-							try:
-								self.info_panel.append(f"Prefix matches for '{ref_name}': {len(prefix_matches)} found, representative: {os.path.basename(prefix_matches[0])}")
-							except Exception:
-								pass
-							return prefix_matches
-						# nothing found
-						try:
-							self.info_panel.append(f"find_source_image: NO MATCHES FOUND for '{ref_name}'")
-						except Exception:
-							pass
-						return None
-
-					# iterate skins -> slots -> attachments
-					skins = j.get('skins', {})
-					# build a list of all skin dicts (slot->attachments) regardless of skins being dict or list
-					ALL_SKIN_DICTS = []
-					if isinstance(skins, dict):
-						for _, sdict in skins.items():
-							if isinstance(sdict, dict):
-								ALL_SKIN_DICTS.append(sdict)
-					elif isinstance(skins, list):
-						for item in skins:
-							if isinstance(item, dict):
-								# case: {'name': 'default', 'attachments': {...}}
-								if 'attachments' in item and isinstance(item.get('attachments'), dict):
-									ALL_SKIN_DICTS.append(item.get('attachments'))
-								else:
-									# case: {skinName: skinDict, ...}
-									for v in item.values():
-										if isinstance(v, dict):
-											ALL_SKIN_DICTS.append(v)
-					# helper to process a single skin dict (slot -> attachments)
-					stats = {'total': 0, 'jpeg': 0, 'png': 0}
-					def process_skin_dict(skin_dict):
-						if not isinstance(skin_dict, dict):
-							return skin_dict
-						for slot_name, attachments in list(skin_dict.items()):
-							if not isinstance(attachments, dict):
-								self.info_panel.append(f"Skipping slot {slot_name}: unexpected attachments type {type(attachments)}")
-								continue
-							for attach_name, attach_val in list(attachments.items()):
-								if self.stop_requested:
-									raise Exception("Process stopped by user")
-								stats['total'] += 1
-								# determine referenced image name
-								src = None
-								ref = None
-								
-								# 1. Try to find source based on existing 'path' or 'name' property first
-								# This preserves explicit overrides (like 'coins' attachment pointing to 'placeholder.png')
-								if isinstance(attach_val, dict):
-									alt_ref = None
-									if 'path' in attach_val:
-										alt_ref = os.path.basename(attach_val['path'])
-									elif 'name' in attach_val:
-										alt_ref = os.path.basename(attach_val['name'])
-									
-									if alt_ref:
-										src = find_source_image(alt_ref)
-										if src:
-											ref = alt_ref # for logging
-											try:
-												self.info_panel.append(f"Found source via existing path/name: {alt_ref}")
-											except Exception:
-												pass
-
-								# 2. If not found, try to find source based on attachment name (the key)
-								if not src:
-									# IMPORTANT: For sequence detection, we should use attach_name (the key),
-									# NOT the stored 'path' field, because sequences need to be identified by
-									# their expected naming pattern, not by what might be stored from a previous run
-									if isinstance(attach_val, dict):
-										# Use basename of attach_name as the search reference
-										# This allows find_source_image to search for sequence patterns
-										ref = os.path.basename(attach_name)
-									else:
-										# attach_name may include folder-like segments (e.g. 'h1_particles/jpeg/h1_particles_')
-										ref = os.path.basename(attach_name)
-									# find real source file
-									src = find_source_image(ref)
-
-								# Fallback: if not found, try 'path' or 'name' from the attachment data
-								# This handles cases where attachment name (e.g. 'png/wd_face') differs from file name (e.g. 'face.png')
-								# (This is now redundant with step 1 but kept for safety if step 1 failed but step 2 also failed)
-								if not src and isinstance(attach_val, dict):
-									alt_ref = None
-									if 'path' in attach_val:
-										alt_ref = os.path.basename(attach_val['path'])
-									elif 'name' in attach_val:
-										alt_ref = os.path.basename(attach_val['name'])
-									
-									if alt_ref:
-										# Strip extension if present, as find_source_image handles extensions
-										alt_ref_base = os.path.splitext(alt_ref)[0]
-										if alt_ref_base != ref:
-											src = find_source_image(alt_ref_base)
-											if src:
-												try:
-													self.info_panel.append(f"Found match using attachment path/name for '{attach_name}': {alt_ref_base}")
-												except Exception:
-													pass
-
-								# determine blend(s) for this slot
-								blend = slot_blend.get(slot_name, 'normal')
-								# determine opaque status and corner transparency
-								is_opaque = False
-								has_transparent_corners = False
-								if src:
-									# src may be a single path or a list of matches; consider all matches opaque to be opaque
-									matches_check = src if isinstance(src, (list, tuple)) else [src]
-									opaque_vals = []
-									corner_vals = []
-									for m in matches_check:
-										# opaque_map now returns (is_opaque, has_transparent_corners)
-										# default to (False, False) if not found
-										res = opaque_map.get(os.path.normpath(m), opaque_map.get(os.path.basename(m), (False, False)))
-										# Handle case where map might still have old boolean values (unlikely but safe)
-										if isinstance(res, bool):
-											opaque_vals.append(res)
-											corner_vals.append(False)
-										else:
-											opaque_vals.append(res[0])
-											corner_vals.append(res[1])
-									
-									# require all frames/matches to be opaque to treat as opaque
-									is_opaque = all(opaque_vals) if opaque_vals else False
-									# if ANY frame has transparent corners, treat as having transparent corners
-									has_transparent_corners = any(corner_vals) if corner_vals else False
-
-								# If attachment appears in slots, collect those slots and their blends
-								slots_found = []
-								for skin2 in ALL_SKIN_DICTS:
-									for slot2, slot_val in skin2.items():
-										try:
-											if attach_name in slot_val:
-												slots_found.append(slot2)
-										except Exception:
-											continue
-
-								# decide destination:
-								# - If attachment appears in one or more slots and ALL such slots use a non-normal blend,
-								#   then put the image in `jpeg`.
-								# - Otherwise, if the image is opaque AND DOES NOT HAVE TRANSPARENT CORNERS, put in `jpeg`.
-								# - Otherwise put in `png`.
-								dest_dir = None
-								appears_only_in_non_normal = False
-								if slots_found:
-									appears_only_in_non_normal = all(slot_blend.get(s, 'normal') != 'normal' for s in slots_found)
-
-								if slots_found and appears_only_in_non_normal:
-									dest_dir = jpeg_dir
-									stats['jpeg'] += 1
-									try:
-										self.info_panel.append(f"Decision for '{attach_name}': JPEG (Only non-normal slots)")
-									except Exception:
-										pass
-								elif is_opaque and not has_transparent_corners:
-									dest_dir = jpeg_dir
-									stats['jpeg'] += 1
-									try:
-										self.info_panel.append(f"Decision for '{attach_name}': JPEG (Opaque & Square)")
-									except Exception:
-										pass
-								else:
-									dest_dir = png_dir
-									stats['png'] += 1
-									try:
-										reason = []
-										if not is_opaque: reason.append("Not Opaque")
-										if has_transparent_corners: reason.append("Transparent Corners")
-										if not reason: reason.append("Default/Mixed")
-										
-										# Check if source was likely intended as JPEG
-										is_jpeg_source = False
-										if src:
-											matches_check = src if isinstance(src, (list, tuple)) else [src]
-											if matches_check:
-												for m in matches_check:
-													m_lower = m.lower()
-													if 'jpeg' in m_lower or m_lower.endswith(('.jpg', '.jpeg')):
-														is_jpeg_source = True
-														break
-										
-										if is_jpeg_source:
-											msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manualy or change blend mode !!!"
-											self.info_panel.append(msg)
-											jpeg_forced_png_warnings.append(f"[{name}] {msg}")
-										else:
-											self.info_panel.append(f"Decision for '{attach_name}': PNG ({', '.join(reason)})")
-									except Exception:
-										pass
-								# copy file(s) if found
-								if src:
-									matches = src if isinstance(src, (list, tuple)) else [src]
-									# DEBUG: Log what find_source_image returned
-									try:
-										self.info_panel.append(f"DEBUG: find_source_image('{ref}') returned {len(matches)} items: {[os.path.basename(m) for m in matches]}")
-									except Exception:
-										pass
-									
-									# Detect if this is a sequence: multiple matches OR explicit sequence metadata
-									# A sequence implies multiple DIFFERENT frames (different filenames).
-									# If we have multiple matches but they are the same filename (duplicates), it's static.
-									unique_basenames = set(os.path.basename(m) for m in matches)
-									is_sequence = len(unique_basenames) > 1
-									
-									if not is_sequence:
-										# Check for explicit sequence declaration in attachment metadata
-										try:
-											if isinstance(attach_val, dict) and 'sequence' in attach_val:
-												is_sequence = True
-											# Only treat trailing underscore as sequence if we actually found multiple files
-											# or if it's a known convention. But if we only found 1 file, it's likely static.
-											elif str(attach_name).endswith('_') and len(matches) > 1:
-												is_sequence = True
-										except Exception:
-											pass
-									
-									# DEBUG: Log sequence detection
-									try:
-										self.info_panel.append(f"DEBUG: is_sequence={is_sequence}, len(matches)={len(matches)}, attach_name={attach_name}")
-									except Exception:
-										pass
-									
-									if is_sequence and len(matches) > 1:
-										try:
-											self.info_panel.append(f"Copying sequence of {len(matches)} frames for '{attach_name}' to {dest_dir}")
-										except Exception:
-											pass
-									
-									# Extract nested folder structure from ATTACHMENT NAME (the source of truth)
-									# attach_name might be: "coin_rotation/anticipation/anticipation_blue_" 
-									# or incorrectly: "symbols/jpeg/coin_rotation/anticipation/anticipation_blue_"
-									# We need to extract ONLY the folder structure that should go in the output
-									attach_name_str = str(attach_name).replace('\\', '/')
-									nested_folders_str = ""
-									base_name = os.path.basename(str(attach_name))
-									
-									# Remove any family markers (jpeg/png) and skeleton name from the path
-									# Split by '/' and filter out unwanted parts
-									parts = attach_name_str.split('/')
-									filtered_parts = []
-									for part in parts[:-1]:  # Exclude the last part (basename)
-										part_lower = part.lower()
-										# Skip family markers and common skeleton-like names
-										# Also skip the skeleton name itself to avoid duplication (e.g. ambient/jpeg/ambient/file.png)
-										if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower != skeleton_name.lower():
-											filtered_parts.append(part)
-									
-									if filtered_parts:
-										nested_folders_str = '/'.join(filtered_parts)
-									
-									first_rel = None
-									copy_succeeded = False
-									
-									for idx, m in enumerate(matches):
-										if self.stop_requested:
-											raise Exception("Process stopped by user")
-										QApplication.processEvents()
-										# DEBUG: Log each iteration
-										try:
-											self.info_panel.append(f"DEBUG LOOP: Processing match {idx+1}/{len(matches)}: {os.path.basename(m)}")
-										except Exception:
-											pass
-										
-										# Build destination path with nested folder structure
-										if nested_folders_str:
-											# Convert forward slashes to OS-specific separators
-											nested_path = nested_folders_str.replace('/', os.path.sep)
-											dst = os.path.join(dest_dir, nested_path, os.path.basename(m))
-										else:
-											dst = os.path.join(dest_dir, os.path.basename(m))
-										
-										# Create parent directories if needed
-										try:
-											os.makedirs(os.path.dirname(dst), exist_ok=True)
-										except Exception:
-											pass
-										
-										# Copy the file
-										try:
-											import shutil
-											shutil.copy2(m, dst)
-											copy_succeeded = True
-											if is_sequence:
-												self.info_panel.append(f"[SEQ] Copied frame {idx+1}/{len(matches)}: {os.path.basename(m)}")
-											else:
-												self.info_panel.append(f"[STATIC] Copied: {os.path.basename(m)}")
-										except Exception as e:
-											self.info_panel.append(f"COPY ERROR on iteration {idx+1}: Failed to copy {m} -> {dst}: {e}")
-											continue
-										
-										# Build JSON path only once (on first successful copy)
-										if first_rel is None:
-											family = os.path.basename(dest_dir)
-											
-											if is_sequence:
-												# For sequences: use basename without digits and add trailing underscore
-												base_no_digits = re.sub(r"\d+$", "", base_name)
-												if base_no_digits and not base_no_digits.endswith('_'):
-													base_no_digits = base_no_digits + '_'
-												# Build JSON path with nested structure
-												if nested_folders_str:
-													first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{base_no_digits}".replace('\\', '/')
-												else:
-													first_rel = f"{skeleton_name}/{family}/{base_no_digits}".replace('\\', '/')
-											else:
-												# For static: use basename WITHOUT extension
-												# Spine automatically adds .png/.jpg to the path lookup
-												name_no_ext = os.path.splitext(os.path.basename(m))[0]
-												if nested_folders_str:
-													first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{name_no_ext}".replace('\\', '/')
-												else:
-													first_rel = f"{skeleton_name}/{family}/{name_no_ext}".replace('\\', '/')
-											
-											# Clean up any duplicate family tokens
-											first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
-									
-									# Update JSON with the path if ANY file was successfully copied
-									if first_rel and copy_succeeded:
-										if isinstance(attach_val, dict):
-											attach_val['path'] = first_rel
-										else:
-											attachments[attach_name] = {'path': first_rel}
-										if is_sequence:
-											self.info_panel.append(f"[SEQ] JSON path: {first_rel}")
-										else:
-											self.info_panel.append(f"[STATIC] JSON path: {first_rel}")
-								else:
-									# src is None: no files found, but check if this is a declared sequence
-									is_sequence = False
-									try:
-										if isinstance(attach_val, dict) and 'sequence' in attach_val:
-											is_sequence = True
-										elif str(attach_name).endswith('_'):
-											is_sequence = True
-									except Exception:
-										pass
-									
-									if is_sequence:
-										# For declared sequences with no files found, create placeholder using attachment name structure
-										family = os.path.basename(dest_dir)
-										
-										# Extract nested folders from ATTACHMENT NAME, filtering out family markers and skeleton names
-										attach_name_str = str(attach_name).replace('\\', '/')
-										nested_folders_str = ""
-										base_name = os.path.basename(str(attach_name))
-										
-										# Remove any family markers (jpeg/png) and skeleton name from the path
-										parts = attach_name_str.split('/')
-										filtered_parts = []
-										for part in parts[:-1]:  # Exclude the last part (basename)
-											part_lower = part.lower()
-											# Skip family markers and common skeleton-like names
-											if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton']:
-												filtered_parts.append(part)
-										
-										if filtered_parts:
-											nested_folders_str = '/'.join(filtered_parts)
-										
-										# Extract basename without digits for sequence placeholder
-										base_no_digits = re.sub(r"\d+$", "", base_name)
-										if base_no_digits and not base_no_digits.endswith('_'):
-											base_no_digits = base_no_digits + '_'
-										
-										# Build JSON path with nested structure
-										if nested_folders_str:
-											first_rel = f"{skeleton_name}/{family}/{nested_folders_str}/{base_no_digits}".replace('\\', '/')
-										else:
-											first_rel = f"{skeleton_name}/{family}/{base_no_digits}".replace('\\', '/')
-										first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
-										
-										# Create placeholder file ONLY if no real files were found
-										try:
-											if nested_folders_str:
-												nested_path = nested_folders_str.replace('/', os.path.sep)
-												ph_dst = os.path.join(dest_dir, nested_path, base_no_digits)
-											else:
-												ph_dst = os.path.join(dest_dir, base_no_digits)
-											os.makedirs(os.path.dirname(ph_dst), exist_ok=True)
-											if not os.path.exists(ph_dst):
-												with open(ph_dst, 'wb') as ph:
-													pass
-												self.info_panel.append(f"[SEQ] Created placeholder (no files found): {nested_folders_str + '/' if nested_folders_str else ''}{base_no_digits}")
-										except Exception as e:
-											self.info_panel.append(f"[SEQ] Failed to create placeholder: {e}")
-										
-										# Update JSON
-										if isinstance(attach_val, dict):
-											attach_val['path'] = first_rel
-										else:
-											attachments[attach_name] = {'path': first_rel}
-										self.info_panel.append(f"[SEQ] JSON path (missing files): {first_rel}")
-						return skin_dict
-
-					if isinstance(skins, dict):
-						for skin_name, skin in list(skins.items()):
-							if not isinstance(skin, dict):
-								self.info_panel.append(f"Skipping skin {skin_name}: unexpected type {type(skin)}")
-								continue
-							skins[skin_name] = process_skin_dict(skin)
-					elif isinstance(skins, list):
-						# preserve list shape: process each element which may be a dict mapping skinName->skinDict or a skinDict directly
-						new_list = []
-						for item in skins:
-							if isinstance(item, dict):
-								# detect if item is {skinName: {..}} or a skin dict (slot->attachments)
-								# if any value is a dict, treat as mapping skinName->skinDict
-								if any(isinstance(v, dict) for v in item.values()):
-									new_item = {}
-									for k, v in item.items():
-										if isinstance(v, dict):
-											new_item[k] = process_skin_dict(v)
-										else:
-											new_item[k] = v
-									new_list.append(new_item)
-								else:
-									# item itself is a skin dict
-									new_list.append(process_skin_dict(item))
-							else:
-								new_list.append(item)
-						j['skins'] = new_list
-
-					self.progress_bar.setValue(base_progress + 80)
-					QApplication.processEvents()
-
-					# Collect statistics for this file
-					all_file_stats.append((name, stats))
-
-					# normalize skeleton images path (remove leading './') so Spine can resolve images inside archive
-					skel = j.get('skeleton')
-					if isinstance(skel, dict):
-						# ensure skeleton.images points to the images folder relative to the JSON
-						skel['images'] = './images/'
-						
-						# Update Spine version in JSON if specified in UI
-						try:
-							target_ver = self.json_version_combo.currentText().strip()
-							if target_ver:
-								skel['spine'] = target_ver
-								self.info_panel.append(f"Updated JSON skeleton version to: {target_ver}")
-						except Exception:
-							pass
-							
-					# save modified json into the output root
-					# Removed '_sorted' suffix as requested
-					new_json_path = os.path.join(output_root, os.path.splitext(os.path.basename(found_json))[0] + '.json')
-					with open(new_json_path, 'w', encoding='utf-8') as nj:
-						json.dump(j, nj, indent=2)
-					self.info_panel.append(f"Wrote sorted json: {new_json_path}")
-
-					# create a .spine package in the output folder root (JSON + images)
-					try:
-						spine_pkg = os.path.join(output_root, os.path.splitext(name)[0] + '.spine')
-						
-						# Ensure we don't have a stale file
-						if os.path.exists(spine_pkg):
-							try:
-								os.remove(spine_pkg)
-							except Exception:
-								pass
-
-						# Try Spine CLI import first
-						import_success = False
-						try:
-							run_exe = spine_exe
-							if os.name == 'nt' and spine_exe.lower().endswith('.exe'):
-								com_path = os.path.splitext(spine_exe)[0] + '.com'
-								if os.path.exists(com_path):
-									run_exe = com_path
-							
-							# Quote paths to be safe, though subprocess handles it
-							cmd = [run_exe, '-i', new_json_path, '-o', spine_pkg, '--import']
-							self.info_panel.append(f"Running CLI import: {' '.join(cmd)}")
-							
-							# Use creationflags to hide console window on Windows if using .com
-							creationflags = 0x08000000 if os.name == 'nt' else 0
-							# Try running without creationflags first if it fails? No, just log better.
-							
-							# Use Popen to allow stopping
-							process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=creationflags)
-							
-							while process.poll() is None:
-								if self.stop_requested:
-									process.kill()
-									self.info_panel.append("Spine CLI import process killed.")
-									raise Exception("Process stopped by user")
-								QApplication.processEvents()
-								time.sleep(0.1)
-								
-							stdout, stderr = process.communicate()
-							
-							if stdout: self.info_panel.append(f"CLI STDOUT: {stdout}")
-							if stderr: self.info_panel.append(f"CLI STDERR: {stderr}")
-							
-							# Check if file exists and has some size (empty zip is ~22 bytes)
-							if os.path.exists(spine_pkg):
-								size = os.path.getsize(spine_pkg)
-								self.info_panel.append(f"Generated file size: {size} bytes")
-								if process.returncode == 0 and size > 500:
-									import_success = True
-									self.info_panel.append(f"Successfully created .spine via CLI: {spine_pkg}")
-								else:
-									self.info_panel.append(f"CLI import finished but file seems too small or return code {process.returncode} != 0.")
-							else:
-								self.info_panel.append(f"CLI import failed: Output file not found.")
-						except Exception as cli_err:
-							self.info_panel.append(f"CLI import exception: {cli_err}")
-
-						if not import_success:
-							self.info_panel.append("Falling back to manual zip creation...")
-							import zipfile
-							# Removed '_sorted' suffix as requested
-							with zipfile.ZipFile(spine_pkg, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-								# add json using the package base name so Spine can find the project JSON inside the .spine
-								pkg_json_name = os.path.splitext(os.path.basename(spine_pkg))[0] + '.json'
-								zf.write(new_json_path, arcname=pkg_json_name.replace(os.path.sep, '/'))
-								# add images under images/..
-								for root, dirs, files in os.walk(images_root):
-									for f in files:
-										full = os.path.join(root, f)
-										arc = os.path.relpath(full, output_root).replace(os.path.sep, '/')
-										zf.write(full, arcname=arc)
-							self.info_panel.append(f"Wrote new spine package (zip): {spine_pkg}")
-						
-						# Verify package creation
-						if not os.path.exists(spine_pkg) or os.path.getsize(spine_pkg) < 100:
-							self.info_panel.append(f"WARNING: Package file seems invalid or empty: {spine_pkg}")
-
-						self.progress_bar.setValue(base_progress + 95)
-						QApplication.processEvents()
-
-						# Validate package using included tool
-						try:
-							if self.config.get("keep_temp_files", False):
-								self.info_panel.append(f"Validating package: {os.path.basename(spine_pkg)}")
-								# Use internal validator class
-								is_valid = SpinePackageValidator.diagnose(spine_pkg, log_callback=self.info_panel.append)
-								if not is_valid:
-									QMessageBox.warning(self, "Package validation", f"Validation reported issues. See Info log for details.")
-						except Exception as e:
-							self.info_panel.append(f"Validation step failed: {e}")
-
-						# Optionally open the generated .spine in Spine
-						try:
-							should_open = self.config.get("open_after_export") or self.open_after_checkbox.isChecked()
-							if should_open:
-								if os.path.isfile(spine_exe):
-									self.info_panel.append(f"Attempting to open in Spine: {spine_exe} \"{spine_pkg}\"")
-									# Use subprocess.Popen to avoid blocking the UI
-									subprocess.Popen([spine_exe, spine_pkg])
-									self.info_panel.append(f"Launched Spine.")
-								else:
-									self.info_panel.append(f"Cannot open Spine: Executable not found at {spine_exe}")
-							else:
-								self.info_panel.append("Open after export is disabled.")
-						except Exception as e:
-							self.info_panel.append(f"Could not open in Spine: {e}")
-					except Exception as e:
-						self.info_panel.append(f"Could not write spine package: {e}")
-			except Exception as e:
-				self.info_panel.append(f"Sorting step failed: {e}")
+				
+				self.info_panel.append(f"Processing skeleton {json_idx+1}/{len(all_jsons)}: {os.path.basename(current_json)}")
+				
+				# Call the helper method for each skeleton
+				self._process_single_skeleton(
+					found_json=current_json,
+					found_info=found_info, # Shared info/atlas usually
+					result_dir=result_dir,
+					folder=folder,
+					input_path=input_path,
+					file_scanner=file_scanner,
+					base_output_root=base_output_root,
+					spine_exe=spine_exe,
+					base_progress=base_progress, # We could subdivide progress if we wanted
+					name=name,
+					errors=errors,
+					results=results,
+					all_file_stats=all_file_stats,
+					jpeg_forced_png_warnings=jpeg_forced_png_warnings
+				)
 			
 			# Cleanup temporary files if configured
 			try:
@@ -2280,10 +2413,6 @@ class MainWindow(QMainWindow):
 						import shutil
 						shutil.rmtree(result_dir)
 						self.info_panel.append(f"Deleted temporary folder: {result_dir}")
-					
-					if new_json_path and os.path.exists(new_json_path):
-						os.remove(new_json_path)
-						self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
 			except Exception as e:
 				self.info_panel.append(f"Failed to cleanup temporary files: {e}")
 
@@ -2327,6 +2456,13 @@ class MainWindow(QMainWindow):
 		else:
 			QMessageBox.information(self, "Processing", f"Started {len(to_process)} file(s) with Spine.")
 		
+		# Cleanup export settings
+		try:
+			if os.path.exists(export_settings_path):
+				os.remove(export_settings_path)
+		except Exception:
+			pass
+
 		self.process_btn.setEnabled(True)
 		self.stop_btn.setEnabled(False)
 
