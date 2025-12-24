@@ -16,6 +16,7 @@ import re
 import ctypes
 import zipfile
 import io
+import errno
 # Default Spine JSON versions to populate the JSON-version combo
 DEFAULT_VERSIONS = ["4.2.43", "4.3", "4.2", "4.1", "4.0", "3.8"]
 try:
@@ -1280,6 +1281,18 @@ class MainWindow(QMainWindow):
 								for v in x:
 									collect_keys(v)
 						collect_keys(obj)
+
+						# Explicitly collect 'path' values from attachments (often used for overrides)
+						def collect_paths(x):
+							if isinstance(x, dict):
+								if 'path' in x and isinstance(x['path'], str):
+									image_paths.add(x['path'])
+								for v in x.values():
+									collect_paths(v)
+							elif isinstance(x, list):
+								for v in x:
+									collect_paths(v)
+						collect_paths(obj)
 					except Exception:
 						# fallback to raw text regex if JSON parsing fails
 						with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
@@ -1446,10 +1459,6 @@ class MainWindow(QMainWindow):
 				
 				# Show files that look like sequences (have numeric suffixes)
 				seq_like = [bn for bn in basenames if re.search(r'\d+\.(?:png|jpg|jpeg)', bn)]
-				if seq_like:
-					self.info_panel.append(f"DEBUG: Found {len(seq_like)} files with numeric patterns (likely sequences)")
-					for bn in sorted(seq_like)[:20]:
-						self.info_panel.append(f"  - {bn} ({len(basenames[bn])} instance(s))")
 			except Exception as e:
 				pass
 
@@ -1550,6 +1559,14 @@ class MainWindow(QMainWindow):
 						fh.write(f"{p}\t{int(bool(opaque))}\t{int(bool(corners))}\n")
 				results.append(out_file)
 				self.info_panel.append(f"Wrote result: {out_file}")
+			except OSError as e:
+				if e.errno == errno.ENOSPC:
+					self.info_panel.append(f"CRITICAL ERROR: Disk full! Stopping process.")
+					QMessageBox.critical(self, "Disk Full", "There is no space left on the device. The process will stop.")
+					self.stop_requested = True
+					return
+				errors.append(f"{name}: could not write result file: {e}")
+				self.info_panel.append(f"Could not write result file: {e}")
 			except Exception as e:
 				errors.append(f"{name}: could not write result file: {e}")
 				self.info_panel.append(f"Could not write result file: {e}")
@@ -1641,14 +1658,6 @@ class MainWindow(QMainWindow):
 							# prefix match (starts with the reference basename)
 							elif name_noext.startswith(base_l) or name_noext.startswith(base_core):
 								prefix_matches.append(cand)
-						
-						# DEBUG: Log what we found
-						try:
-							self.info_panel.append(f"find_source_image DEBUG: seq_matches={len(seq_matches)}, exact_matches={len(exact_matches)}, prefix_matches={len(prefix_matches)}")
-							if seq_matches:
-								self.info_panel.append(f"  seq_matches: {[(n, os.path.basename(p)) for n, p in seq_matches]}")
-						except Exception:
-							pass
 						
 						# PRIORITY CHANGE: If we have an exact match and the reference name does NOT end with '_',
 						# prefer the exact match. This prevents 'h2_glow' from matching 'h2_glow_01' if 'h2_glow.png' exists.
@@ -1910,34 +1919,22 @@ class MainWindow(QMainWindow):
 										pass
 									
 									# Detect if this is a sequence: multiple matches OR explicit sequence metadata
-									# A sequence implies multiple DIFFERENT frames (different filenames).
-									# If we have multiple matches but they are the same filename (duplicates), it's static.
-									unique_basenames = set(os.path.basename(m) for m in matches)
-									is_sequence = len(unique_basenames) > 1
-									
-									if not is_sequence:
-										# Check for explicit sequence declaration in attachment metadata
-										try:
-											if isinstance(attach_val, dict) and 'sequence' in attach_val:
-												is_sequence = True
-											# Only treat trailing underscore as sequence if we actually found multiple files
-											# or if it's a known convention. But if we only found 1 file, it's likely static.
-											elif str(attach_name).endswith('_') and len(matches) > 1:
-												is_sequence = True
-										except Exception:
-											pass
+									is_sequence = False
+									try:
+										if isinstance(attach_val, dict) and 'sequence' in attach_val:
+											is_sequence = True
+										# Only treat trailing underscore as sequence if we actually found multiple files
+										# or if it's a known convention. But if we only found 1 file, it's likely static.
+										elif str(attach_name).endswith('_') and len(matches) > 1:
+											is_sequence = True
+									except Exception:
+										pass
 									
 									# DEBUG: Log sequence detection
 									try:
 										self.info_panel.append(f"DEBUG: is_sequence={is_sequence}, len(matches)={len(matches)}, attach_name={attach_name}")
 									except Exception:
 										pass
-									
-									if is_sequence and len(matches) > 1:
-										try:
-											self.info_panel.append(f"Copying sequence of {len(matches)} frames for '{attach_name}' to {dest_dir}")
-										except Exception:
-											pass
 									
 									# Extract nested folder structure from ATTACHMENT NAME (the source of truth)
 									# attach_name might be: "coin_rotation/anticipation/anticipation_blue_" 
@@ -1976,7 +1973,6 @@ class MainWindow(QMainWindow):
 										
 										# Build destination path with nested folder structure
 										if nested_folders_str:
-											# Convert forward slashes to OS-specific separators
 											nested_path = nested_folders_str.replace('/', os.path.sep)
 											dst = os.path.join(dest_dir, nested_path, os.path.basename(m))
 										else:
@@ -1997,6 +1993,14 @@ class MainWindow(QMainWindow):
 												self.info_panel.append(f"[SEQ] Copied frame {idx+1}/{len(matches)}: {os.path.basename(m)}")
 											else:
 												self.info_panel.append(f"[STATIC] Copied: {os.path.basename(m)}")
+										except OSError as e:
+											if e.errno == errno.ENOSPC:
+												self.info_panel.append(f"CRITICAL ERROR: Disk full! Stopping process.")
+												QMessageBox.critical(self, "Disk Full", "There is no space left on the device. The process will stop.")
+												self.stop_requested = True
+												raise Exception("Disk full")
+											self.info_panel.append(f"COPY ERROR on iteration {idx+1}: Failed to copy {m} -> {dst}: {e}")
+											continue
 										except Exception as e:
 											self.info_panel.append(f"COPY ERROR on iteration {idx+1}: Failed to copy {m} -> {dst}: {e}")
 											continue
@@ -2093,6 +2097,13 @@ class MainWindow(QMainWindow):
 												with open(ph_dst, 'wb') as ph:
 													pass
 												self.info_panel.append(f"[SEQ] Created placeholder (no files found): {nested_folders_str + '/' if nested_folders_str else ''}{base_no_digits}")
+										except OSError as e:
+											if e.errno == errno.ENOSPC:
+												self.info_panel.append(f"CRITICAL ERROR: Disk full! Stopping process.")
+												QMessageBox.critical(self, "Disk Full", "There is no space left on the device. The process will stop.")
+												self.stop_requested = True
+												raise Exception("Disk full")
+											self.info_panel.append(f"[SEQ] Failed to create placeholder: {e}")
 										except Exception as e:
 											self.info_panel.append(f"[SEQ] Failed to create placeholder: {e}")
 										
@@ -2156,9 +2167,19 @@ class MainWindow(QMainWindow):
 					# save modified json into the output root
 					# Removed '_sorted' suffix as requested
 					new_json_path = os.path.join(output_root, os.path.splitext(os.path.basename(found_json))[0] + '.json')
-					with open(new_json_path, 'w', encoding='utf-8') as nj:
-						json.dump(j, nj, indent=2)
-					self.info_panel.append(f"Wrote sorted json: {new_json_path}")
+					try:
+						with open(new_json_path, 'w', encoding='utf-8') as nj:
+							json.dump(j, nj, indent=2)
+						self.info_panel.append(f"Wrote sorted json: {new_json_path}")
+					except OSError as e:
+						if e.errno == errno.ENOSPC:
+							self.info_panel.append(f"CRITICAL ERROR: Disk full! Stopping process.")
+							QMessageBox.critical(self, "Disk Full", "There is no space left on the device. The process will stop.")
+							self.stop_requested = True
+							return
+						self.info_panel.append(f"Failed to write sorted json: {e}")
+					except Exception as e:
+						self.info_panel.append(f"Failed to write sorted json: {e}")
 
 					# create a .spine package in the output folder root (JSON + images)
 					try:
