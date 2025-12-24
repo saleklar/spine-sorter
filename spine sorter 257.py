@@ -1481,7 +1481,10 @@ class MainWindow(QMainWindow):
 					# Increase Pillow's text chunk limit to handle large metadata
 					Image.MAX_IMAGE_PIXELS = None # Disable decompression bomb check if needed
 					from PIL import PngImagePlugin
-					PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024 # 100MB limit
+					# Increase both chunk size and total memory limits for text chunks
+					# Some PNGs have massive metadata (e.g. 70MB+)
+					PngImagePlugin.MAX_TEXT_CHUNK = 500 * 1024 * 1024 # 500MB limit
+					PngImagePlugin.MAX_TEXT_MEMORY = 500 * 1024 * 1024 # 500MB limit
 
 					im = Image.open(img_path)
 					# convert to RGBA to reliably access alpha channel
