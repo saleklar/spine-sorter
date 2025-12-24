@@ -1365,6 +1365,9 @@ class MainWindow(QMainWindow):
 					if not d or not os.path.exists(d):
 						continue
 					for full_path, f_lower in file_scanner.scan(d):
+						# Ensure we only match image files
+						if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
+							continue
 						fname_noext = os.path.splitext(f_lower)[0]
 						if f_lower == base.lower() or fname_noext == base.lower():
 							resolved.add(full_path)
@@ -1455,6 +1458,10 @@ class MainWindow(QMainWindow):
 			for img_idx, img_path in enumerate(resolved):
 				if self.stop_requested:
 					break
+
+				# Skip non-image files (e.g. json files picked up by loose matching)
+				if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', img_path, re.IGNORECASE):
+					continue
 
 				# Update progress for image analysis
 				if total_images > 0:
