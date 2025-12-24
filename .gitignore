@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Distribution / Build
+build/
+dist/
+*.spec
+
+# VS Code
+.vscode/
+
+# Project specific
+output/
+run_output.txt
+*.log
+spine_temp_*/
