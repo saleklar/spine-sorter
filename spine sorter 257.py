@@ -1370,21 +1370,53 @@ class MainWindow(QMainWindow):
 							resolved.add(full_path)
 							break
 			
-			# Aggressively scan search_dirs for ALL images to ensure sequences are found
-			# even if not explicitly listed in JSON (e.g. 'run_' in JSON, 'run_00.png' on disk)
-			# This is critical for sequences where the JSON only contains the base name
+			# Smart scan: Only add files that match referenced images or their sequences
 			try:
-				self.info_panel.append("Scanning source directories for all potential image files...")
+				self.info_panel.append("Scanning source directories for relevant image files...")
+				
+				# Build prefixes from JSON references
+				prefixes = set()
+				for ip in image_paths:
+					# clean up path separators
+					ip_clean = ip.replace('\\', '/')
+					base = os.path.basename(ip_clean)
+					base_no_ext = os.path.splitext(base)[0]
+					if base_no_ext:
+						prefixes.add(base_no_ext.lower())
+				
 				scanned_count = 0
 				for d in search_dirs:
 					if not d or not os.path.exists(d):
 						continue
+					
+					# Use cached directory scan
 					for full_path, f_lower in file_scanner.scan(d):
-						if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
+						if not re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', f_lower):
+							continue
+						
+						# Check if file matches any prefix (exact or sequence)
+						f_base = os.path.splitext(f_lower)[0]
+						is_relevant = False
+						
+						# Quick check
+						if f_base in prefixes:
+							is_relevant = True
+						else:
+							# Sequence check
+							for p in prefixes:
+								if f_base.startswith(p):
+									rem = f_base[len(p):]
+									# Match if remainder is empty, or starts with separator/digit
+									if not rem or rem[0] in ('_', '-') or rem[0].isdigit():
+										is_relevant = True
+										break
+						
+						if is_relevant:
 							if full_path not in resolved:
 								resolved.add(full_path)
 								scanned_count += 1
-				self.info_panel.append(f"Added {scanned_count} additional files from disk scan.")
+
+				self.info_panel.append(f"Added {scanned_count} relevant files from disk scan.")
 			except Exception as e:
 				self.info_panel.append(f"Disk scan warning: {e}")
 
