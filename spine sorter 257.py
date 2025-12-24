@@ -1478,6 +1478,11 @@ class MainWindow(QMainWindow):
 							opaque_results.append((img_path, fully_opaque, has_transparent_corners))
 							continue
 
+					# Increase Pillow's text chunk limit to handle large metadata
+					Image.MAX_IMAGE_PIXELS = None # Disable decompression bomb check if needed
+					from PIL import PngImagePlugin
+					PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024 # 100MB limit
+
 					im = Image.open(img_path)
 					# convert to RGBA to reliably access alpha channel
 					rgba = im.convert('RGBA')
