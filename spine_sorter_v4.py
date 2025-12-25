@@ -514,12 +514,12 @@ class MainWindow(QMainWindow):
 		self.spine_combo.setToolTip("Select which Spine executable to use for export/open")
 		refresh_btn = QPushButton("Refresh")
 		refresh_btn.clicked.connect(self.scan_spine_versions)
-		browse_spine_btn = QPushButton("Browse...")
-		browse_spine_btn.clicked.connect(self.browse_spine_exe)
+		self.browse_spine_btn = QPushButton("Browse...")
+		self.browse_spine_btn.clicked.connect(self.browse_spine_exe)
 		version_layout.addWidget(version_label)
 		version_layout.addWidget(self.spine_combo)
 		version_layout.addWidget(refresh_btn)
-		version_layout.addWidget(browse_spine_btn)
+		version_layout.addWidget(self.browse_spine_btn)
 		settings_layout.addLayout(version_layout)
 
 		# Spine JSON version selection (affects skeleton.spine field in exported JSON)
@@ -540,21 +540,21 @@ class MainWindow(QMainWindow):
 		folder_layout = QHBoxLayout()
 		folder_label = QLabel("Spine files folder:")
 		self.folder_display = QLineEdit(self.config.get("spine_folder", ""))
-		browse_btn = QPushButton("1. Browse...")
-		browse_btn.clicked.connect(self.browse_folder)
+		self.browse_btn = QPushButton("1. Browse...")
+		self.browse_btn.clicked.connect(self.browse_folder)
 		folder_layout.addWidget(folder_label)
 		folder_layout.addWidget(self.folder_display)
-		folder_layout.addWidget(browse_btn)
+		folder_layout.addWidget(self.browse_btn)
 
 		# Output folder selection
 		output_layout = QHBoxLayout()
 		output_label = QLabel("Output folder:")
 		self.output_display = QLineEdit(self.config.get("output_folder", ""))
-		output_browse = QPushButton("2. Browse...")
-		output_browse.clicked.connect(self.browse_output)
+		self.output_browse = QPushButton("2. Browse...")
+		self.output_browse.clicked.connect(self.browse_output)
 		output_layout.addWidget(output_label)
 		output_layout.addWidget(self.output_display)
-		output_layout.addWidget(output_browse)
+		output_layout.addWidget(self.output_browse)
 
 		# Opacity threshold controls (slider + spinbox) and alpha cutoff
 		threshold_layout = QHBoxLayout()
@@ -607,10 +607,20 @@ class MainWindow(QMainWindow):
 		
 		dev_layout.addLayout(threshold_layout)
 
+		# Skin selection
+		skin_layout = QHBoxLayout()
+		skin_label = QLabel("Skin:")
+		self.skin_combo = QComboBox()
+		self.skin_combo.addItems(["Default", "Light"])
+		self.skin_combo.currentTextChanged.connect(self.change_skin)
+		skin_layout.addWidget(skin_label)
+		skin_layout.addWidget(self.skin_combo)
+		dev_layout.addLayout(skin_layout)
+
 		# Diagnose button (moved to settings)
-		diagnose_btn = QPushButton("Diagnose .spine...")
-		diagnose_btn.clicked.connect(self.diagnose_file)
-		dev_layout.addWidget(diagnose_btn)
+		self.diagnose_btn = QPushButton("Diagnose .spine...")
+		self.diagnose_btn.clicked.connect(self.diagnose_file)
+		dev_layout.addWidget(self.diagnose_btn)
 
 		# Keep temporary files checkbox
 		self.keep_temp_cb = QCheckBox("Keep temporary files")
@@ -639,9 +649,9 @@ class MainWindow(QMainWindow):
 		combined_folders_layout.addLayout(output_layout)
 		
 		# Settings button
-		settings_btn = QPushButton("Settings")
-		settings_btn.clicked.connect(self.settings_dialog.show)
-		combined_folders_layout.addWidget(settings_btn)
+		self.settings_btn = QPushButton("Settings")
+		self.settings_btn.clicked.connect(self.settings_dialog.show)
+		combined_folders_layout.addWidget(self.settings_btn)
 
 		layout.addLayout(combined_folders_layout)
 		# layout.addLayout(threshold_layout) # Moved to settings
@@ -1879,6 +1889,67 @@ class MainWindow(QMainWindow):
 
 
 
+
+	def change_skin(self, skin_name):
+		if skin_name == "Light":
+			# Light mode
+			# Global background slightly off-white
+			self.setStyleSheet("""
+				QMainWindow, QDialog { background-color: #f0f0f0; color: black; }
+				QLabel, QCheckBox { color: black; }
+				QCheckBox::indicator { border: 1px solid #555555; background-color: #dddddd; width: 13px; height: 13px; }
+				QCheckBox::indicator:checked { background-color: #555555; border: 1px solid #555555; }
+			""")
+			
+			# Spine list: Whitest
+			self.list_widget.setStyleSheet("""
+				QListWidget { background-color: #ffffff; color: black; border: 1px solid #cccccc; }
+				QListWidget::indicator { border: 1px solid #555555; background-color: #dddddd; width: 13px; height: 13px; }
+				QListWidget::indicator:checked { background-color: #555555; border: 1px solid #555555; }
+			""")
+			
+			# Info panel: Light gray
+			self.info_panel.setStyleSheet("background-color: #f5f5f5; color: black; border: 1px solid #cccccc;")
+			
+			# Inputs
+			input_style = "background-color: #ffffff; color: black; border: 1px solid #cccccc;"
+			self.exe_display.setStyleSheet(input_style)
+			self.folder_display.setStyleSheet(input_style)
+			self.output_display.setStyleSheet(input_style)
+			
+			# Browse buttons: A step darker than background
+			btn_style = "background-color: #e0e0e0; color: black; border: 1px solid #cccccc;"
+			self.browse_spine_btn.setStyleSheet(btn_style)
+			self.browse_btn.setStyleSheet(btn_style)
+			self.output_browse.setStyleSheet(btn_style)
+			self.settings_btn.setStyleSheet(btn_style)
+			self.diagnose_btn.setStyleSheet(btn_style)
+			
+		else:
+			# Default mode
+			self.setStyleSheet("")
+			self.list_widget.setStyleSheet("")
+			self.info_panel.setStyleSheet("background-color: #1e1e1e; color: white;")
+			self.exe_display.setStyleSheet("")
+			self.folder_display.setStyleSheet("")
+			self.output_display.setStyleSheet("")
+			
+			# Reset browse buttons
+			self.browse_spine_btn.setStyleSheet("")
+			self.browse_btn.setStyleSheet("")
+			self.output_browse.setStyleSheet("")
+			self.settings_btn.setStyleSheet("")
+			self.diagnose_btn.setStyleSheet("")
+
+		# Ensure buttons keep their colors
+		self.process_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+		self.stop_btn.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+		
+		# Progress bar style needs to be re-applied or it might lose custom chunk color if global style overrides
+		self.progress_bar.setStyleSheet("""
+			QProgressBar { height: 30px; font-size: 14px; font-weight: bold; text-align: center; }
+			QProgressBar::chunk { background-color: #4CAF50; }
+		""")
 
 	def process_selected(self):
 		self.stop_requested = False
