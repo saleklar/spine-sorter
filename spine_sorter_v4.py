@@ -2047,13 +2047,13 @@ class MainWindow(QMainWindow):
 		self.stop_btn.setEnabled(False)
 		
 		# Display statistics
-		self.info_panel.append("\n<font color='green'>--- Processing Statistics ---</font>")
+		self.info_panel.append("\n<font color='lightgreen'>--- Processing Statistics ---</font>")
 		for stats in all_file_stats:
 			if stats['total'] > 0:
-				self.info_panel.append(f"<font color='green'>File: {stats['name']}</font>")
-				self.info_panel.append(f"<font color='green'>  Total images copied: {stats['total']}</font>")
-				self.info_panel.append(f"<font color='green'>  JPEG images: {stats['jpeg']}</font>")
-				self.info_panel.append(f"<font color='green'>  PNG images: {stats['png']}</font>")
+				self.info_panel.append(f"<font color='lightgreen'>File: {stats['name']}</font>")
+				self.info_panel.append(f"<font color='lightgreen'>  Total images copied: {stats['total']}</font>")
+				self.info_panel.append(f"<font color='lightgreen'>  JPEG images: {stats['jpeg']}</font>")
+				self.info_panel.append(f"<font color='lightgreen'>  PNG images: {stats['png']}</font>")
 		
 		if errors:
 			QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
