@@ -61,9 +61,21 @@ def validate(pkg_path):
                         if k == 'path' and isinstance(v, str):
                             # path should be relative to skeleton.images (no leading 'images/')
                             check = v.replace('\\', '/')
+                            
+                            # Try exact match first
                             arc_path = os.path.normpath(os.path.join('images', check)).replace('\\','/')
-                            if arc_path not in names:
-                                missing_files.append((v, arc_path))
+                            if arc_path in names:
+                                continue
+                                
+                            # Try appending .png
+                            if arc_path + '.png' in names:
+                                continue
+                                
+                            # Try appending .jpg
+                            if arc_path + '.jpg' in names:
+                                continue
+                                
+                            missing_files.append((v, arc_path))
                         else:
                             walk_attach(v)
                 elif isinstance(x, list):
