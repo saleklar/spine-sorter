@@ -1072,9 +1072,6 @@ class MainWindow(QMainWindow):
 		self.info_panel.append("<b><font color='red'>Stopping process...</font></b>")
 		self.stop_btn.setEnabled(False)
 
-	def log_error(self, message):
-		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
-
 	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, is_first=True, is_last=True):
 		# Collect image file paths from json, atlas/info and by scanning the export folder
 		image_paths = set()
@@ -1165,9 +1162,7 @@ class MainWindow(QMainWindow):
 						rel = os.path.relpath(os.path.join(root, fn), result_dir)
 						image_paths.add(rel)
 		except Exception as e:
-			msg = f"{name}: error parsing exports: {e}"
-			errors.append(msg)
-			self.log_error(msg)
+			errors.append(f"{name}: error parsing exports: {e}")
 
 		# Debug: show collected image references from exports
 		try:
@@ -1231,10 +1226,6 @@ class MainWindow(QMainWindow):
 		opaque_results = []
 		total_resolved = len(resolved)
 		for idx, img_path in enumerate(resolved):
-			# Skip .spine files or other non-image files that might have been picked up
-			if img_path.lower().endswith('.spine') or img_path.lower().endswith('.json'):
-				continue
-
 			# Progress update: Opacity check (20-50 range)
 			if total_resolved > 0:
 				p = 20 + int((idx / total_resolved) * 30)
@@ -1266,9 +1257,7 @@ class MainWindow(QMainWindow):
 					pass
 				opaque_results.append((img_path, fully_opaque))
 			except Exception as e:
-				msg = f"{name}: image analyze failed {img_path}: {e}"
-				errors.append(msg)
-				self.log_error(msg)
+				errors.append(f"{name}: image analyze failed {img_path}: {e}")
 
 		# Write opaque results to file
 		try:
@@ -1280,9 +1269,8 @@ class MainWindow(QMainWindow):
 			results.append(out_file)
 			self.info_panel.append(f"Wrote result: {out_file}")
 		except Exception as e:
-			msg = f"{name}: could not write result file: {e}"
-			errors.append(msg)
-			self.log_error(msg)
+			errors.append(f"{name}: could not write result file: {e}")
+			self.info_panel.append(f"Could not write result file: {e}")
 
 		# Progress update: Opacity analysis done
 		self.progress_bar.setValue(base_progress + 50)
@@ -1856,24 +1844,15 @@ class MainWindow(QMainWindow):
 					self.info_panel.append(f"Please manually import the JSON file into Spine: {new_json_path}")
 
 				# Cleanup temporary files
-				if not self.keep_temp_cb.isChecked():
-					# Delete the sorted JSON if the binary .spine file was successfully created
-					if os.path.exists(spine_pkg) and os.path.exists(new_json_path):
-						try:
-							os.remove(new_json_path)
-							self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
-						except Exception as e:
-							self.info_panel.append(f"<font color='yellow'>Warning: Could not delete temp JSON {new_json_path}: {e}</font>")
-
-					if is_last:
-						try:
-							# Remove the temporary export folder (spine_temp_...)
-							if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
-								import shutil
-								shutil.rmtree(result_dir, ignore_errors=True)
-								self.info_panel.append(f"Cleaned up temp folder: {result_dir}")
-						except Exception as e:
-							self.info_panel.append(f"<font color='yellow'>Cleanup warning: {e}</font>")
+				if is_last and not self.keep_temp_cb.isChecked():
+					try:
+						# Remove the temporary export folder (spine_temp_...)
+						if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
+							import shutil
+							shutil.rmtree(result_dir, ignore_errors=True)
+							self.info_panel.append(f"Cleaned up temp folder: {result_dir}")
+					except Exception as e:
+						self.info_panel.append(f"<font color='yellow'>Cleanup warning: {e}</font>")
 
 				# Optionally open the generated .spine in Spine
 				if is_last:
@@ -1981,14 +1960,11 @@ class MainWindow(QMainWindow):
 			
 			# Ensure input is the checked .spine file
 			if not input_path.lower().endswith('.spine'):
-				msg = f"Skipped (not a .spine file): {input_path}"
-				errors.append(msg)
-				self.log_error(msg)
+				errors.append(f"Skipped (not a .spine file): {input_path}")
+				self.info_panel.append(f"Skipped non-.spine input: {input_path}")
 				continue
 			if not os.path.isfile(input_path):
-				msg = f"Missing: {input_path}"
-				errors.append(msg)
-				self.log_error(msg)
+				errors.append(f"Missing: {input_path}")
 				continue
 
 			# Determine base output root and create a timestamped temporary export folder
@@ -2024,14 +2000,12 @@ class MainWindow(QMainWindow):
 				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 				
 				if proc.returncode != 0:
-					msg = f"Spine export failed: {proc.stderr}"
-					self.log_error(msg)
+					self.info_panel.append(f"Spine export failed: {proc.stderr}")
 					errors.append(f"{name}: export failed")
 					continue
 			except Exception as e:
-				msg = f"{name}: {e}"
-				errors.append(msg)
-				self.log_error(f"Export error: {e}")
+				errors.append(f"{name}: {e}")
+				self.info_panel.append(f"Export error: {e}")
 				continue
 
 			# Find all exported JSONs
@@ -2044,9 +2018,8 @@ class MainWindow(QMainWindow):
 					found_info = os.path.join(result_dir, f)
 			
 			if not found_jsons:
-				msg = f"{name}: no JSON exported"
-				errors.append(msg)
-				self.log_error("No JSON found in export folder.")
+				errors.append(f"{name}: no JSON exported")
+				self.info_panel.append("No JSON found in export folder.")
 				continue
 
 			# Sort JSONs to ensure deterministic order
