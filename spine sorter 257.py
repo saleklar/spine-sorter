@@ -61,6 +61,8 @@ class SpineScannerThread(QThread):
 		self.default_spine_exe = default_spine_exe
 
 	def _get_file_version_windows(self, path):
+		if os.name != 'nt':
+			return None
 		try:
 			GetFileVersionInfoSize = ctypes.windll.version.GetFileVersionInfoSizeW
 			GetFileVersionInfo = ctypes.windll.version.GetFileVersionInfoW
@@ -109,6 +111,10 @@ class SpineScannerThread(QThread):
 			os.path.join(home, "Library", "Application Support", "Spine", "version.txt"), # Mac standard
 		]
 		
+		# On macOS, if pointing to Spine.app, look inside Resources
+		if sys.platform == 'darwin' and exe.endswith('.app'):
+			candidates_txt.append(os.path.join(exe, "Contents", "Resources", "version.txt"))
+		
 		for txt_path in candidates_txt:
 			if os.path.isfile(txt_path):
 				try:
@@ -124,6 +130,12 @@ class SpineScannerThread(QThread):
 			if ver and ver != "0.0.0": return ver
 
 		candidates = [[exe, '--version']]
+		# On macOS, if it's an .app, we need to run the binary inside
+		if sys.platform == 'darwin' and exe.endswith('.app'):
+			binary = os.path.join(exe, "Contents", "MacOS", "Spine")
+			if os.path.exists(binary):
+				candidates = [[binary, '--version']]
+
 		ver_re = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
 		for cmd in candidates:
 			try:
@@ -141,7 +153,15 @@ class SpineScannerThread(QThread):
 		candidates = []
 		cfg = self.config.get('spine_exe', self.default_spine_exe)
 		cfg_dir = os.path.dirname(cfg)
-		roots = [cfg_dir, r"C:\Program Files", r"C:\Program Files (x86)"]
+		
+		roots = []
+		if os.name == 'nt':
+			roots = [cfg_dir, r"C:\Program Files", r"C:\Program Files (x86)"]
+		elif sys.platform == 'darwin':
+			roots = [cfg_dir, "/Applications", os.path.expanduser("~/Applications")]
+		else:
+			roots = [cfg_dir, "/usr/bin", "/usr/local/bin"]
+
 		seen = set()
 		
 		# Find candidates
@@ -151,18 +171,28 @@ class SpineScannerThread(QThread):
 			try:
 				for name in os.listdir(root):
 					if 'spine' in name.lower():
-						exe = os.path.join(root, name, 'Spine.exe')
-						if os.path.isfile(exe) and exe not in seen:
-							candidates.append(exe); seen.add(exe)
+						if sys.platform == 'darwin' and name.endswith('.app'):
+							exe = os.path.join(root, name)
+							if os.path.isdir(exe) and exe not in seen:
+								candidates.append(exe); seen.add(exe)
+						else:
+							exe = os.path.join(root, name, 'Spine.exe')
+							if os.path.isfile(exe) and exe not in seen:
+								candidates.append(exe); seen.add(exe)
 			except Exception:
 				pass
 		
 		# Also check root dirs
 		for root in roots:
 			try:
-				exe = os.path.join(root, 'Spine.exe')
-				if os.path.isfile(exe) and exe not in seen:
-					candidates.append(exe); seen.add(exe)
+				if sys.platform == 'darwin':
+					exe = os.path.join(root, 'Spine.app')
+					if os.path.isdir(exe) and exe not in seen:
+						candidates.append(exe); seen.add(exe)
+				else:
+					exe = os.path.join(root, 'Spine.exe')
+					if os.path.isfile(exe) and exe not in seen:
+						candidates.append(exe); seen.add(exe)
 			except Exception:
 				pass
 
@@ -474,7 +504,13 @@ class MainWindow(QMainWindow):
 		self.setWindowTitle("Spine Sorter")
 
 		# Configuration
-		self.default_spine_exe = r"C:\Program Files\Spine\Spine.exe"
+		if sys.platform == 'darwin':
+			self.default_spine_exe = "/Applications/Spine.app"
+		elif os.name == 'nt':
+			self.default_spine_exe = r"C:\Program Files\Spine\Spine.exe"
+		else:
+			self.default_spine_exe = "/usr/bin/spine"
+
 		self.config = {}
 		self.config_path = self._make_config_path()
 		self._load_config()
@@ -853,7 +889,8 @@ class MainWindow(QMainWindow):
 
 	def browse_spine_exe(self):
 		start = os.path.dirname(self.config.get('spine_exe', self.default_spine_exe))
-		path, _ = QFileDialog.getOpenFileName(self, "Select Spine executable", start, "Executables (*.exe)")
+		filter_str = "Executables (*.exe)" if os.name == 'nt' else "Applications (*.app);;Executables (*)"
+		path, _ = QFileDialog.getOpenFileName(self, "Select Spine executable", start, filter_str)
 		if path:
 			# add to combo if not present
 			if path not in [self.spine_combo.itemData(i) for i in range(self.spine_combo.count())]:
@@ -1911,9 +1948,18 @@ class MainWindow(QMainWindow):
 			pass
 		if not spine_exe:
 			spine_exe = self.config.get('spine_exe_selected') or self.config.get("spine_exe", self.default_spine_exe)
-		if not os.path.isfile(spine_exe):
+		
+		# Check existence (support .app directories on macOS)
+		if not os.path.exists(spine_exe):
 			QMessageBox.warning(self, "Spine not found", f"Spine executable not found:\n{spine_exe}")
 			return
+
+		# Resolve .app to binary on macOS for execution
+		runnable_spine_exe = spine_exe
+		if sys.platform == 'darwin' and spine_exe.endswith('.app'):
+			binary = os.path.join(spine_exe, "Contents", "MacOS", "Spine")
+			if os.path.exists(binary):
+				runnable_spine_exe = binary
 
 		folder = self.folder_display.text()
 		if not folder or not os.path.isdir(folder):
@@ -2012,7 +2058,7 @@ class MainWindow(QMainWindow):
 					pass
 
 			cmd = [
-				spine_exe, 
+				runnable_spine_exe, 
 				'-i', input_path, 
 				'-o', result_dir, 
 				'-e', export_settings if os.path.exists(export_settings) else 'json'
@@ -2063,7 +2109,7 @@ class MainWindow(QMainWindow):
 				
 				self._process_single_skeleton(
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
-					base_output_root, spine_exe, base_progress, name, errors, results, 
+					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings,
 					is_first=is_first, is_last=is_last
 				)
