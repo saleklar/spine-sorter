@@ -703,11 +703,18 @@ class MainWindow(QMainWindow):
 		self.open_after_checkbox = QCheckBox("Open .spine after export")
 		self.open_after_checkbox.setChecked(bool(self.config.get("open_after_export", False)))
 		self.open_after_checkbox.stateChanged.connect(lambda v: self._save_open_after_config(v))
+
+		# Optional: Force local sorting (treat all assets as local to the skeleton)
+		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
+		self.force_local_cb.setToolTip("If checked, all assets will be sorted into this skeleton's folder, ignoring shared asset paths.")
+		self.force_local_cb.setChecked(bool(self.config.get("force_local_sorting", False)))
+		self.force_local_cb.stateChanged.connect(lambda v: self._save_force_local_config(v))
 		
 		actions_layout.addWidget(self.select_all_cb)
 		actions_layout.addWidget(self.process_btn)
 		actions_layout.addWidget(self.stop_btn)
 		actions_layout.addWidget(self.open_after_checkbox)
+		actions_layout.addWidget(self.force_local_cb)
 
 		layout.addLayout(actions_layout)
 
@@ -826,6 +833,13 @@ class MainWindow(QMainWindow):
 		try:
 			# QCheckBox.stateChanged sends int; convert to bool
 			self.config["open_after_export"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_force_local_config(self, v):
+		try:
+			self.config["force_local_sorting"] = bool(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -1405,8 +1419,40 @@ class MainWindow(QMainWindow):
 						elif name_noext.startswith(base_l) or name_noext.startswith(base_core):
 							prefix_matches.append(cand)
 					
+					# Helper to filter candidates by directory structure if ref_name has path info
+					def filter_by_path(candidates, ref_name, is_tuple=False):
+						# Check if ref_name has directory components
+						ref_dir = os.path.dirname(ref_name)
+						if not ref_dir:
+							return candidates
+						
+						# Normalize ref_dir for comparison (handle separators)
+						ref_dir_norm = ref_dir.replace('\\', '/').lower()
+						
+						filtered = []
+						for item in candidates:
+							path = item[1] if is_tuple else item
+							# Get directory of candidate
+							cand_dir = os.path.dirname(path).replace('\\', '/').lower()
+							
+							# Check if candidate directory ends with reference directory
+							# We check for exact suffix match with separator to avoid partial matches like "big_win" matching "big_win_shine"
+							# Also handle case where cand_dir IS the ref_dir
+							if cand_dir == ref_dir_norm or cand_dir.endswith('/' + ref_dir_norm):
+								filtered.append(item)
+						
+						# If we found matches that respect the folder structure, return them
+						if filtered:
+							return filtered
+						
+						# Otherwise fallback to original candidates (maybe folder structure changed)
+						return candidates
+
 					# prefer an exact match first
 					if exact_matches:
+						# Filter by path if applicable
+						exact_matches = filter_by_path(exact_matches, ref_name)
+
 						# return all exact matches (could be multiple in different folders)
 						# Debug: log exact match
 						try:
@@ -1417,6 +1463,9 @@ class MainWindow(QMainWindow):
 
 					# then prefer numeric sequences if found
 					if seq_matches:
+						# Filter by path if applicable
+						seq_matches = filter_by_path(seq_matches, ref_name, is_tuple=True)
+
 						seq_matches.sort(key=lambda x: x[0])
 						try:
 							self.info_panel.append(f"Sequence detected for '{ref_name}': {len(seq_matches)} frames")
@@ -1427,6 +1476,8 @@ class MainWindow(QMainWindow):
 					
 					# then prefix matches: sort intelligently (numeric suffixes first)
 					if prefix_matches:
+						# Filter by path if applicable
+						prefix_matches = filter_by_path(prefix_matches, ref_name)
 						# attempt numeric-suffix ordering: extract trailing digits from basename
 						def _num_key(path):
 							bn = os.path.splitext(os.path.basename(path))[0]
@@ -1622,24 +1673,26 @@ class MainWindow(QMainWindow):
 								potential_skeleton = parts[0]
 								is_other_skeleton = False
 								
-								# 1. Check against known skeletons in the folder
-								if all_skeleton_names and len(parts) > 1:
-									# Check exact match or match with trailing 's' removed (handling pluralization typos)
-									match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
-									if match:
-										potential_skeleton = match # Use correct casing
-										is_other_skeleton = True
-								
-								# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
-								# treat it as an external skeleton/folder even if we don't have the .spine file for it.
-								# This handles cases like "piggy_banks/..." being used in "game_intro" where "piggy_banks.spine" might not be in the current batch.
-								if not is_other_skeleton and len(parts) > 1:
-									IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
-									# Check against skeleton name with pluralization handling
-									if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
-										is_other_skeleton = True
-										# Use the folder name as the target skeleton name
-										potential_skeleton = potential_skeleton 
+								# Only check for other skeletons if "Force local sorting" is NOT checked
+								if not self.force_local_cb.isChecked():
+									# 1. Check against known skeletons in the folder
+									if all_skeleton_names and len(parts) > 1:
+										# Check exact match or match with trailing 's' removed (handling pluralization typos)
+										match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
+										if match:
+											potential_skeleton = match # Use correct casing
+											is_other_skeleton = True
+									
+									# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
+									# treat it as an external skeleton/folder even if we don't have the .spine file for it.
+									# This handles cases like "piggy_banks/..." being used in "game_intro" where "piggy_banks.spine" might not be in the current batch.
+									if not is_other_skeleton and len(parts) > 1:
+										IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
+										# Check against skeleton name with pluralization handling
+										if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
+											is_other_skeleton = True
+											# Use the folder name as the target skeleton name
+											potential_skeleton = potential_skeleton 
 								
 								# Apply redirection if detected
 								if is_other_skeleton and potential_skeleton.lower() != skeleton_name.lower():
