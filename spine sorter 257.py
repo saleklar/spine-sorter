@@ -1623,8 +1623,9 @@ class MainWindow(QMainWindow):
 								is_other_skeleton = False
 								
 								# 1. Check against known skeletons in the folder
-								if all_skeleton_names:
-									match = next((s for s in all_skeleton_names if s.lower() == potential_skeleton.lower()), None)
+								if all_skeleton_names and len(parts) > 1:
+									# Check exact match or match with trailing 's' removed (handling pluralization typos)
+									match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
 									if match:
 										potential_skeleton = match # Use correct casing
 										is_other_skeleton = True
@@ -1632,9 +1633,10 @@ class MainWindow(QMainWindow):
 								# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
 								# treat it as an external skeleton/folder even if we don't have the .spine file for it.
 								# This handles cases like "piggy_banks/..." being used in "game_intro" where "piggy_banks.spine" might not be in the current batch.
-								if not is_other_skeleton:
+								if not is_other_skeleton and len(parts) > 1:
 									IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
-									if potential_skeleton.lower() != skeleton_name.lower() and potential_skeleton.lower() not in IGNORED_ROOTS:
+									# Check against skeleton name with pluralization handling
+									if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
 										is_other_skeleton = True
 										# Use the folder name as the target skeleton name
 										potential_skeleton = potential_skeleton 
@@ -1667,10 +1669,11 @@ class MainWindow(QMainWindow):
 									# so we don't filter it out even if it might be in a blocklist (though 'reference' isn't currently blocked)
 									
 									# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
-									if part_lower == skeleton_name.lower():
+									# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
+									if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
 										continue
 
-									if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower != target_skeleton.lower():
+									if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
 										filtered_parts.append(part)
 								
 								if filtered_parts:
@@ -1686,6 +1689,14 @@ class MainWindow(QMainWindow):
 									if not seq_name: seq_name = base_name
 									
 									if seq_name:
+										# Heuristic: If source file is in a folder matching the sequence name, prefer that structure
+										# This fixes cases where attachment path has a typo (e.g. dissapear_fx vs disspear)
+										if src:
+											src_path = src[0] if isinstance(src, (list, tuple)) else src
+											src_folder_name = os.path.basename(os.path.dirname(src_path))
+											if src_folder_name.lower() == seq_name.lower():
+												nested_folders_str = src_folder_name
+
 										if not nested_folders_str:
 											nested_folders_str = seq_name
 										elif not nested_folders_str.lower().endswith(seq_name.lower()):
@@ -1794,7 +1805,8 @@ class MainWindow(QMainWindow):
 								# Also treat as placeholder if the name contains 'placeholder'
 								is_placeholder = 'placeholder' in os.path.basename(str(attach_name)).lower()
 
-								if is_sequence or is_placeholder:
+								# Only create placeholder if NO source files were found
+								if not src and (is_sequence or is_placeholder):
 									# For declared sequences or placeholders with no files found, create placeholder using attachment name structure
 									family = os.path.basename(base_dest)
 									
@@ -1808,7 +1820,12 @@ class MainWindow(QMainWindow):
 									filtered_parts = []
 									for part in parts[:-1]:  # Exclude the last part (basename)
 										part_lower = part.lower()
-										if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower != target_skeleton.lower():
+										# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
+										# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
+										if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
+											continue
+
+										if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
 											filtered_parts.append(part)
 									
 									if filtered_parts:
