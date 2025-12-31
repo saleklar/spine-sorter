@@ -26,7 +26,7 @@ except Exception:
 
 # Import PySide6 with a friendly error if it's not installed
 try:
-	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal
+	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -706,10 +706,21 @@ class MainWindow(QMainWindow):
 
 		# Optional: Force local sorting (treat all assets as local to the skeleton)
 		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
-		self.force_local_cb.setToolTip("If checked, all assets will be sorted into this skeleton's folder, ignoring shared asset paths.")
+		self.force_local_cb.setToolTip(
+			"<div style='width: 150px;'>"
+			"This must be checked if you are working on an old unsorted project, "
+			"and unchecked for already sorted projects; otherwise, folders may be mixed."
+			"</div>"
+		)
 		self.force_local_cb.setChecked(bool(self.config.get("force_local_sorting", False)))
 		self.force_local_cb.stateChanged.connect(lambda v: self._save_force_local_config(v))
 		
+		# Pulse animation for the checkbox
+		self.pulse_state = False
+		self.pulse_timer = QTimer(self)
+		self.pulse_timer.timeout.connect(self._pulse_checkbox)
+		self.pulse_timer.start(800) # 800ms interval
+
 		actions_layout.addWidget(self.select_all_cb)
 		actions_layout.addWidget(self.process_btn)
 		actions_layout.addWidget(self.stop_btn)
@@ -772,6 +783,13 @@ class MainWindow(QMainWindow):
 			self.json_version_combo.setCurrentText(jv)
 		# save when edited
 		self.json_version_combo.currentTextChanged.connect(lambda v: self._save_json_version(v))
+
+	def _pulse_checkbox(self):
+		self.pulse_state = not self.pulse_state
+		if self.pulse_state:
+			self.force_local_cb.setStyleSheet("QCheckBox { color: #FF0000; font-weight: bold; }")
+		else:
+			self.force_local_cb.setStyleSheet("QCheckBox { color: #AA0000; font-weight: bold; }")
 
 	def diagnose_file(self):
 		start = self.output_display.text() or os.path.expanduser("~")
