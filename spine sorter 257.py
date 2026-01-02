@@ -1370,6 +1370,24 @@ class MainWindow(QMainWindow):
 				with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
 					j = json.load(fh)
 
+				# Extract all skin names for exclusion logic
+				all_skin_names = set()
+				temp_skins = j.get('skins', {})
+				if isinstance(temp_skins, dict):
+					all_skin_names.update(temp_skins.keys())
+				elif isinstance(temp_skins, list):
+					for s in temp_skins:
+						if isinstance(s, dict):
+							if 'name' in s:
+								all_skin_names.add(s['name'])
+							else:
+								# Check for map-style skins in list (e.g. [{"skin1": {...}}, {"skin2": {...}}])
+								# If any value is a dict, assume keys are skin names
+								if any(isinstance(v, dict) for v in s.values()):
+									for k, v in s.items():
+										if isinstance(v, dict):
+											all_skin_names.add(k)
+
 				# skeleton name
 				skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
 
@@ -1387,13 +1405,199 @@ class MainWindow(QMainWindow):
 				# os.makedirs(jpeg_dir, exist_ok=True)  <-- Removed to prevent empty folders
 				# os.makedirs(png_dir, exist_ok=True)   <-- Removed to prevent empty folders
 
+				# Analyze existing skin paths to map folders to skins
+				# folder_owners: folder_name -> set of skin names that use it
+				folder_owners = {}
+				
+				def register_skin_path(skin_name, path):
+					if not path or not skin_name: return
+					# Normalize path
+					path = path.replace('\\', '/').lower()
+					parts = path.split('/')
+					# Exclude filename
+					if len(parts) > 1:
+						dirs = parts[:-1]
+						for d in dirs:
+							# Exclude skeleton name and pluralization to prevent root folder hijacking
+							if d == skeleton_name.lower() or d.rstrip('s') == skeleton_name.lower().rstrip('s'):
+								continue
+
+							if d not in ['jpeg', 'png', 'images', 'skeleton', 'root', 'common', 'assets', 'source', 'reference']:
+								if d not in folder_owners: folder_owners[d] = set()
+								folder_owners[d].add(skin_name)
+
+				# Walk skins to populate folder_owners
+				temp_skins_analysis = j.get('skins', {})
+				if isinstance(temp_skins_analysis, dict):
+					for s_name, s_node in temp_skins_analysis.items():
+						if isinstance(s_node, dict):
+							# walk attachments
+							for slot_v in s_node.values():
+								if isinstance(slot_v, dict):
+									for att_k, att_v in slot_v.items():
+										p = None
+										if isinstance(att_v, dict):
+											p = att_v.get('path') or att_v.get('name')
+										if not p: p = att_k
+										register_skin_path(s_name, p)
+				elif isinstance(temp_skins_analysis, list):
+					for item in temp_skins_analysis:
+						if isinstance(item, dict):
+							# Named skin?
+							s_name = item.get('name')
+							
+							# If named skin, process 'attachments'
+							if s_name and 'attachments' in item:
+								for slot_v in item['attachments'].values():
+									if isinstance(slot_v, dict):
+										for att_k, att_v in slot_v.items():
+											p = None
+											if isinstance(att_v, dict):
+												p = att_v.get('path') or att_v.get('name')
+											if not p: p = att_k
+											register_skin_path(s_name, p)
+							
+							# Map style in list?
+							for k, v in item.items():
+								if k != 'attachments' and k != 'name' and isinstance(v, dict):
+									# Assume k is skin name
+									for slot_v in v.values():
+										if isinstance(slot_v, dict):
+											for att_k, att_v in slot_v.items():
+												p = None
+												if isinstance(att_v, dict):
+													p = att_v.get('path') or att_v.get('name')
+												if not p: p = att_k
+												register_skin_path(k, p)
+				
+				# Debug folder owners
+				try:
+					self.info_panel.append(f"Folder ownership analysis: {len(folder_owners)} folders tracked.")
+					for f, owners in folder_owners.items():
+						self.info_panel.append(f"  Folder '{f}' owned by: {', '.join(owners)}")
+				except: pass
+
 				# helper: find source file for an image reference
-				def find_source_image(ref_name):
+				def find_source_image(ref_name, skin_context=None):
 					# Debug: log the reference being searched
 					try:
 						self.info_panel.append(f"find_source_image: looking for ref '{ref_name}'")
 					except Exception:
 						pass
+					
+					# Helper to filter candidates by skin name (folder match)
+					def filter_by_skin(candidates, skin_name):
+						if not candidates:
+							return candidates
+						
+						# If no skin context, we can't prioritize, but we might want to avoid specific skin folders?
+						# For now, just return candidates if no skin context.
+						if not skin_name:
+							return candidates
+
+						skin_norm = skin_name.lower()
+						
+						# Strategy 1: Exact folder name match (e.g. .../pink/...)
+						filtered = []
+						for c in candidates:
+							dir_path = os.path.dirname(c).lower().replace('\\', '/')
+							parts = dir_path.split('/')
+							if skin_norm in parts:
+								filtered.append(c)
+						if filtered: return filtered
+
+						# Strategy 2: Partial folder name match (e.g. .../skin_pink/...)
+						# We look for the skin name as a substring in the path parts
+						for c in candidates:
+							dir_path = os.path.dirname(c).lower().replace('\\', '/')
+							parts = dir_path.split('/')
+							# Check if skin name is part of any folder name
+							if any(skin_norm in p for p in parts):
+								filtered.append(c)
+						if filtered: return filtered
+						
+						# Strategy 3: Exclusion of OTHER skins (Ownership Logic)
+						# If we didn't find a positive match for our skin, we should at least
+						# exclude candidates that belong to OTHER known skins.
+						
+						# Use folder ownership analysis if available
+						if folder_owners:
+							filtered_ownership = []
+							for c in candidates:
+								dir_path = os.path.dirname(c).lower().replace('\\', '/')
+								parts = dir_path.split('/')
+								
+								keep = True
+								for p in parts:
+									if p in folder_owners:
+										owners = folder_owners[p]
+										# If this folder is owned by someone
+										if owners:
+											# If owned by default, always keep
+											if 'default' in owners:
+												continue
+											# If owned by us, always keep
+											if skin_name and skin_name in owners:
+												continue
+											# If we are here, it is owned by others but NOT us and NOT default
+											# So it belongs to another skin exclusively -> Exclude
+											# Debug log exclusion
+											# try: self.info_panel.append(f"Excluding '{c}' for skin '{skin_name}' because folder '{p}' is owned by {owners}")
+											# except: pass
+											keep = False
+											break
+								
+								if keep:
+									filtered_ownership.append(c)
+							
+							if filtered_ownership:
+								return filtered_ownership
+							# If ownership filter removed everything, return empty to avoid picking wrong skin assets
+							return []
+
+						# Fallback to name-based exclusion if no ownership data
+						# Identify other skins to exclude
+						# We exclude all known skins EXCEPT the current one and "default"
+						other_skins = {s.lower() for s in all_skin_names if s.lower() != skin_norm and s.lower() != 'default'}
+						
+						if not other_skins:
+							return candidates
+
+						filtered_exclusion = []
+						for c in candidates:
+							dir_path = os.path.dirname(c).lower().replace('\\', '/')
+							parts = dir_path.split('/')
+							
+							# Check if any part matches an OTHER skin
+							is_other = False
+							for p in parts:
+								# 1. Exact match
+								if p in other_skins:
+									is_other = True
+									break
+								# 2. Partial match (e.g. "piggy_bank_right" contains "right")
+								# We iterate other skins and check if they are present in the folder name
+								for s in other_skins:
+									if s in p:
+										is_other = True
+										break
+								if is_other: break
+							
+							if not is_other:
+								filtered_exclusion.append(c)
+						
+						if filtered_exclusion:
+							return filtered_exclusion
+
+						# If everything was excluded (e.g. only found "gold/head.png" for "pink" skin),
+						# then we have a problem. We can either return nothing (missing asset) or return all (wrong asset).
+						# Returning nothing is safer to avoid visual glitches of wrong skin, but might show missing image.
+						# Returning all guarantees something shows up.
+						# Given the user complaint "shows same asset", we should probably return NOTHING if we are sure it's wrong.
+						# But let's return filtered_exclusion (which is empty) if we found candidates but they were all excluded.
+						
+						return [] 
+
 					# try absolute -> return as single-item list for consistency
 					if os.path.isabs(ref_name) and os.path.isfile(ref_name):
 						return [ref_name]
@@ -1406,6 +1610,8 @@ class MainWindow(QMainWindow):
 							if os.path.basename(cand).lower() == norm_base:
 								matches.append(cand)
 						if matches:
+							# Apply skin filter
+							matches = filter_by_skin(matches, skin_context)
 							return matches
 					# basename without extension
 					base = os.path.splitext(os.path.basename(ref_name))[0]
@@ -1470,6 +1676,8 @@ class MainWindow(QMainWindow):
 					if exact_matches:
 						# Filter by path if applicable
 						exact_matches = filter_by_path(exact_matches, ref_name)
+						# Filter by skin if applicable
+						exact_matches = filter_by_skin(exact_matches, skin_context)
 
 						# return all exact matches (could be multiple in different folders)
 						# Debug: log exact match
@@ -1483,6 +1691,13 @@ class MainWindow(QMainWindow):
 					if seq_matches:
 						# Filter by path if applicable
 						seq_matches = filter_by_path(seq_matches, ref_name, is_tuple=True)
+						
+						# Filter by skin if applicable (seq_matches is list of tuples (num, path))
+						if skin_context:
+							candidates_only = [p for _, p in seq_matches]
+							filtered_candidates = filter_by_skin(candidates_only, skin_context)
+							# Reconstruct seq_matches with only filtered paths
+							seq_matches = [m for m in seq_matches if m[1] in filtered_candidates]
 
 						seq_matches.sort(key=lambda x: x[0])
 						try:
@@ -1496,6 +1711,9 @@ class MainWindow(QMainWindow):
 					if prefix_matches:
 						# Filter by path if applicable
 						prefix_matches = filter_by_path(prefix_matches, ref_name)
+						# Filter by skin if applicable
+						prefix_matches = filter_by_skin(prefix_matches, skin_context)
+
 						# attempt numeric-suffix ordering: extract trailing digits from basename
 						def _num_key(path):
 							bn = os.path.splitext(os.path.basename(path))[0]
@@ -1544,7 +1762,7 @@ class MainWindow(QMainWindow):
 									if isinstance(v, dict):
 										ALL_SKIN_DICTS.append(v)
 				# helper to process a single skin dict (slot -> attachments)
-				def process_skin_dict(skin_dict):
+				def process_skin_dict(skin_dict, skin_name=None):
 					if not isinstance(skin_dict, dict):
 						return skin_dict
 					
@@ -1567,13 +1785,14 @@ class MainWindow(QMainWindow):
 							# determine referenced image name
 							if isinstance(attach_val, dict):
 								# prefer explicit path in attachment value; otherwise use the attachment name
-								ref = attach_val.get('path') or attach_name
+								# Check 'name' as well, as meshes often use 'name' for the image path
+								ref = attach_val.get('path') or attach_val.get('name') or attach_name
 							else:
 								# attach_name may include folder-like segments
 								ref = attach_name
 							
 							# find real source file
-							src = find_source_image(ref)
+							src = find_source_image(ref, skin_context=skin_name)
 							
 							# determine blend(s) for this slot
 							blend = slot_blend.get(slot_name, 'normal')
@@ -1750,6 +1969,41 @@ class MainWindow(QMainWindow):
 								if filtered_parts:
 									nested_folders_str = '/'.join(filtered_parts)
 								
+								# If this is a skin attachment and the source file was found in a matching skin folder,
+								# we MUST preserve that skin folder in the output to avoid collisions with other skins.
+								if skin_name and skin_name.lower() != 'default' and src:
+									src_check = src[0] if isinstance(src, (list, tuple)) else src
+									src_dir_parts = os.path.dirname(src_check).replace('\\', '/').lower().split('/')
+									
+									# Check if the source file is in a folder matching the skin name (exact or partial)
+									# OR if the folder is OWNED by the skin (via folder_owners)
+									
+									# 1. Check direct name match
+									if any(skin_name.lower() in p for p in src_dir_parts):
+										# Check if we already have the skin name in the nested structure
+										current_nesting = nested_folders_str.lower().split('/') if nested_folders_str else []
+										if skin_name.lower() not in current_nesting:
+											if nested_folders_str:
+												nested_folders_str = f"{skin_name}/{nested_folders_str}"
+											else:
+												nested_folders_str = skin_name
+									
+									# 2. Check ownership match (e.g. folder "left" owned by skin "pink")
+									elif folder_owners:
+										# Iterate in REVERSE to build hierarchy bottom-up (prepending)
+										# This ensures we capture deep nesting like "skin/subfolder" correctly
+										for p in reversed(src_dir_parts):
+											if p in folder_owners and skin_name in folder_owners[p]:
+												# This folder belongs to our skin! Preserve it.
+												# We use the actual folder name (e.g. "left")
+												current_nesting = nested_folders_str.lower().split('/') if nested_folders_str else []
+												if p.lower() not in current_nesting:
+													if nested_folders_str:
+														nested_folders_str = f"{p}/{nested_folders_str}"
+													else:
+														nested_folders_str = p
+												# Do NOT break, so we can capture multiple levels of owned folders
+
 								# Ensure sequence subfolder exists
 								if is_sequence:
 									seq_name = re.sub(r'[_\-]?\d+$', '', base_name)
@@ -1975,7 +2229,7 @@ class MainWindow(QMainWindow):
 						if not isinstance(skin, dict):
 							self.info_panel.append(f"Skipping skin {skin_name}: unexpected type {type(skin)}")
 							continue
-						skins[skin_name] = process_skin_dict(skin)
+						skins[skin_name] = process_skin_dict(skin, skin_name=skin_name)
 				elif isinstance(skins, list):
 					# preserve list shape: process each element which may be a dict mapping skinName->skinDict or a skinDict directly
 					new_list = []
@@ -1985,9 +2239,15 @@ class MainWindow(QMainWindow):
 							# if any value is a dict, treat as mapping skinName->skinDict
 							if any(isinstance(v, dict) for v in item.values()):
 								new_item = {}
+								# Try to find skin name first (for named skin objects)
+								current_skin_name = item.get('name')
+								
 								for k, v in item.items():
 									if isinstance(v, dict):
-										new_item[k] = process_skin_dict(v)
+										# If k is 'attachments', use current_skin_name
+										# If k is a skin name (in the map case), use k
+										s_name = current_skin_name if k == 'attachments' else k
+										new_item[k] = process_skin_dict(v, skin_name=s_name)
 									else:
 										new_item[k] = v
 								new_list.append(new_item)
