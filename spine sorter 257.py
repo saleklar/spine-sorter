@@ -38,7 +38,11 @@ DEFAULT_VERSIONS = ["4.2.43", "4.3", "4.2", "4.1", "4.0", "3.8"]
 
 # --- Optional Dependencies ---
 try:
-	from PIL import Image
+	from PIL import Image, ImageFile
+	# Allow loading truncated images for robustness
+	ImageFile.LOAD_TRUNCATED_IMAGES = True
+	# Increase limit for text chunks (metadata) to 64MB to fix "Too much memory used in text chunks" errors
+	ImageFile.MAX_TEXT_MEMORY = 64 * 1024 * 1024
 except Exception:
 	Image = None
 
@@ -732,6 +736,20 @@ class MainWindow(QMainWindow):
 		self.keep_temp_cb.setChecked(bool(self.config.get("keep_temp_files", False)))
 		self.keep_temp_cb.stateChanged.connect(lambda v: self._save_keep_temp_config(v))
 		dev_layout.addWidget(self.keep_temp_cb)
+
+		# Pretty print JSON option
+		self.pretty_print_cb = QCheckBox("Pretty print JSON")
+		self.pretty_print_cb.setToolTip("If checked, the exported JSON will be indented for readability.")
+		self.pretty_print_cb.setChecked(bool(self.config.get("pretty_print_json", True)))
+		self.pretty_print_cb.stateChanged.connect(lambda v: self._save_pretty_print_config(v))
+		dev_layout.addWidget(self.pretty_print_cb)
+
+		# Export JSON Only option
+		self.json_only_cb = QCheckBox("Export JSON only")
+		self.json_only_cb.setToolTip("If checked, only the JSON file will be generated; images will not be copied.")
+		self.json_only_cb.setChecked(bool(self.config.get("json_export_only", False)))
+		self.json_only_cb.stateChanged.connect(lambda v: self._save_json_only_config(v))
+		dev_layout.addWidget(self.json_only_cb)
 		
 		settings_layout.addWidget(self.dev_container)
 		
@@ -943,6 +961,20 @@ class MainWindow(QMainWindow):
 	def _save_keep_temp_config(self, v):
 		try:
 			self.config["keep_temp_files"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_pretty_print_config(self, v):
+		try:
+			self.config["pretty_print_json"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_json_only_config(self, v):
+		try:
+			self.config["json_export_only"] = bool(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -1219,6 +1251,9 @@ class MainWindow(QMainWindow):
 		self.info_panel.append("<b><font color='red'>Stopping process...</font></b>")
 		self.stop_btn.setEnabled(False)
 
+	def log_warning(self, message):
+		self.info_panel.append(f"<b><font color='orange'>{message}</font></b>")
+
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
@@ -1413,9 +1448,10 @@ class MainWindow(QMainWindow):
 					pass
 				opaque_results.append((img_path, fully_opaque))
 			except Exception as e:
-				msg = f"{name}: image analyze failed {img_path}: {e}"
-				errors.append(msg)
-				self.log_error(msg)
+				msg = f"{name}: image analyze warning {img_path}: {e}"
+				# unexpected warnings shouldn't stop the show or scare the user
+				self.log_warning(msg)
+				# Do NOT append to errors for image analysis failures (defaults to PNG)
 
 		# Write opaque results to file
 		try:
@@ -1467,7 +1503,8 @@ class MainWindow(QMainWindow):
 											all_skin_names.add(k)
 
 				# skeleton name
-				skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
+				internal_skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
+				skeleton_name = os.path.splitext(os.path.basename(input_path))[0]
 
 				# build slot blend map
 				slot_blend = {}
@@ -1497,7 +1534,8 @@ class MainWindow(QMainWindow):
 						dirs = parts[:-1]
 						for d in dirs:
 							# Exclude skeleton name and pluralization to prevent root folder hijacking
-							if d == skeleton_name.lower() or d.rstrip('s') == skeleton_name.lower().rstrip('s'):
+							if (d == skeleton_name.lower() or d.rstrip('s') == skeleton_name.lower().rstrip('s') or
+								d == internal_skeleton_name.lower() or d.rstrip('s') == internal_skeleton_name.lower().rstrip('s')):
 								continue
 
 							if d not in ['jpeg', 'png', 'images', 'skeleton', 'root', 'common', 'assets', 'source', 'reference']:
@@ -1989,40 +2027,40 @@ class MainWindow(QMainWindow):
 								is_other_skeleton = False
 								
 								# Only check for other skeletons if "Force local sorting" is NOT checked
-								if not self.force_local_cb.isChecked():
+								# if not self.force_local_cb.isChecked():
 									# 1. Check against known skeletons in the folder
-									if all_skeleton_names and len(parts) > 1:
-										# Check exact match or match with trailing 's' removed (handling pluralization typos)
-										match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
-										if match:
-											potential_skeleton = match # Use correct casing
-											is_other_skeleton = True
+									# if all_skeleton_names and len(parts) > 1:
+									# 	# Check exact match or match with trailing 's' removed (handling pluralization typos)
+									# 	match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
+									# 	if match:
+									# 		potential_skeleton = match # Use correct casing
+									# 		is_other_skeleton = True
 									
 									# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
 									# treat it as an external skeleton/folder even if we don't have the .spine file for it.
 									# This handles cases like "piggy_banks/..." being used in "game_intro" where "piggy_banks.spine" might not be in the current batch.
-									if not is_other_skeleton and len(parts) > 1:
-										IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
-										# Check against skeleton name with pluralization handling
-										if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
-											is_other_skeleton = True
-											# Use the folder name as the target skeleton name
-											potential_skeleton = potential_skeleton 
+									# if not is_other_skeleton and len(parts) > 1:
+									# 	IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
+									# 	# Check against skeleton name with pluralization handling
+									# 	if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
+									# 		is_other_skeleton = True
+									# 		# Use the folder name as the target skeleton name
+									# 		potential_skeleton = potential_skeleton 
 								
 								# Apply redirection if detected
-								if is_other_skeleton and potential_skeleton.lower() != skeleton_name.lower():
-									target_skeleton = potential_skeleton
+								# if is_other_skeleton and potential_skeleton.lower() != skeleton_name.lower():
+								# 	target_skeleton = potential_skeleton
 									
-									if is_reference:
-										# For references, we ignore skeleton redirection for the folder structure
-										# because we want them in the global images folder.
-										# base_dest is already set to global images root.
-										pass
-									else:
-										# Redirect base_dest to the other skeleton's folder
-										# We respect the current decision of jpeg/png, but put it in the other skeleton's structure
-										current_family = 'jpeg' if 'jpeg' in base_dest.lower() else 'png'
-										base_dest = os.path.join(output_root, 'images', target_skeleton, current_family)
+								# 	if is_reference:
+								# 		# For references, we ignore skeleton redirection for the folder structure
+								# 		# because we want them in the global images folder.
+								# 		# base_dest is already set to global images root.
+								# 		pass
+								# 	else:
+								# 		# Redirect base_dest to the other skeleton's folder
+								# 		# We respect the current decision of jpeg/png, but put it in the other skeleton's structure
+								# 		current_family = 'jpeg' if 'jpeg' in base_dest.lower() else 'png'
+								# 		base_dest = os.path.join(output_root, 'images', target_skeleton, current_family)
 									
 									# Debug log for redirection (only once per target to avoid spam)
 									# try:
@@ -2031,22 +2069,57 @@ class MainWindow(QMainWindow):
 								
 								# Remove any family markers (jpeg/png) and skeleton name from the path
 								filtered_parts = []
-								for part in parts[:-1]:  # Exclude the last part (basename)
-									part_lower = part.lower()
-									# If it's a reference, we WANT to keep the 'reference' folder in the path
-									# so we don't filter it out even if it might be in a blocklist (though 'reference' isn't currently blocked)
+								# for part in parts[:-1]:  # Exclude the last part (basename)
+								# 	part_lower = part.lower()
+								# 	# If it's a reference, we WANT to keep the 'reference' folder in the path
+								# 	# so we don't filter it out even if it might be in a blocklist (though 'reference' isn't currently blocked)
 									
-									# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
-									# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
-									if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
-										continue
+								# 	# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
+								# 	# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
+								# 	if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
+								# 		continue
 
-									if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
-										filtered_parts.append(part)
+								# 	if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
+								# 		filtered_parts.append(part)
 								
-								if filtered_parts:
-									nested_folders_str = '/'.join(filtered_parts)
+								# if filtered_parts:
+								# 	nested_folders_str = '/'.join(filtered_parts)
 								
+								# Use source directory structure to determine nested folders
+								# This replaces the disabled attachment-name based logic above
+								if not nested_folders_str and src:
+									try:
+										# Use the first found file
+										s_path = src[0] if isinstance(src, (list, tuple)) else src
+										if s_path:
+											# Check path components
+											s_parts = os.path.dirname(s_path).replace('\\', '/').split('/')
+											
+											# Identify root markers
+											markers = ['png', 'jpeg', 'images', 'symbols', 'source', 'common']
+											
+											# Find the LAST occurrence of a marker to handle cases like .../images/png/...
+											last_marker_idx = -1
+											for i, p in enumerate(s_parts):
+												if p.lower() in markers:
+													last_marker_idx = i
+											
+											if last_marker_idx != -1 and last_marker_idx < len(s_parts) - 1:
+												# Look at folders AFTER the last marker
+												sub_parts = s_parts[last_marker_idx+1:]
+												
+												# Filter out part if it matches skeleton name to avoid redundancy
+												if sub_parts and skeleton_name:
+													p0 = sub_parts[0].lower()
+													s_name = skeleton_name.lower()
+													if p0 == s_name or p0.rstrip('s') == s_name.rstrip('s'):
+														sub_parts.pop(0)
+												
+												if sub_parts:
+													nested_folders_str = '/'.join(sub_parts)
+									except Exception:
+										pass
+
 								# If this is a skin attachment and the source file was found in a matching skin folder,
 								# we MUST preserve that skin folder in the output to avoid collisions with other skins.
 								if skin_name and skin_name.lower() != 'default' and src:
@@ -2120,16 +2193,22 @@ class MainWindow(QMainWindow):
 									else:
 										dst = os.path.join(base_dest, os.path.basename(m))
 									
-									# Create parent directories if needed
-									try:
-										os.makedirs(os.path.dirname(dst), exist_ok=True)
-									except Exception:
-										pass
+									# Create parent directories if needed (ONLY if not JSON only export)
+									export_json_only = self.config.get("json_export_only", False)
+									
+									if not export_json_only:
+										try:
+											os.makedirs(os.path.dirname(dst), exist_ok=True)
+										except Exception:
+											pass
 									
 									# Copy the file
 									try:
-										import shutil
-										shutil.copy2(m, dst)
+										if not export_json_only:
+											import shutil
+											shutil.copy2(m, dst)
+										
+										# Mark as succeeded regardless of whether we actually copied or just calculated paths
 										copy_succeeded = True
 										
 										# Update stats
@@ -2221,18 +2300,22 @@ class MainWindow(QMainWindow):
 									# Remove any family markers (jpeg/png) and skeleton name from the path
 									parts = attach_name_str.split('/')
 									filtered_parts = []
-									for part in parts[:-1]:  # Exclude the last part (basename)
-										part_lower = part.lower()
-										# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
-										# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
-										if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
-											continue
+									# for part in parts[:-1]:  # Exclude the last part (basename)
+									# 	part_lower = part.lower()
+									# 	# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
+									# 	# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
+									# 	if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
+									# 		continue
 
-										if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
-											filtered_parts.append(part)
+									# 	if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
+									# 		filtered_parts.append(part)
 									
-									if filtered_parts:
-										nested_folders_str = '/'.join(filtered_parts)
+									# if filtered_parts:
+									# 	nested_folders_str = '/'.join(filtered_parts)
+									
+									# If we have no nested folders from attachment name (which is disabled above),
+									# we rely ONLY on sequence logic below or explicit structure from skin/etc.
+									# This prevents "04_BACKGROUND/BIRD/Body" folders
 									
 									# Ensure sequence subfolder exists ONLY for sequences
 									if is_sequence:
@@ -2265,33 +2348,34 @@ class MainWindow(QMainWindow):
 									
 									# Create placeholder file ONLY if no real files were found
 									try:
-										if nested_folders_str:
-											nested_path = nested_folders_str.replace('/', os.path.sep)
-											ph_dst = os.path.join(base_dest, nested_path, base_no_digits)
-										else:
-											ph_dst = os.path.join(base_dest, base_no_digits)
-										
-										# For static placeholders, ensure we have an extension if missing (Spine usually wants .png)
-										if not is_sequence and not os.path.splitext(ph_dst)[1]:
-											ph_dst += ".png"
-
-										os.makedirs(os.path.dirname(ph_dst), exist_ok=True)
-										if not os.path.exists(ph_dst):
-											# Try to create a valid transparent PNG (4x4)
-											created = False
-											if Image:
-												try:
-													# Create 4x4 transparent image
-													img = Image.new('RGBA', (4, 4), (0, 0, 0, 0))
-													img.save(ph_dst)
-													created = True
-												except Exception:
-													pass
+										if not self.config.get("json_export_only", False):
+											if nested_folders_str:
+												nested_path = nested_folders_str.replace('/', os.path.sep)
+												ph_dst = os.path.join(base_dest, nested_path, base_no_digits)
+											else:
+												ph_dst = os.path.join(base_dest, base_no_digits)
 											
-											if not created:
-												# Fallback to 1x1 transparent PNG bytes
-												with open(ph_dst, 'wb') as ph:
-													ph.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
+											# For static placeholders, ensure we have an extension if missing (Spine usually wants .png)
+											if not is_sequence and not os.path.splitext(ph_dst)[1]:
+												ph_dst += ".png"
+
+											os.makedirs(os.path.dirname(ph_dst), exist_ok=True)
+											if not os.path.exists(ph_dst):
+												# Try to create a valid transparent PNG (4x4)
+												created = False
+												if Image:
+													try:
+														# Create 4x4 transparent image
+														img = Image.new('RGBA', (4, 4), (0, 0, 0, 0))
+														img.save(ph_dst)
+														created = True
+													except Exception:
+														pass
+												
+												if not created:
+													# Fallback to 1x1 transparent PNG bytes
+													with open(ph_dst, 'wb') as ph:
+														ph.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
 									except Exception:
 										pass
 									
@@ -2355,9 +2439,23 @@ class MainWindow(QMainWindow):
 				final_bones = len(j.get('bones', []))
 				self.info_panel.append(f"Final JSON check: {final_bones} bones. Writing to {new_json_path}")
 				
-				with open(new_json_path, 'w', encoding='utf-8') as nj:
-					json.dump(j, nj, indent=2)
-				self.info_panel.append(f"Wrote sorted json: {new_json_path}")
+				try:
+					indent_val = 2 if self.config.get("pretty_print_json", True) else None
+					with open(new_json_path, 'w', encoding='utf-8') as nj:
+						# Ensure ensure_ascii=False to support unicode characters without escaping
+						json.dump(j, nj, indent=indent_val, ensure_ascii=False)
+						nj.flush()
+						os.fsync(nj.fileno())
+					
+					f_size = os.path.getsize(new_json_path)
+					self.info_panel.append(f"Wrote sorted json: {new_json_path} (Size: {f_size} bytes)")
+					
+					if f_size == 0:
+						self.log_error(f"Error: JSON file {new_json_path} is empty (0 bytes)!")
+						
+				except Exception as e:
+					self.log_error(f"Failed to write JSON: {e}")
+					errors.append(f"JSON write error: {e}")
 
 				# Progress update: JSON written
 				self.progress_bar.setValue(base_progress + 90)
