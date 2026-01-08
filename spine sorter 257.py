@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
-"""Spine sorter - minimal PySide6 UI
+"""
+Spine Sorter - PySide6 UI for managing Spine Animation Files
 
-Provides:
-- Hardcoded Spine EXE display (C:/Program Files/Spine/Spine.exe)
-- Browse button to choose a folder containing .spine files
-- Panel listing all .spine files in that folder
-- Persistent config stored in the platform AppConfigLocation as JSON
+This application allows users to:
+1. Locate and configure the Spine executable.
+2. Browse a directory for .spine files.
+3. List and filter .spine files.
+4. Manage persistent configuration settings.
+5. Launch Spine with specific versions and files.
+
+Key Components:
+- SpineScannerThread: Background thread to find installed Spine versions.
+- ImageCache: Caches metadata about files to avoid redundant processing.
+- FileScanner: Efficiently scans directories for files.
+- SpinePackageValidator: Validates the integrity of .spine packages.
+- Main UI Class (implied below): Handles the graphical interface and user interactions.
+
+Dependencies:
+- PySide6: For the GUI.
+- Pillow (PIL): Optional, for image processing if needed.
 """
 import sys
 import os
@@ -17,14 +30,20 @@ import ctypes
 import zipfile
 import io
 import errno
-# Default Spine JSON versions to populate the JSON-version combo
+
+# --- Configuration Constants ---
+# Default Spine versions for the version selector dropdown.
+# These act as fallbacks or common presets.
 DEFAULT_VERSIONS = ["4.2.43", "4.3", "4.2", "4.1", "4.0", "3.8"]
+
+# --- Optional Dependencies ---
 try:
 	from PIL import Image
 except Exception:
 	Image = None
 
-# Import PySide6 with a friendly error if it's not installed
+# --- GUI Dependencies ---
+# We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
 	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
 	from PySide6.QtWidgets import (
@@ -53,6 +72,12 @@ except ModuleNotFoundError:
 
 
 class SpineScannerThread(QThread):
+	"""
+	Background thread to scan the system for installed Spine executables.
+	
+	This prevents the UI from freezing while searching file system roots
+	and querying executables for their version strings.
+	"""
 	versions_found = Signal(list)
 
 	def __init__(self, config, default_spine_exe, parent=None):
@@ -61,6 +86,15 @@ class SpineScannerThread(QThread):
 		self.default_spine_exe = default_spine_exe
 
 	def _get_file_version_windows(self, path):
+		"""
+		Extracts the file version from a Windows executable using the Win32 API.
+		
+		Args:
+			path (str): Path to the executable.
+			
+		Returns:
+			str: Version string in 'Major.Minor.Patch' format, or None if failed.
+		"""
 		if os.name != 'nt':
 			return None
 		try:
@@ -81,6 +115,7 @@ class SpineScannerThread(QThread):
 			if not VerQueryValue(res, "\\", ctypes.byref(r), ctypes.byref(l)): return None
 				
 			class VS_FIXEDFILEINFO(ctypes.Structure):
+				"""Structure representing the fixed file info block."""
 				_fields_ = [
 					("dwSignature", ctypes.c_uint32), ("dwStrucVersion", ctypes.c_uint32),
 					("dwFileVersionMS", ctypes.c_uint32), ("dwFileVersionLS", ctypes.c_uint32),
@@ -100,9 +135,25 @@ class SpineScannerThread(QThread):
 			return None
 
 	def detect_spine_version(self, spine_exe, timeout=1.0):
+		"""
+		Attempts to determine the version of a Spine executable.
+		
+		Strategy:
+		1. Check for 'version.txt' in standard installation directories.
+		2. On Windows, use the file metadata (Win32 API).
+		3. Run the executable with '--version' argument.
+		
+		Args:
+			spine_exe (str): Path to the Spine executable.
+			timeout (float): Timeout for the subprocess call.
+			
+		Returns:
+			str: The detected version string, or None.
+		"""
 		exe = str(spine_exe)
 		
 		# Optimization: Check for version.txt in user home (standard Spine behavior)
+		# This avoids launching the process if possible.
 		home = os.path.expanduser("~")
 		candidates_txt = [
 			os.path.join(os.path.dirname(exe), "version.txt"), # Local to exe
@@ -219,12 +270,19 @@ class SpineScannerThread(QThread):
 
 
 class ImageCache:
+	"""
+	Persists image metadata to disk to speed up subsequent loads.
+	
+	The cache stores the file modification time and size to invalidate entries
+	if the source file changes.
+	"""
 	def __init__(self, cache_path):
 		self.cache_path = cache_path
 		self.cache = {}
 		self.load()
 
 	def load(self):
+		"""Loads the cache from the JSON file."""
 		try:
 			if os.path.exists(self.cache_path):
 				with open(self.cache_path, 'r', encoding='utf-8') as f:
@@ -233,6 +291,7 @@ class ImageCache:
 			self.cache = {}
 
 	def save(self):
+		"""Saves the current cache state to the JSON file."""
 		try:
 			with open(self.cache_path, 'w', encoding='utf-8') as f:
 				json.dump(self.cache, f, indent=2)
@@ -240,6 +299,9 @@ class ImageCache:
 			pass
 
 	def get(self, path):
+		"""
+		Retrieves data for a file if the cache is valid (mtime/size match).
+		"""
 		try:
 			stat = os.stat(path)
 			mtime = stat.st_mtime
@@ -254,6 +316,7 @@ class ImageCache:
 		return None
 
 	def set(self, path, data):
+		"""Updates or adds an entry to the cache."""
 		try:
 			stat = os.stat(path)
 			self.cache[path] = {
@@ -266,10 +329,25 @@ class ImageCache:
 
 
 class FileScanner:
+	"""
+	Recursively scans directories for files.
+	
+	Results are cached in memory for the lifetime of the object to avoid
+	re-scanning the file system unnecessarily.
+	"""
 	def __init__(self):
 		self.cache = {} # dir_path -> list of (full_path, basename_lower)
 
 	def scan(self, directory):
+		"""
+		Scans a directory for all files recursively.
+		
+		Args:
+			directory (str): The root directory to scan.
+			
+		Returns:
+			list: A list of tuples (full_path, lowercase_filename).
+		"""
 		if directory in self.cache:
 			return self.cache[directory]
 		
