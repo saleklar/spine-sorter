@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.04 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -583,7 +583,7 @@ class SpinePackageValidator:
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter")
+		self.setWindowTitle("Spine Sorter v5.04")
 
 		# Configuration
 		if sys.platform == 'darwin':
@@ -2013,10 +2013,11 @@ class MainWindow(QMainWindow):
 								except Exception:
 									pass
 								
-								# Extract nested folder structure from ATTACHMENT NAME (the source of truth)
-								attach_name_str = str(attach_name).replace('\\', '/')
+								# Extract nested folder structure from REFERENCE PATH (the source of truth)
+								# We use 'ref' because attach_name might just be an alias/key, while ref contains the path
+								attach_name_str = str(ref).replace('\\', '/')
 								nested_folders_str = ""
-								base_name = os.path.basename(str(attach_name))
+								base_name = os.path.basename(str(ref))
 								
 								# Check if the attachment belongs to another skeleton
 								target_skeleton = skeleton_name
@@ -2027,63 +2028,113 @@ class MainWindow(QMainWindow):
 								is_other_skeleton = False
 								
 								# Only check for other skeletons if "Force local sorting" is NOT checked
-								# if not self.force_local_cb.isChecked():
+								if not self.force_local_cb.isChecked():
 									# 1. Check against known skeletons in the folder
-									# if all_skeleton_names and len(parts) > 1:
-									# 	# Check exact match or match with trailing 's' removed (handling pluralization typos)
-									# 	match = next((s for s in all_skeleton_names if s.lower().rstrip('s') == potential_skeleton.lower().rstrip('s')), None)
-									# 	if match:
-									# 		potential_skeleton = match # Use correct casing
-									# 		is_other_skeleton = True
+									if all_skeleton_names and len(parts) > 1:
+										potential_lower = potential_skeleton.lower()
+										# Check exact match, pluralization match, or version-prefix match (symbols_v6 matches symbols)
+										match = None
+										for s in all_skeleton_names:
+											s_lower = s.lower()
+											if s_lower == potential_lower:
+												match = s; break
+											if s_lower.rstrip('s') == potential_lower.rstrip('s'):
+												match = s; break
+											# Version prefix check: skeleton "symbols_v6" matches folder "symbols"
+											if s_lower.startswith(potential_lower):
+												rest = s_lower[len(potential_lower):]
+												if rest and (rest[0] in ['_', '-', 'v', '.'] or rest[0].isdigit()):
+													match = s; break
+													
+										if match:
+											potential_skeleton = match # Use correct casing
+											is_other_skeleton = True
 									
 									# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
 									# treat it as an external skeleton/folder even if we don't have the .spine file for it.
 									# This handles cases like "piggy_banks/..." being used in "game_intro" where "piggy_banks.spine" might not be in the current batch.
-									# if not is_other_skeleton and len(parts) > 1:
-									# 	IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
-									# 	# Check against skeleton name with pluralization handling
-									# 	if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
-									# 		is_other_skeleton = True
-									# 		# Use the folder name as the target skeleton name
-									# 		potential_skeleton = potential_skeleton 
+									if not is_other_skeleton and len(parts) > 1:
+										IGNORED_ROOTS = ['images', 'common', 'skeleton', 'root', 'private', 'jpeg', 'png', 'assets', 'source', 'reference']
+										# Check against skeleton name with pluralization handling
+										if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
+											is_other_skeleton = True
+											# Use the folder name as the target skeleton name
+											potential_skeleton = potential_skeleton 
+									
+									# 2a. Fallback using Source File Path:
+									# If we haven't detected a redirection from the attachment string,
+									# check if the RESOLVED source file actually lives in another skeleton's folder.
+									if not is_other_skeleton and src:
+										src_path_check = src[0] if isinstance(src, (list, tuple)) else src
+										if src_path_check:
+											src_parts = os.path.dirname(src_path_check).replace('\\', '/').split('/')
+											src_parts_lower = [p.lower() for p in src_parts]
+											
+											# Check against known skeletons
+											if all_skeleton_names:
+												for s in all_skeleton_names:
+													s_name = s.lower()
+													# Skip self
+													if s_name == skeleton_name.lower(): continue
+													
+													# Check if this skeleton name matches any path part
+													# 1. Exact match
+													if s_name in src_parts_lower:
+														potential_skeleton = s
+														is_other_skeleton = True
+														break
+													
+													# 2. Relaxed match (folder "symbols" matches skeleton "symbols_v6")
+													for p in src_parts_lower:
+														if len(p) < 3 or p in ['jpeg', 'png', 'images', 'assets', 'source', 'common', 'root', 'backup']:
+															continue
+														
+														if s_name.startswith(p):
+															rest = s_name[len(p):]
+															# Ensure significant prefix match
+															if rest and (rest[0] in ['_', '-', 'v', '.'] or rest[0].isdigit()):
+																potential_skeleton = s
+																is_other_skeleton = True
+																break
+													if is_other_skeleton: break
 								
 								# Apply redirection if detected
-								# if is_other_skeleton and potential_skeleton.lower() != skeleton_name.lower():
-								# 	target_skeleton = potential_skeleton
+								if is_other_skeleton and potential_skeleton.lower() != skeleton_name.lower():
+									target_skeleton = potential_skeleton
 									
-								# 	if is_reference:
-								# 		# For references, we ignore skeleton redirection for the folder structure
-								# 		# because we want them in the global images folder.
-								# 		# base_dest is already set to global images root.
-								# 		pass
-								# 	else:
-								# 		# Redirect base_dest to the other skeleton's folder
-								# 		# We respect the current decision of jpeg/png, but put it in the other skeleton's structure
-								# 		current_family = 'jpeg' if 'jpeg' in base_dest.lower() else 'png'
-								# 		base_dest = os.path.join(output_root, 'images', target_skeleton, current_family)
+									if is_reference:
+										# For references, we ignore skeleton redirection for the folder structure
+										# because we want them in the global images folder.
+										# base_dest is already set to global images root.
+										pass
+									else:
+										# Redirect base_dest to the other skeleton's folder
+										# We respect the current decision of jpeg/png, but put it in the other skeleton's structure
+										current_family = 'jpeg' if 'jpeg' in base_dest.lower() else 'png'
+										base_dest = os.path.join(output_root, 'images', target_skeleton, current_family)
 									
 									# Debug log for redirection (only once per target to avoid spam)
-									# try:
-									# 	self.info_panel.append(f"Redirecting '{attach_name}' to skeleton '{target_skeleton}'")
-									# except: pass
+									try:
+										self.info_panel.append(f"Redirecting '{attach_name}' to skeleton '{target_skeleton}'")
+									except: pass
 								
 								# Remove any family markers (jpeg/png) and skeleton name from the path
 								filtered_parts = []
-								# for part in parts[:-1]:  # Exclude the last part (basename)
-								# 	part_lower = part.lower()
-								# 	# If it's a reference, we WANT to keep the 'reference' folder in the path
-								# 	# so we don't filter it out even if it might be in a blocklist (though 'reference' isn't currently blocked)
+								for part in parts[:-1]:  # Exclude the last part (basename)
+									part_lower = part.lower()
+									# If it's a reference, we WANT to keep the 'reference' folder in the path
+									# so we don't filter it out even if it might be in a blocklist (though 'reference' isn't currently blocked)
 									
-								# 	# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
-								# 	# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
-								# 	if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
-								# 		continue
+									# Also filter out the skeleton name if it appears in the path (e.g. game_intro/reference/...)
+									# Also handle common typos like pluralization (piggy_bank vs piggy_banks)
+									if part_lower == skeleton_name.lower() or part_lower.rstrip('s') == skeleton_name.lower().rstrip('s'):
+										continue
 
-								# 	if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
-								# 		filtered_parts.append(part)
+									if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
+										filtered_parts.append(part)
 								
-								# if filtered_parts:
-								# 	nested_folders_str = '/'.join(filtered_parts)
+								if filtered_parts:
+									nested_folders_str = '/'.join(filtered_parts)
 								
 								# Use source directory structure to determine nested folders
 								# This replaces the disabled attachment-name based logic above
