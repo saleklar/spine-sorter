@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Spine Sorter 257',
+    name='Spine Sorter v5.04',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -39,7 +39,7 @@ exe = EXE(
 
 app = BUNDLE(
     exe,
-    name='Spine Sorter 257.app',
+    name='Spine Sorter v5.04.app',
     icon=None,
     bundle_identifier=None,
 )
