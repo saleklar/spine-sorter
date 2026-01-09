@@ -38,11 +38,22 @@ DEFAULT_VERSIONS = ["4.2.43", "4.3", "4.2", "4.1", "4.0", "3.8"]
 
 # --- Optional Dependencies ---
 try:
-	from PIL import Image, ImageFile
+	import PIL.Image
+	import PIL.ImageFile
+	import PIL.PngImagePlugin # Ensure direct access to the plugin module
+	
 	# Allow loading truncated images for robustness
-	ImageFile.LOAD_TRUNCATED_IMAGES = True
-	# Increase limit for text chunks (metadata) to 64MB to fix "Too much memory used in text chunks" errors
-	ImageFile.MAX_TEXT_MEMORY = 64 * 1024 * 1024
+	PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
+	# Increase limit for text chunks (metadata) significantly (2GB)
+	PIL.ImageFile.MAX_TEXT_MEMORY = 2048 * 1024 * 1024
+	# Fix: PngImagePlugin copies MAX_TEXT_MEMORY at import time, so we must update it there too
+	PIL.PngImagePlugin.MAX_TEXT_MEMORY = 2048 * 1024 * 1024
+	
+	# Disable DecompressionBomb prevention (allow large images)
+	PIL.Image.MAX_IMAGE_PIXELS = None
+	
+	Image = PIL.Image
+	ImageFile = PIL.ImageFile
 except Exception:
 	Image = None
 
@@ -800,6 +811,17 @@ class MainWindow(QMainWindow):
 		self.open_after_checkbox.setChecked(bool(self.config.get("open_after_export", False)))
 		self.open_after_checkbox.stateChanged.connect(lambda v: self._save_open_after_config(v))
 
+		# Optional: Optimization (Opaque/Blend to JPEG)
+		self.optimization_cb = QCheckBox("Sort all opaque images to jpeg")
+		self.optimization_cb.setToolTip(
+			"If checked, opaque images (with 'normal' blend) will be sorted to JPEG folder.\n"
+			"If unchecked, they will remain in PNG folder (safer for some engines).\n"
+			"Images exclusive to non-normal blend slots (Additive/Screen) will ALWAYS go to JPEG."
+		)
+		self.optimization_cb.setChecked(bool(self.config.get("optimization_enabled", True)))
+		self.optimization_cb.stateChanged.connect(lambda v: self._save_optimization_config(v))
+		actions_layout.addWidget(self.optimization_cb)
+
 		# Optional: Force local sorting (treat all assets as local to the skeleton)
 		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
 		self.force_local_cb.setToolTip(
@@ -954,6 +976,13 @@ class MainWindow(QMainWindow):
 	def _save_force_local_config(self, v):
 		try:
 			self.config["force_local_sorting"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_optimization_config(self, state):
+		try:
+			self.config['optimization_enabled'] = bool(state)
 			self._save_config()
 		except Exception:
 			pass
@@ -1257,7 +1286,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True):
 		# Collect image file paths from json, atlas/info and by scanning the export folder
 		image_paths = set()
 		try:
@@ -1410,48 +1439,81 @@ class MainWindow(QMainWindow):
 		self.progress_bar.setValue(base_progress + 20)
 		QApplication.processEvents()
 
+		# --- Analyze Opacity ---
 		opaque_results = []
-		total_resolved = len(resolved)
-		for idx, img_path in enumerate(resolved):
-			# Skip .spine files or other non-image files that might have been picked up
-			if img_path.lower().endswith('.spine') or img_path.lower().endswith('.json'):
-				continue
-
-			# Progress update: Opacity check (20-50 range)
-			if total_resolved > 0:
-				p = 20 + int((idx / total_resolved) * 30)
-				self.progress_bar.setValue(base_progress + p)
-				QApplication.processEvents()
-				
+		
+		# Skip opacity scan entirely if optimization is disabled
+		# (Unless we want to warn about opaque images in PNG folder? But user disabled it.)
+		if optimization_enabled:
+			# Ensure limit is high enough (redundant check)
 			try:
-				im = Image.open(img_path)
-				# convert to RGBA to reliably access alpha channel
-				rgba = im.convert('RGBA')
-				alpha = rgba.split()[-1]
-				data = list(alpha.getdata())
-				total = len(data)
-				if total == 0:
-					# treat empty images as opaque to avoid divide-by-zero
-					ratio = 1.0
-				else:
-					# use configured alpha cutoff (count pixels with alpha >= cutoff as opaque)
-					alpha_cutoff = int(self.config.get("alpha_cutoff", 250))
-					opaque_count = sum(1 for v in data if v >= alpha_cutoff)
-					ratio = opaque_count / total
-				# threshold from slider (percentage)
-				threshold = float(self.config.get("opacity_threshold", self.opacity_slider.value())) / 100.0
-				fully_opaque = (ratio >= threshold)
-				# log percentage for visibility
-				try:
-					self.info_panel.append(f"Opacity for {img_path}: {ratio*100:.2f}% ({opaque_count}/{total})")
-				except Exception:
-					pass
-				opaque_results.append((img_path, fully_opaque))
+				import PIL.ImageFile
+				# Force it again just to be sure
+				PIL.ImageFile.MAX_TEXT_MEMORY = 2048 * 1024 * 1024
+				self.info_panel.append(f"DEBUG: MAX_TEXT_MEMORY set to {PIL.ImageFile.MAX_TEXT_MEMORY}")
 			except Exception as e:
-				msg = f"{name}: image analyze warning {img_path}: {e}"
-				# unexpected warnings shouldn't stop the show or scare the user
-				self.log_warning(msg)
-				# Do NOT append to errors for image analysis failures (defaults to PNG)
+				self.info_panel.append(f"DEBUG: Failed to set MAX_TEXT_MEMORY: {e}")
+
+			# DEBUG: Log all analysis details to file
+			debug_log_path = os.path.join(result_dir, "sorting_debug.txt")
+			with open(debug_log_path, "w") as df:
+				df.write(f"ANALYSIS SESSION START\n")
+				df.write(f"Configured Threshold: {self.config.get('opacity_threshold', self.opacity_slider.value())}%\n")
+				df.write(f"Configured Alpha Cutoff: {self.config.get('alpha_cutoff', 250)}\n")
+
+			total_resolved = len(resolved)
+			
+			for idx, img_path in enumerate(resolved):
+				# Skip .spine files or other non-image files that might have been picked up
+				if img_path.lower().endswith('.spine') or img_path.lower().endswith('.json'):
+					continue
+
+				# Progress update: Opacity check (20-50 range)
+				if total_resolved > 0:
+					p = 20 + int((idx / total_resolved) * 30)
+					self.progress_bar.setValue(base_progress + p)
+					QApplication.processEvents()
+					
+				try:
+					im = Image.open(img_path)
+					# convert to RGBA to reliably access alpha channel
+					rgba = im.convert('RGBA')
+					alpha = rgba.split()[-1]
+					data = list(alpha.getdata())
+					total = len(data)
+					if total == 0:
+						# treat empty images as opaque to avoid divide-by-zero
+						ratio = 1.0
+						opaque_count = 0
+					else:
+						# use configured alpha cutoff (count pixels with alpha >= cutoff as opaque)
+						alpha_cutoff = int(self.config.get("alpha_cutoff", 250))
+						opaque_count = sum(1 for v in data if v >= alpha_cutoff)
+						ratio = opaque_count / total
+					# threshold from slider (percentage)
+					threshold_val_config = float(self.config.get("opacity_threshold", self.opacity_slider.value()))
+					threshold = threshold_val_config / 100.0
+					fully_opaque = (ratio >= threshold)
+					
+					# LOG DETAIL
+					with open(debug_log_path, "a") as df:
+						status = "OPAQUE" if fully_opaque else "TRANSPARENT"
+						df.write(f"FILE: {os.path.basename(img_path)} | OpaquePix: {opaque_count}/{total} | Ratio: {ratio*100:.2f}% | Threshold: {threshold*100}% | Result: {status}\n")
+
+					# log percentage for visibility
+					try:
+						self.info_panel.append(f"Opacity for {img_path}: {ratio*100:.2f}% ({opaque_count}/{total})")
+					except Exception:
+						pass
+					opaque_results.append((img_path, fully_opaque))
+				except Exception as e:
+					msg = f"{name}: image analyze warning {img_path}: {e}"
+					# unexpected warnings shouldn't stop the show or scare the user
+					self.log_warning(msg)
+					# Should default to False (Transparent) on error to be safe
+					opaque_results.append((img_path, False))
+		else:
+			self.info_panel.append("Skipping opacity analysis (Sort all opaque to jpeg is OFF)")
 
 		# Write opaque results to file
 		try:
@@ -1477,8 +1539,14 @@ class MainWindow(QMainWindow):
 				# build opaque map (basename or full path -> opaque)
 				opaque_map = {}
 				for p, ok in opaque_results:
-					opaque_map[os.path.normpath(p)] = bool(ok)
-					opaque_map[os.path.basename(p)] = bool(ok)
+					is_ok = bool(ok)
+					opaque_map[p] = is_ok
+					opaque_map[os.path.normpath(p)] = is_ok
+					opaque_map[os.path.abspath(p)] = is_ok
+					opaque_map[p.lower()] = is_ok # handle potential case mismatch
+					# REMOVED: Basename fallback to prevent collisions (e.g. skin1/head.png vs skin2/head.png)
+					# opaque_map[os.path.basename(p)] = is_ok
+					# opaque_map[os.path.basename(p).lower()] = is_ok
 
 				# load json
 				with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
@@ -1877,8 +1945,12 @@ class MainWindow(QMainWindow):
 								for v in item.values():
 									if isinstance(v, dict):
 										ALL_SKIN_DICTS.append(v)
+				# Global Scan Data (for pre-scan pass)
+				SCAN_SLOT_USAGE = {} # path -> set(slots)
+				PRECALC_DESTINATIONS = {} # path -> 'jpeg' or 'png'
+
 				# helper to process a single skin dict (slot -> attachments)
-				def process_skin_dict(skin_dict, skin_name=None):
+				def process_skin_dict(skin_dict, skin_name=None, scan_mode=False):
 					if not isinstance(skin_dict, dict):
 						return skin_dict
 					
@@ -1893,7 +1965,8 @@ class MainWindow(QMainWindow):
 							# Debug: log first attachment details
 							if not first_attachment_debug:
 								try:
-									self.info_panel.append(f"Debug Attachment '{attach_name}': {json.dumps(attach_val)}")
+									if not scan_mode:
+										self.info_panel.append(f"Debug Attachment '{attach_name}': {json.dumps(attach_val)}")
 									first_attachment_debug = True
 								except Exception:
 									pass
@@ -1910,18 +1983,53 @@ class MainWindow(QMainWindow):
 							# find real source file
 							src = find_source_image(ref, skin_context=skin_name)
 							
+							if scan_mode:
+								if src:
+									matches_scan = src if isinstance(src, (list, tuple)) else [src]
+									for ms in matches_scan:
+										try:
+											k_s = os.path.normpath(ms)
+											if k_s not in SCAN_SLOT_USAGE:
+												SCAN_SLOT_USAGE[k_s] = set()
+											SCAN_SLOT_USAGE[k_s].add(slot_name)
+										except: pass
+								continue
+							
 							# determine blend(s) for this slot
 							blend = slot_blend.get(slot_name, 'normal')
 							# determine opaque status
 							is_opaque = False
-							if src:
+							
+							# If optimization is enabled, perform opacity analysis
+							if src and optimization_enabled:
 								# src may be a single path or a list of matches; consider all matches opaque to be opaque
 								matches_check = src if isinstance(src, (list, tuple)) else [src]
 								vals = []
 								for m in matches_check:
-									vals.append(bool(opaque_map.get(os.path.normpath(m), opaque_map.get(os.path.basename(m), False))))
+									# More robust lookup
+									val = False
+									found_key = False
+									
+									candidates_keys = [
+										m,
+										os.path.normpath(m),
+										os.path.abspath(m),
+										m.lower()
+										# REMOVED: Basename fallback
+										# os.path.basename(m),
+										# os.path.basename(m).lower()
+									]
+									
+									for k in candidates_keys:
+										if k in opaque_map:
+											val = opaque_map[k]
+											found_key = True
+											break
+									
+									vals.append(val)
 								# require all frames/matches to be opaque to treat as opaque
 								is_opaque = all(vals) if vals else False
+							
 							# If attachment appears in slots, collect those slots and their blends
 							slots_found = []
 							for skin2 in ALL_SKIN_DICTS:
@@ -1963,16 +2071,31 @@ class MainWindow(QMainWindow):
 								# Place them in the global images folder (not under skeleton subfolder).
 								base_dest = os.path.join(output_root, 'images')
 								reason.append("reference")
-							elif slots_found and appears_only_in_non_normal:
-								base_dest = jpeg_dir
-								reason.append("only in non-normal slots")
-							elif blend == 'normal' and (not slots_found or all(slot_blend.get(s, 'normal') == 'normal' for s in slots_found)) and is_opaque:
-								base_dest = jpeg_dir
-								reason.append("normal blend + opaque")
 							else:
-								base_dest = png_dir
-								if not is_opaque: reason.append("transparent")
-								if blend != 'normal': reason.append(f"blend={blend}")
+								forced_decision = None
+								if src:
+									src_check = src[0] if isinstance(src, (list, tuple)) else src
+									try:
+										k_s = os.path.normpath(src_check)
+										forced_decision = PRECALC_DESTINATIONS.get(k_s)
+									except: pass
+
+								if forced_decision == 'png':
+									base_dest = png_dir
+									reason.append("global: forced to png")
+								elif forced_decision == 'jpeg':
+									base_dest = jpeg_dir
+									reason.append("global: forced to jpeg")
+								elif slots_found and appears_only_in_non_normal:
+									base_dest = jpeg_dir
+									reason.append("only in non-normal slots")
+								elif is_opaque:
+									base_dest = jpeg_dir
+									reason.append("opaque")
+								else:
+									base_dest = png_dir
+									if not is_opaque: reason.append("transparent")
+									if blend != 'normal': reason.append(f"blend={blend}")
 								
 								# Warning if it was JPEG but forced to PNG
 								if is_jpeg_source:
@@ -2437,6 +2560,40 @@ class MainWindow(QMainWindow):
 										attachments[attach_name] = {'path': first_rel}
 					return skin_dict
 
+				# --- PRE-SCAN EXECUTION ---
+				try:
+					self.info_panel.append("Running pre-scan to unify image destinations...")
+					for temp_skin in ALL_SKIN_DICTS:
+						process_skin_dict(temp_skin, scan_mode=True)
+					
+					for f_path, slots in SCAN_SLOT_USAGE.items():
+						is_opaque_f = False
+						candidates = [f_path, os.path.normpath(f_path), os.path.abspath(f_path), f_path.lower()]
+						
+						# Determine opacity from map
+						for k in candidates:
+							if k in opaque_map:
+								is_opaque_f = opaque_map[k]
+								break
+						
+						# Determine slot usage blend
+						appears_only_in_non_normal = True
+						if slots:
+							appears_only_in_non_normal = all(slot_blend.get(s, 'normal') != 'normal' for s in slots)
+						
+						if appears_only_in_non_normal:
+							dest = 'jpeg'
+						elif is_opaque_f:
+							dest = 'jpeg'
+						else:
+							dest = 'png'
+						
+						PRECALC_DESTINATIONS[f_path] = dest
+						PRECALC_DESTINATIONS[os.path.normpath(f_path)] = dest
+
+				except Exception as e:
+					self.info_panel.append(f"Pre-scan failed: {e}")
+
 				if isinstance(skins, dict):
 					for skin_name, skin in list(skins.items()):
 						if not isinstance(skin, dict):
@@ -2736,7 +2893,7 @@ class MainWindow(QMainWindow):
 				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 				
 				if proc.returncode != 0:
-					msg = f"Spine export failed: {proc.stderr}"
+					msg = f"Spine export failed (Code {proc.returncode}):\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}"
 					self.log_error(msg)
 					errors.append(f"{name}: export failed")
 					continue
@@ -2777,7 +2934,7 @@ class MainWindow(QMainWindow):
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
 					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=all_skeleton_names,
-					is_first=is_first, is_last=is_last
+					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked()
 				)
 
 		# Cleanup and Finish
