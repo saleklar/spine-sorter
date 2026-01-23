@@ -1,0 +1,88 @@
+SPINE SORTER v5.51 - ARTIST GUIDE
+========================================
+
+WHAT DOES THIS TOOL DO?
+----------------------------------------
+This tool automates the process of preparing your Spine project images for the game engine. Instead of manually deciding which images should be JPEGs (for smaller file size) and which should be PNGs (for transparency), this tool scans your Spine project and sorts them for you automatically.
+
+It ensures your project is optimized without breaking visual quality.
+
+HOW TO USE IT
+----------------------------------------
+1. Open the tool.
+2. Click "Browse" and select your folder containing .spine files.
+3. Select the file you want to process from the list.
+4. Click "Run Selected File".
+5. Wait for the process to finish. A report will appear at the bottom.
+
+KEY FEATURES
+----------------------------------------
+
+1. SMART IMAGE SORTING
+   The tool decides where each image goes based on how you used it in Spine:
+   - JPEG Folder: Images that are fully opaque (no transparency) or used in special blend modes (like Additive) are moved here to save disk space.
+   - PNG Folder: Images with transparent backgrounds or edges are kept here to ensure they look correct.
+   - Images Folder: "Reference" images are kept separate.
+
+2. INTELLIGENT WARNINGS (Pay attention to these!)
+   The tool checks for common mistakes that break the game build:
+
+   [ORANGE WARNING] "Unchecked for Export"
+   - Problem: You are using an image in your animation, but you unchecked the "Export" box in the Spine hierarchy.
+   - Result: This image will be missing in the game!
+   - Fix: Go to Spine, find the image, and check the "Export" box.
+
+   [RED WARNING] "Forced to PNG"
+   - Problem: You put a file in a source "jpeg" folder, implying it should be opaque, but the tool detected transparent pixels (often invisible soft edges).
+   - Result: The tool forced it to be a PNG to prevent white halos in the game.
+   - Fix: If you really want it to be a JPEG, remove the alpha channel/transparency in Photoshop. Otherwise, the tool handled it for you.
+
+   [MISSING FILES]
+   - Problem: Spine thinks an image exists at a specific path, but it's not on your computer.
+   - Fix: Check your path names or find the missing generic image.
+
+3. THE REPORT CARD
+   At the end of a run, you get a summary:
+   - Total Attachments: How many distinct slots/attachments are in your Spine skeleton.
+   - Exported Images: How many actual file paths were processed.
+   - Copied counts: How many ended up as JPEGs vs PNGs.
+
+4. SAFETY FEATURES
+
+   - Validation: It checks if your .spine file is valid and can be opened.
+
+5. CHECKBOX OPTIONS
+----------------------------------------
+
+The main interface has several checkboxes that control how the tool works.
+
+[STANDARD OPTIONS]
+
+- Open .spine after export:
+  If checked, the tool will automatically launch the newly created .spine project file immediately after processing is complete.
+
+- Sort all opaque images to jpeg:
+  [IMPORTANT] This is the main optimization switch.
+  - Checked (Default): Any image that has no transparency and is used in a "Normal" blend mode slot will be moved to the JPEG folder. This saves the most space.
+  - Unchecked: Opaque images are kept as PNGs. Use this only if your game engine has trouble with JPEGs or if you see visual artifacts.
+  Note: Images used in "Additive" or "Screen" blend modes are ALWAYS moved to JPEG, regardless of this setting, because they don't need transparency.
+
+- Force local sorting (Old projects):
+  - Use this for OLD, messy projects that haven't been organized yet.
+  - If you are re-running the tool on a project you've already sorted before, keep this UNCHECKED.
+  - If unchecked, the tool respects the existing folder structure.
+
+[DEV OPTIONS]
+(Click "Settings" -> "Dev options" to see these)
+
+- Keep temporary files:
+  Normally the tool creates a temporary folder during export and deletes it when done. Check this to keep that folder for debugging purposes.
+
+- Pretty print JSON:
+  Makes the output .json file human-readable with indentation. Useful if verify the data manually. Uncheck to make the file slightly smaller (minified).
+
+- Export JSON only:
+  Generates the data file but skips copying/converting images. Useful if you only changed attachment data but didn't add new images.
+
+----------------------------------------
+Tip: If you see a warning, fix it in Spine/Photoshop and run the tool again to verify!

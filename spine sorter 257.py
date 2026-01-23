@@ -61,6 +61,7 @@ except Exception:
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
 	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -595,6 +596,7 @@ class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setWindowTitle("Spine Sorter v5.51")
+		self._setup_icons()
 
 		# Configuration
 		if sys.platform == 'darwin':
@@ -908,6 +910,50 @@ class MainWindow(QMainWindow):
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #FF0000; font-weight: bold; }")
 		else:
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #AA0000; font-weight: bold; }")
+
+	def _setup_icons(self):
+		# Create icons for different states
+		self.icon_idle = self._generate_icon("#FF9800", "S") # Orange S (Spine color-ish)
+		self.icon_busy = self._generate_icon("#F44336", "...") # Red ... for busy
+		self.setWindowIcon(self.icon_idle)
+
+	def _generate_icon(self, bg_color, text_char):
+		pixmap = QPixmap(64, 64)
+		pixmap.fill(Qt.transparent)
+		painter = QPainter(pixmap)
+		painter.setRenderHint(QPainter.Antialiasing)
+		
+		# Draw rounded rect bg
+		painter.setBrush(QBrush(QColor(bg_color)))
+		painter.setPen(Qt.NoPen)
+		# 16px radius for 64px icon is nice and round
+		painter.drawRoundedRect(0, 0, 64, 64, 16, 16)
+		
+		# Draw subtle spine effect (vertebrae-ish segments)
+		painter.setBrush(QBrush(QColor(255, 255, 255, 60)))
+		# 4 segments
+		w_seg = 32
+		h_seg = 8
+		x_seg = (64 - w_seg) / 2
+		y_start = 12
+		gap = 4
+		for i in range(4):
+			painter.drawRoundedRect(x_seg, y_start + (i * (h_seg + gap)), w_seg, h_seg, 2, 2)
+
+		# Draw text
+		font = QFont("Segoe UI", 36, QFont.Bold)
+		painter.setFont(font)
+		
+		# Shadow
+		painter.setPen(QColor(0,0,0, 40))
+		painter.drawText(pixmap.rect().adjusted(2,2,2,2), Qt.AlignCenter, text_char)
+		
+		# Main text
+		painter.setPen(QColor("white"))
+		painter.drawText(pixmap.rect(), Qt.AlignCenter, text_char)
+		
+		painter.end()
+		return QIcon(pixmap)
 
 	def diagnose_file(self):
 		start = self.output_display.text() or os.path.expanduser("~")
@@ -2915,6 +2961,7 @@ class MainWindow(QMainWindow):
 		# Update UI for processing state
 		self.process_btn.setEnabled(False)
 		self.stop_btn.setEnabled(True)
+		self.setWindowIcon(self.icon_busy)
 		self.progress_bar.setRange(0, len(to_process) * 100)
 		self.progress_bar.setValue(0)
 		
@@ -2949,6 +2996,7 @@ class MainWindow(QMainWindow):
 			QMessageBox.warning(self, "Missing dependency", "Pillow is required to analyze images. Install with: pip install Pillow")
 			self.process_btn.setEnabled(True)
 			self.stop_btn.setEnabled(False)
+			self.setWindowIcon(self.icon_idle)
 			return
 
 		timestamp = int(time.time())
@@ -3130,6 +3178,14 @@ class MainWindow(QMainWindow):
 
 def main():
 	print("Starting application...")
+	if os.name == 'nt':
+		try:
+			# Set AppUserModelID so the taskbar icon displays correctly on Windows
+			myappid = 'spinesorter.v5.51' 
+			ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+		except Exception:
+			pass
+
 	try:
 		app = QApplication(sys.argv)
 		w = MainWindow()
