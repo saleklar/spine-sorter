@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.04 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.51 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -594,7 +594,7 @@ class SpinePackageValidator:
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter v5.04")
+		self.setWindowTitle("Spine Sorter v5.51")
 
 		# Configuration
 		if sys.platform == 'darwin':
@@ -1286,9 +1286,11 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None):
 		# Collect image file paths from json, atlas/info and by scanning the export folder
 		image_paths = set()
+		json_image_paths = set()
+		info_image_paths = set()
 		try:
 			# parse json for image references (use structured parsing when possible)
 			if found_json and os.path.exists(found_json):
@@ -1299,10 +1301,12 @@ class MainWindow(QMainWindow):
 						if isinstance(x, str):
 							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
 								image_paths.add(x)
+								json_image_paths.add(x)
 						elif isinstance(x, dict):
 							for k, v in x.items():
 								if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
 									image_paths.add(k)
+									json_image_paths.add(k)
 								collect_from_json(v)
 						elif isinstance(x, list):
 							for v in x:
@@ -1325,13 +1329,16 @@ class MainWindow(QMainWindow):
 									# add explicit image filenames
 									if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
 										image_paths.add(k)
+										json_image_paths.add(k)
 									# add bare keys only if they're not in the ignore list
 									elif kl not in IGNORE_KEYS:
 										image_paths.add(k)
+										json_image_paths.add(k)
 									
 									# Also collect values from 'path' and 'name' properties as they often point to images
 									if kl in ['path', 'name'] and isinstance(v, str):
 										image_paths.add(v)
+										json_image_paths.add(v)
 
 								collect_keys(v)
 						elif isinstance(x, list):
@@ -1344,29 +1351,42 @@ class MainWindow(QMainWindow):
 						data = fh.read()
 						for m in re.findall(r'([\w\-/\\]+\.(?:png|jpg|jpeg|webp|bmp|tga))', data, flags=re.IGNORECASE):
 							image_paths.add(m)
+							json_image_paths.add(m)
 
 			# parse any atlas files placed in the export folder
 			for f in os.listdir(result_dir):
 				if f.lower().endswith('.atlas'):
 					atlas_path = os.path.join(result_dir, f)
 					with open(atlas_path, 'r', encoding='utf-8', errors='ignore') as ah:
-						for line in ah:
+						lines = ah.readlines()
+						for idx, line in enumerate(lines):
 							line = line.strip()
 							if not line:
 								continue
 							# atlas files commonly list image names (one per section)
 							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
+								# Check if next line starts with 'size:', indicating this is a page header, not a region
+								if idx + 1 < len(lines) and lines[idx+1].strip().lower().startswith('size:'):
+									continue
 								image_paths.add(line)
+								info_image_paths.add(line)
 
 			# parse any info/text files (found_info) for image names
 			if found_info and os.path.exists(found_info):
-				with open(found_info, 'r', encoding='utf-8', errors='ignore') as fh:
-					for line in fh:
-						line = line.strip()
-						if not line:
-							continue
-						if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
-							image_paths.add(line)
+				# Only parse if it wasn't already parsed as an .atlas file above (avoid double processing)
+				if not (os.path.basename(found_info).lower().endswith('.atlas') and os.path.dirname(found_info) == result_dir):
+					with open(found_info, 'r', encoding='utf-8', errors='ignore') as fh:
+						lines = fh.readlines()
+						for idx, line in enumerate(lines):
+							line = line.strip()
+							if not line:
+								continue
+							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', line, flags=re.IGNORECASE):
+								# Apply same logic for .txt if it happens to be an atlas
+								if idx + 1 < len(lines) and lines[idx+1].strip().lower().startswith('size:'):
+									continue
+								image_paths.add(line)
+								info_image_paths.add(line)
 
 			# also include any image files physically present in the export folder (recursive)
 			for root, dirs, files in os.walk(result_dir):
@@ -1379,6 +1399,58 @@ class MainWindow(QMainWindow):
 			msg = f"{name}: error parsing exports: {e}"
 			errors.append(msg)
 			self.log_error(msg)
+		
+		# Update total spine images count (exported references + unchecked)
+		if all_file_stats:
+			unique_unchecked = set(spine_export_unchecked) if spine_export_unchecked else set()
+			# EXPORTED_UNIQUE_IMAGES is populated during process_skin_dict, but that happens LATER in this function.
+			# However, json_image_paths is populated above. 
+			# The issue is we are calculating this 'total_spine' BEFORE we run the skin processing loop which fully validates references.
+			# We must recalculate total_spine AT THE END of this function or update it there.
+			# Let's initialize it here with 0, and update it at the end of the function.
+			all_file_stats[-1]['total_spine'] = 0
+
+		# Check for non-exported files (explicit content from Spine log OR in info/atlas but NOT in json)
+		export_msg = None
+		
+		# set of missing files (normalized)
+		missing_files_display = set()
+		
+		# NOTE: We do NOT add spine_export_unchecked to missing_files_display anymore. 
+		# We report them separately.
+		
+		# 2. Compare Info/Atlas vs JSON
+		if info_image_paths and json_image_paths:
+			# Normalize for comparison (lowercase, forward slashes)
+			json_norm = {p.lower().replace('\\', '/') for p in json_image_paths}
+			
+			for p in info_image_paths:
+				p_norm = p.lower().replace('\\', '/')
+				if p_norm not in json_norm:
+					# Try matching without extension if JSON has bare names
+					p_base = os.path.splitext(p_norm)[0]
+					if p_base not in json_norm:
+						missing_files_display.add(p)
+
+		if missing_files_display:
+			# Log the warning
+			count = len(missing_files_display)
+			preview = ', '.join(sorted(list(missing_files_display))[:5])
+			more = "..." if count > 5 else ""
+			export_msg = f"WARNING: {count} images likely checked off for export (found in logs or Atlas but not JSON): {preview}{more}"
+			self.log_warning(export_msg)
+		elif info_image_paths and json_image_paths:
+			export_msg = "Export Consistency Check: OK (All files in Info/Atlas match JSON export)"
+			self.info_panel.append(export_msg)
+		elif not info_image_paths and json_image_paths:
+			export_msg = "Export Consistency Check: Skipped (No Info/Atlas file found to compare)"
+			self.info_panel.append(export_msg)
+		
+		# Store msg in stats for final report
+		if all_file_stats and export_msg:
+			all_file_stats[-1]['consistency_msg'] = export_msg
+
+
 
 		# Debug: show collected image references from exports
 		try:
@@ -1948,9 +2020,13 @@ class MainWindow(QMainWindow):
 				# Global Scan Data (for pre-scan pass)
 				SCAN_SLOT_USAGE = {} # path -> set(slots)
 				PRECALC_DESTINATIONS = {} # path -> 'jpeg' or 'png'
+				EXPORTED_UNIQUE_IMAGES = set()
+				TOTAL_ATTACHMENTS_COUNT = 0
+				UNIQUE_COPIED_PATHS = set()
 
 				# helper to process a single skin dict (slot -> attachments)
 				def process_skin_dict(skin_dict, skin_name=None, scan_mode=False):
+					nonlocal TOTAL_ATTACHMENTS_COUNT
 					if not isinstance(skin_dict, dict):
 						return skin_dict
 					
@@ -1962,6 +2038,9 @@ class MainWindow(QMainWindow):
 							self.info_panel.append(f"Skipping slot {slot_name}: unexpected attachments type {type(attachments)}")
 							continue
 						for attach_name, attach_val in list(attachments.items()):
+							if not scan_mode:
+								TOTAL_ATTACHMENTS_COUNT += 1
+
 							# Debug: log first attachment details
 							if not first_attachment_debug:
 								try:
@@ -1982,6 +2061,14 @@ class MainWindow(QMainWindow):
 							
 							# find real source file
 							src = find_source_image(ref, skin_context=skin_name)
+							
+							if src:
+								matches_src = src if isinstance(src, (list, tuple)) else [src]
+								for m_src in matches_src:
+									try:
+										EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(m_src))
+									except Exception:
+										pass
 							
 							if scan_mode:
 								if src:
@@ -2098,7 +2185,7 @@ class MainWindow(QMainWindow):
 									if blend != 'normal': reason.append(f"blend={blend}")
 								
 								# Warning if it was JPEG but forced to PNG
-								if is_jpeg_source:
+								if is_jpeg_source and base_dest == png_dir:
 									msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manualy or change blend mode !!!"
 									self.info_panel.append(msg)
 									jpeg_forced_png_warnings.append(f"[{name}] {msg}")
@@ -2387,12 +2474,16 @@ class MainWindow(QMainWindow):
 										
 										# Update stats
 										if all_file_stats:
-											stats = all_file_stats[-1]
-											stats['total'] += 1
-											if 'jpeg' in base_dest.lower():
-												stats['jpeg'] += 1
-											else:
-												stats['png'] += 1
+											# Check uniqueness of destination path
+											norm_dst = os.path.normpath(dst).lower()
+											if norm_dst not in UNIQUE_COPIED_PATHS:
+												UNIQUE_COPIED_PATHS.add(norm_dst)
+												stats = all_file_stats[-1]
+												stats['total'] += 1
+												if 'jpeg' in base_dest.lower():
+													stats['jpeg'] += 1
+												else:
+													stats['png'] += 1
 									except Exception as e:
 										self.info_panel.append(f"Failed to copy {m} -> {dst}: {e}")
 										continue
@@ -2632,6 +2723,37 @@ class MainWindow(QMainWindow):
 				self.progress_bar.setValue(base_progress + 80)
 				QApplication.processEvents()
 
+				# Update total stats to match User Expectation
+				if all_file_stats:
+					stats = all_file_stats[-1]
+					unique_unchecked = set(spine_export_unchecked) if spine_export_unchecked else set()
+					
+					# Store unchecked list for reporting
+					stats['unchecked'] = sorted(list(unique_unchecked))
+
+					# Calculate Unique Exports by type
+					unique_jpeg = 0
+					unique_png = 0
+					for img_path in EXPORTED_UNIQUE_IMAGES:
+						lower_p = img_path.lower()
+						if lower_p.endswith(('.jpg', '.jpeg')):
+							unique_jpeg += 1
+						else:
+							unique_png += 1
+
+					# 1. Total Attachments (Usage count)
+					stats['total_attachments'] = TOTAL_ATTACHMENTS_COUNT
+					
+					# 2. Total Used Images in Spine (Unique found on disk + Unchecked warnings)
+					stats['total_spine_used'] = len(EXPORTED_UNIQUE_IMAGES) + len(unique_unchecked)
+					
+					# 3. Total Exported (Unique found on disk)
+					stats['total_exported_unique'] = len(EXPORTED_UNIQUE_IMAGES)
+					
+					# 4. Exported Jpeg/Png (Unique)
+					stats['unique_jpeg'] = unique_jpeg
+					stats['unique_png'] = unique_png
+
 				# normalize skeleton images path (remove leading './') so Spine can resolve images inside archive
 				skel = j.get('skeleton')
 				if isinstance(skel, dict):
@@ -2843,7 +2965,7 @@ class MainWindow(QMainWindow):
 			QApplication.processEvents()
 			
 			# Initialize stats for this file
-			file_stats = {'name': name, 'jpeg': 0, 'png': 0, 'total': 0}
+			file_stats = {'name': name, 'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0}
 			all_file_stats.append(file_stats)
 			
 			input_path = os.path.join(folder, name)
@@ -2873,12 +2995,20 @@ class MainWindow(QMainWindow):
 
 			# Run Spine export
 			export_settings = os.path.abspath("default_export.json")
-			if not os.path.exists(export_settings):
-				try:
-					with open(export_settings, 'w') as f:
-						f.write('{"class": "export-json", "name": "JSON", "extension": ".json", "format": "JSON", "prettyPrint": false, "nonessential": true, "cleanUp": false, "packAtlas": null, "packSource": "attachments", "warnings": true}')
-				except:
-					pass
+			# Always overwrite definitions to ensure packAtlas is enabled for consistency checks
+			try:
+				with open(export_settings, 'w') as f:
+					# Enabled packAtlas so we can cross-reference JSON vs Atlas for missing files
+					# We must provide a valid SpinePackerSettings object, not a string
+					settings_json = (
+						'{"class": "export-json", "name": "JSON", "extension": ".json", "format": "JSON", '
+						'"prettyPrint": false, "nonessential": true, "cleanUp": false, '
+						'"packAtlas": { "flattenPaths": false, "maxWidth": 8192, "maxHeight": 8192, "combineSubdirectories": false }, '
+						'"packSource": "attachments", "warnings": true}'
+					)
+					f.write(settings_json)
+			except:
+				pass
 
 			cmd = [
 				runnable_spine_exe, 
@@ -2887,11 +3017,26 @@ class MainWindow(QMainWindow):
 				'-e', export_settings if os.path.exists(export_settings) else 'json'
 			]
 			
+			spine_export_unchecked = []
 			try:
 				self.info_panel.append(f"Running export command: {' '.join(cmd)}")
 				# Use subprocess.run for reliability (avoids buffer deadlocks)
 				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 				
+				# Parse output for unchecked export warnings
+				# Example: Attachment's keys not exported because it has "Export" unchecked: [region: pop/coin_fx/coin_fx_00, slot: fx]
+				# We check both stdout and stderr just in case
+				combined_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+				
+				# Regex to find the region name
+				# We look for "region: <name>," or just "region: <name> "
+				unchecked_pattern = re.compile(r'not exported because it has "Export" unchecked.*\[region:\s*([^,\]]+)', re.IGNORECASE)
+				for line in combined_output.splitlines():
+					m = unchecked_pattern.search(line)
+					if m:
+						unchecked_name = m.group(1).strip()
+						spine_export_unchecked.append(unchecked_name)
+
 				if proc.returncode != 0:
 					msg = f"Spine export failed (Code {proc.returncode}):\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}"
 					self.log_error(msg)
@@ -2909,7 +3054,7 @@ class MainWindow(QMainWindow):
 			for f in os.listdir(result_dir):
 				if f.lower().endswith('.json'):
 					found_jsons.append(os.path.join(result_dir, f))
-				elif f.lower().endswith('.txt') and 'opaque' not in f:
+				elif (f.lower().endswith('.txt') or f.lower().endswith('.atlas')) and 'opaque' not in f:
 					found_info = os.path.join(result_dir, f)
 			
 			if not found_jsons:
@@ -2934,7 +3079,8 @@ class MainWindow(QMainWindow):
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
 					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=all_skeleton_names,
-					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked()
+					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked(),
+					spine_export_unchecked=spine_export_unchecked
 				)
 
 		# Cleanup and Finish
@@ -2945,11 +3091,37 @@ class MainWindow(QMainWindow):
 		# Display statistics
 		self.info_panel.append("\n<font color='green'>--- Processing Statistics ---</font>")
 		for stats in all_file_stats:
-			if stats['total'] > 0:
+			if 'total_exported_unique' in stats: # New format
+				self.info_panel.append(f"<font color='green'>File: {stats['name']}</font>")
+				self.info_panel.append(f"<font color='green'>  Total Attachments: {stats.get('total_attachments', 0)}</font>")
+				self.info_panel.append(f"<font color='green'>  Total used images in Spine: {stats.get('total_spine_used', 0)}</font>")
+				self.info_panel.append(f"<font color='green'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
+				self.info_panel.append(f"<font color='green'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
+				self.info_panel.append(f"<font color='green'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
+			elif stats['total'] > 0: # Fallback for old stats format if any
 				self.info_panel.append(f"<font color='green'>File: {stats['name']}</font>")
 				self.info_panel.append(f"<font color='green'>  Total images copied: {stats['total']}</font>")
+				self.info_panel.append(f"<font color='green'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
 				self.info_panel.append(f"<font color='green'>  JPEG images: {stats['jpeg']}</font>")
 				self.info_panel.append(f"<font color='green'>  PNG images: {stats['png']}</font>")
+			
+			# Report Unchecked Attachments (Explicit Spine Warnings)
+			if 'unchecked' in stats and stats['unchecked']:
+				n_unchecked = len(stats['unchecked'])
+				self.info_panel.append(f"<font color='orange'>  WARNING: {n_unchecked} attachments are checked off for export:</font>")
+				for i, u in enumerate(stats['unchecked']):
+					if i < 10:
+						self.info_panel.append(f"<font color='orange'>    - {u}</font>")
+					else:
+						self.info_panel.append(f"<font color='orange'>    - ... and {n_unchecked - 10} more</font>")
+						break
+
+			# Report Consistency Issues (Atlas vs JSON mismatch)
+			if 'consistency_msg' in stats and stats['consistency_msg']:
+				c_msg = stats['consistency_msg']
+				# Use orange for warnings, green (or default) for OK
+				c_color = 'orange' if 'WARNING' in c_msg else 'green'
+				self.info_panel.append(f"<font color='{c_color}'>  {c_msg}</font>")
 		
 		if errors:
 			QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
