@@ -3573,6 +3573,7 @@ class MainWindow(QMainWindow):
 		
 		# Display statistics
 		SUCCESS_COLOR = '#32CD32' # LimeGreen
+		any_warnings = False
 		self.info_panel.append(f"\n<font color='{SUCCESS_COLOR}'>--- Processing Statistics ---</font>")
 		for i, stats in enumerate(all_file_stats):
 			if 'total_exported_unique' in stats: # New format
@@ -3591,6 +3592,7 @@ class MainWindow(QMainWindow):
 			
 			# Report Unchecked Skeletons
 			if 'unchecked_skeletons' in stats and stats['unchecked_skeletons']:
+				any_warnings = True
 				self.info_panel.append("<br>")
 				n_skel = len(stats['unchecked_skeletons'])
 				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_skel} skeletons are checked off for export:</span>")
@@ -3603,6 +3605,7 @@ class MainWindow(QMainWindow):
 
 			# Report Unchecked Attachments (Explicit Spine Warnings)
 			if 'unchecked' in stats and stats['unchecked']:
+				any_warnings = True
 				self.info_panel.append("<br>")
 				n_unchecked = len(stats['unchecked'])
 				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_unchecked} attachments are checked off for export, so they were not copied:</span>")
@@ -3629,6 +3632,7 @@ class MainWindow(QMainWindow):
 			self.info_panel.append(f"<font color='{anim_color}'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
 
 			if 'unchecked_anims' in stats and stats['unchecked_anims']:
+				any_warnings = True
 				self.info_panel.append("<br>")
 				n_anim = len(stats['unchecked_anims'])
 				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_anim} animations are checked off for export so they are not copied:</span>")
@@ -3641,6 +3645,7 @@ class MainWindow(QMainWindow):
 
 			# Report Setup Pose Violations
 			if 'setup_pose_warnings' in stats and stats['setup_pose_warnings']:
+				any_warnings = True
 				self.info_panel.append("<br>")
 				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{len(stats['setup_pose_warnings'])} setup pose slots refer to UNCHECKED attachments:</span>")
 				for msg in stats['setup_pose_warnings']:
@@ -3648,6 +3653,7 @@ class MainWindow(QMainWindow):
 					
 			# Report General Setup Pose Active Attachments (Info/Warning)
 			if 'setup_pose_active' in stats and stats['setup_pose_active']:
+				any_warnings = True
 				self.info_panel.append("<br>")
 				n_active = len(stats['setup_pose_active'])
 				# Lighter orange color for soft warnings (e.g. #FFC04C or #FFB74D)
@@ -3666,12 +3672,16 @@ class MainWindow(QMainWindow):
 				c_msg = stats['consistency_msg']
 				# Use orange for warnings, green (or default) for OK
 				c_color = 'orange' if 'WARNING' in c_msg else 'green'
+				if 'WARNING' in c_msg: any_warnings = True
 				self.info_panel.append(f"<font color='{c_color}'>  {c_msg}</font>")
 			
 			# Separator (only between items, not after the last one)
 			if i < len(all_file_stats) - 1:
 				self.info_panel.append("\n" + "_"*50 + "\n")
 		
+		if jpeg_forced_png_warnings:
+			any_warnings = True
+
 		if errors:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
 			self.status_label.setStyleSheet("font-weight: bold; color: #FF4500;") # OrangeRed for errors
@@ -3679,8 +3689,12 @@ class MainWindow(QMainWindow):
 			QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
 		else:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
-			self.status_label.setStyleSheet("font-weight: bold; color: #32CD32;") # LimeGreen for success
-			self.status_label.setText("Completed")
+			if any_warnings:
+				self.status_label.setStyleSheet("font-weight: bold; color: #FFA500;") # Orange for warnings
+				self.status_label.setText("Completed - CHECK THE WARNINGS ON THE END OF THE LOG")
+			else:
+				self.status_label.setStyleSheet("font-weight: bold; color: #32CD32;") # LimeGreen for success
+				self.status_label.setText("Completed OK")
 			QMessageBox.information(self, "Completed", f"Successfully processed {len(to_process)} files.")
 
 def main():
