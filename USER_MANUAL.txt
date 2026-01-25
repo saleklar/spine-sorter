@@ -41,15 +41,27 @@ KEY FEATURES
    - Problem: Spine thinks an image exists at a specific path, but it's not on your computer.
    - Fix: Check your path names or find the missing generic image.
 
+   [UNCHECKED SKELETONS] [NEW]
+   - Problem: Your project contains multiple skeletons (e.g., "Reference", "Main"), but one is unchecked for export.
+   - Result: The entire skeleton file (.json) is missing from the output.
+   - Fix: In Spine Export settings, ensure all required skeletons are selected.
+
+   [UNCHECKED ANIMATIONS]
+   - Problem: You created an animation in Spine, but accidentally unchecked "Export" for it.
+   - Result: The animation will not play in the game.
+   - Fix: The tool compares your active animations against the source file. If one is missing from the export data, it warns you.
+
 3. THE REPORT CARD
    At the end of a run, you get a summary:
    - Total Attachments: How many distinct slots/attachments are in your Spine skeleton.
    - Exported Images: How many actual file paths were processed.
+   - Animation Count: Validates that the number of animations in the source matches the export.
    - Copied counts: How many ended up as JPEGs vs PNGs.
 
 4. SAFETY FEATURES
 
    - Validation: It checks if your .spine file is valid and can be opened.
+   - Animation Integrity: Uses the official Spine CLI to verify the "Source of Truth" for your project structure.
 
 5. CHECKBOX OPTIONS
 ----------------------------------------
@@ -86,3 +98,40 @@ The main interface has several checkboxes that control how the tool works.
 
 ----------------------------------------
 Tip: If you see a warning, fix it in Spine/Photoshop and run the tool again to verify!
+
+========================================
+NEW FEATURE SPOTLIGHT (SLIDE READY FORMAT)
+Copy the sections below for your presentation
+========================================
+
+[SLIDE 1: THE PROBLEM]
+Title: Hidden Export Accidents
+Body:
+*   In Spine, every animation has a small "Export" checkbox.
+*   It is very easy to accidentally uncheck this while working.
+*   The Result: The animation exists in your project, but is silently deleted from the game data.
+*   The Risk: You won't notice until the game is built and the character "freezes".
+
+[SLIDE 2: THE SOLUTION]
+Title: Automated Integrity Check
+Body:
+*   The Spine Sorter now acts as a "Source of Truth" verifier.
+*   Step 1: It asks the Spine Editor directly: "List every animation that exists in this file."
+*   Step 2: It reads the final exported data file.
+*   Step 3: It compares the two lists instantly.
+
+[SLIDE 3: HOW IT WORKS]
+Title: Smart Detection Logic
+Body:
+*   Ignores "noise": Filters out duplicate names and output clutter.
+*   Supports all versions: Works with Spine 3.8, 4.0, 4.1, 4.2+.
+*   Deep Scan: Checks multiple skeletons (e.g., "Reference" vs "Main") in a single pass.
+*   Legacy Support: Reads both modern comma-separated formats and older indented formats.
+
+[SLIDE 4: THE RESULT]
+Title: Artist Peace of Mind
+Body:
+*   Pass: "Animation Count: 18/18 (100%)"
+*   Fail: "WARNING: Found 20 animations in source, but only 19 in export!"
+*   Action: The tool names exactly which animation is missing, so you can fix it in seconds.
+

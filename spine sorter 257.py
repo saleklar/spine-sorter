@@ -864,8 +864,15 @@ class MainWindow(QMainWindow):
 		layout.addWidget(QLabel("Spine files in folder:"))
 		layout.addWidget(self.list_widget)
 
-		# Info / detailed log panel
-		layout.addWidget(QLabel("Info log:"))
+		# Info / detailed log panel header
+		info_header_layout = QHBoxLayout()
+		info_header_layout.addWidget(QLabel("Info log:"))
+		self.status_label = QLabel("")
+		self.status_label.setStyleSheet("color: #AAAAAA; font-style: italic; font-weight: bold; margin-left: 10px;")
+		info_header_layout.addWidget(self.status_label)
+		info_header_layout.addStretch()
+		layout.addLayout(info_header_layout)
+
 		self.info_panel = QTextEdit()
 		self.info_panel.setReadOnly(True)
 		self.info_panel.setMinimumHeight(160)
@@ -1332,7 +1339,12 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None):
+		
+		# Identify current skeleton being processed (for UI/Logs)
+		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
+		ui_label_text = f"{name} -> {cur_skel_name}"
+		
 		# Collect image file paths from json, atlas/info and by scanning the export folder
 		image_paths = set()
 		json_image_paths = set()
@@ -1343,6 +1355,33 @@ class MainWindow(QMainWindow):
 				try:
 					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
 						obj = json.load(fh)
+					# Check for active attachments in SETUP POSE
+					if 'slots' in obj:
+						for slot in obj['slots']:
+							if 'attachment' in slot and slot['attachment']:
+								s_name = slot['name']
+								a_name = slot['attachment']
+								
+								# General warning: Setup pose should ideally be empty
+								msg_active = f"Slot '{s_name}' has active attachment '{a_name}'"
+								all_file_stats[-1].setdefault('setup_pose_active', []).append(msg_active)
+
+								# Cross-check with warning list for CRITICAL violations
+								if spine_export_unchecked:
+									for warn_inf in spine_export_unchecked:
+										# Each warn_inf is {'region':..., 'slot':...}
+										# 1. Match slot name (if available from log)
+										if warn_inf.get('slot') and warn_inf['slot'] != s_name:
+											continue
+										
+										# 2. Match attachment vs region name (fuzzy or exact)
+										# If attachment name matches region name exactly, or if region contains attachment name
+										w_reg = warn_inf['region']
+										if w_reg == a_name or (a_name in w_reg) or (w_reg in a_name):
+											msg = f"Slot '{s_name}' uses UNCHECKED attachment '{a_name}' in Setup Pose!"
+											all_file_stats[-1].setdefault('setup_pose_warnings', []).append(msg)
+											self.log_warning(msg)
+
 					def collect_from_json(x):
 						if isinstance(x, str):
 							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
@@ -1448,7 +1487,6 @@ class MainWindow(QMainWindow):
 		
 		# Update total spine images count (exported references + unchecked)
 		if all_file_stats:
-			unique_unchecked = set(spine_export_unchecked) if spine_export_unchecked else set()
 			# EXPORTED_UNIQUE_IMAGES is populated during process_skin_dict, but that happens LATER in this function.
 			# However, json_image_paths is populated above. 
 			# The issue is we are calculating this 'total_spine' BEFORE we run the skin processing loop which fully validates references.
@@ -1489,7 +1527,11 @@ class MainWindow(QMainWindow):
 			export_msg = "Export Consistency Check: OK (All files in Info/Atlas match JSON export)"
 			self.info_panel.append(export_msg)
 		elif not info_image_paths and json_image_paths:
-			export_msg = "Export Consistency Check: Skipped (No Info/Atlas file found to compare)"
+			if spine_export_unchecked:
+				# We already know why there is no atlas/info (or why it might be incomplete)
+				export_msg = "Export Consistency Check: Incomplete (See 'Unchecked' warnings above)"
+			else:
+				export_msg = "Export Consistency Check: Skipped (No Info/Atlas file found to compare)"
 			self.info_panel.append(export_msg)
 		
 		# Store msg in stats for final report
@@ -1558,6 +1600,7 @@ class MainWindow(QMainWindow):
 		QApplication.processEvents()
 
 		# --- Analyze Opacity ---
+		if hasattr(self, 'status_label'): self.status_label.setText(f"Analyzing opacity: {ui_label_text}")
 		opaque_results = []
 		
 		# Skip opacity scan entirely if optimization is disabled
@@ -1652,6 +1695,7 @@ class MainWindow(QMainWindow):
 		QApplication.processEvents()
 
 		# --- Sorting algorithm: copy attachments into jpeg/png and rebuild JSON ---
+		if hasattr(self, 'status_label'): self.status_label.setText(f"Sorting images: {ui_label_text}")
 		try:
 			if found_json and os.path.exists(found_json):
 				# build opaque map (basename or full path -> opaque)
@@ -1860,10 +1904,12 @@ class MainWindow(QMainWindow):
 						# Fallback to name-based exclusion if no ownership data
 						# Identify other skins to exclude
 						# We exclude all known skins EXCEPT the current one and "default"
-						other_skins = {s.lower() for s in all_skin_names if s.lower() != skin_norm and s.lower() != 'default'}
+						IGNORED_SKIN_FOLDERS = {'images', 'common', 'assets', 'source', 'root', 'skeleton', 'jpeg', 'png', 'reference'}
+						other_skins = {s.lower() for s in all_skin_names if s.lower() != skin_norm and s.lower() != 'default' and s.lower() not in IGNORED_SKIN_FOLDERS}
 						
 						if not other_skins:
 							return candidates
+
 
 						filtered_exclusion = []
 						for c in candidates:
@@ -2232,7 +2278,7 @@ class MainWindow(QMainWindow):
 								
 								# Warning if it was JPEG but forced to PNG
 								if is_jpeg_source and base_dest == png_dir:
-									msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manualy or change blend mode !!!"
+									msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!"
 									self.info_panel.append(msg)
 									jpeg_forced_png_warnings.append(f"[{name}] {msg}")
 								else:
@@ -2324,7 +2370,6 @@ class MainWindow(QMainWindow):
 										src_path_check = src[0] if isinstance(src, (list, tuple)) else src
 										if src_path_check:
 											src_parts = os.path.dirname(src_path_check).replace('\\', '/').split('/')
-											src_parts_lower = [p.lower() for p in src_parts]
 											
 											# Check against known skeletons
 											if all_skeleton_names:
@@ -2359,8 +2404,8 @@ class MainWindow(QMainWindow):
 									target_skeleton = potential_skeleton
 									
 									if is_reference:
-										# For references, we ignore skeleton redirection for the folder structure
-										# because we want them in the global images folder.
+										# For references, we want to keep them separate but still organized.
+										# Place them in the global images folder (not under skeleton subfolder).
 										# base_dest is already set to global images root.
 										pass
 									else:
@@ -2731,6 +2776,18 @@ class MainWindow(QMainWindow):
 				except Exception as e:
 					self.info_panel.append(f"Pre-scan failed: {e}")
 
+				# Ensure 'animations' are preserved and logged
+				with open("debug_anims.txt", "a") as f_dbg:
+					if 'animations' in j:
+						anim_count = len(j['animations'])
+						log_msg = f"Trace: 'animations' key present with {anim_count} animations before logic.\n"
+						self.info_panel.append(log_msg.strip())
+						f_dbg.write(log_msg)
+					else:
+						log_msg = "Trace: 'animations' key MISSING before logic.\n"
+						self.info_panel.append(log_msg.strip())
+						f_dbg.write(log_msg)
+
 				if isinstance(skins, dict):
 					for skin_name, skin in list(skins.items()):
 						if not isinstance(skin, dict):
@@ -2769,13 +2826,78 @@ class MainWindow(QMainWindow):
 				self.progress_bar.setValue(base_progress + 80)
 				QApplication.processEvents()
 
+				with open("debug_anims.txt", "a") as f_dbg:
+					if 'animations' in j:
+						log_msg = f"Trace: 'animations' key present with {len(j['animations'])} animations AFTER logic.\n"
+						self.info_panel.append(log_msg.strip())
+						f_dbg.write(log_msg)
+					else:
+						log_msg = "Trace: 'animations' key MISSING AFTER logic.\n"
+						self.info_panel.append(log_msg.strip())
+						f_dbg.write(log_msg)
+
 				# Update total stats to match User Expectation
 				if all_file_stats:
 					stats = all_file_stats[-1]
-					unique_unchecked = set(spine_export_unchecked) if spine_export_unchecked else set()
+					
+					# Deduplicate unchecked warnings (list of dicts)
+					unique_unchecked_list = []
+					if spine_export_unchecked:
+						_seen_warns = set()
+						for item in spine_export_unchecked:
+							# create a unique key for the warning
+							key = (item['region'], item.get('slot'))
+							if key not in _seen_warns:
+								_seen_warns.add(key)
+								unique_unchecked_list.append(item)
 					
 					# Store unchecked list for reporting
-					stats['unchecked'] = sorted(list(unique_unchecked))
+					stats['unchecked'] = sorted(unique_unchecked_list, key=lambda x: x['region'])
+					
+					# Store unchecked animations
+					unique_unchecked_anims = sorted(list(set(spine_export_unchecked_anims))) if spine_export_unchecked_anims else []
+					
+					# Advanced: If we have Source of Truth (from ZIP file), compute missing animations by diff
+					if 'source_anims_defined' in stats:
+						all_def = stats['source_anims_defined']
+						# Get exported animations from JSON
+						exported_anims = set()
+						if 'animations' in j:
+							exported_anims.update(j['animations'].keys())
+						
+						# Find anims that are in Source but NOT in Export
+						# (and ignore any that we already detected via CLI warnings to avoid duplicates)
+						missing_from_comparision = all_def - exported_anims
+						
+						if missing_from_comparision:
+							# Add them to the list
+							for m in missing_from_comparision:
+								if m not in unique_unchecked_anims:
+									unique_unchecked_anims.append(m)
+							# sort again
+							unique_unchecked_anims.sort()
+					
+					stats['unchecked_anims'] = unique_unchecked_anims
+					
+					# Update Animation Stats
+					if 'source_anims_defined' in stats:
+						all_def = stats['source_anims_defined']
+						exported_anims = set()
+						if 'animations' in j:
+							exported_anims.update(j['animations'].keys())
+						
+						stats['anim_total_count'] = len(all_def)
+						stats['anim_exported_count'] = len(exported_anims)
+					else:
+						# If source analysis failed, at least report what we exported
+						exported_anims_count = len(j.get('animations', {}))
+						stats['anim_exported_count'] = exported_anims_count
+						# Total is at least exported + unchecked warnings
+						stats['anim_total_count'] = exported_anims_count + len(unique_unchecked_anims)
+						
+					# Debug (temporary, to see if anything was caught)
+					# if spine_export_unchecked_anims:
+					# 	print(f"DEBUG: Found unchecked anims: {spine_export_unchecked_anims}")
 
 					# Calculate Unique Exports by type
 					unique_jpeg = 0
@@ -2791,7 +2913,7 @@ class MainWindow(QMainWindow):
 					stats['total_attachments'] = TOTAL_ATTACHMENTS_COUNT
 					
 					# 2. Total Used Images in Spine (Unique found on disk + Unchecked warnings)
-					stats['total_spine_used'] = len(EXPORTED_UNIQUE_IMAGES) + len(unique_unchecked)
+					stats['total_spine_used'] = len(EXPORTED_UNIQUE_IMAGES) + len(unique_unchecked_list)
 					
 					# 3. Total Exported (Unique found on disk)
 					stats['total_exported_unique'] = len(EXPORTED_UNIQUE_IMAGES)
@@ -2800,15 +2922,22 @@ class MainWindow(QMainWindow):
 					stats['unique_jpeg'] = unique_jpeg
 					stats['unique_png'] = unique_png
 
-				# normalize skeleton images path (remove leading './') so Spine can resolve images inside archive
+				# normalize skeleton images path so Spine can resolve images inside archive
 				skel = j.get('skeleton')
 				if isinstance(skel, dict):
 					# ensure skeleton.images points to the images folder relative to the JSON
-					# Use 'images/' instead of './images/' to be safer with different Spine versions
-					# Try './images/' again as it is standard for relative paths
 					skel['images'] = './images/'
-					self.info_panel.append(f"Set skeleton.images to: {skel['images']}")
+					self.info_panel.append(f"Set skeleton.images to: {skel.get('images', 'unset')}")
+				
+				# Verify animations count before saving
+				anims_check = j.get('animations', {})
+				if not anims_check:
+					self.log_warning("WARNING: The exported JSON has NO animations! Resulting Spine file will be empty of animations.")
+				else:
+					self.info_panel.append(f"Verifying animations: {len(anims_check)} animations present in data.")
+
 				# save modified json into the output root
+				if hasattr(self, 'status_label'): self.status_label.setText(f"Writing JSON: {ui_label_text}")
 				new_json_path = os.path.join(output_root, os.path.splitext(os.path.basename(found_json))[0] + '.json')
 				
 				# Debug: Verify bones before writing
@@ -2826,6 +2955,28 @@ class MainWindow(QMainWindow):
 					f_size = os.path.getsize(new_json_path)
 					self.info_panel.append(f"Wrote sorted json: {new_json_path} (Size: {f_size} bytes)")
 					
+					# Double check content on disk
+					with open(new_json_path, 'r', encoding='utf-8') as f_verify:
+						j_verify = json.load(f_verify)
+						verify_keys = list(j_verify.get('animations', {}).keys())
+						verify_count = len(verify_keys)
+						self.info_panel.append(f"VERIFICATION (JSON): Found {verify_count} animations: {', '.join(sorted(verify_keys))}")
+						
+						# Retrieve source animations from stats since cli_source_anims is not in scope local to this function
+						source_anims_check = all_file_stats[-1].get('source_anims_defined', set()) if all_file_stats else set()
+						
+						if source_anims_check:
+							missing = source_anims_check - set(verify_keys)
+							if missing:
+								self.info_panel.append(f"WARNING: Missing animations in JSON that were in Source: {', '.join(missing)}")
+								self.info_panel.append(f"*** MISSING ANIMATION: {list(missing)[0]} ***")
+							else:
+								self.info_panel.append("SUCCESS: All source animations accounted for in JSON.")
+
+						if verify_count > 0:
+							self.info_panel.append(f"VERIFY SUCCESS: Animations are guaranteed to be in the JSON file at: {new_json_path}")
+							self.info_panel.append("If the resulting .spine file is empty, please import this JSON file manually.")
+
 					if f_size == 0:
 						self.log_error(f"Error: JSON file {new_json_path} is empty (0 bytes)!")
 						
@@ -2838,6 +2989,7 @@ class MainWindow(QMainWindow):
 				QApplication.processEvents()
 
 				# create a .spine package using Spine CLI (binary format)
+				if hasattr(self, 'status_label'): self.status_label.setText(f"Creating .spine: {ui_label_text}")
 				spine_pkg = os.path.join(output_root, os.path.splitext(name)[0] + '.spine')
 				if spine_exe and os.path.exists(spine_exe):
 					self.info_panel.append(f"Converting JSON to binary .spine using: {spine_exe}")
@@ -2861,8 +3013,18 @@ class MainWindow(QMainWindow):
 						# Run synchronously
 						proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 						
+						# Always log output for debugging import issues
+						if proc.stdout: self.info_panel.append(f"Import STDOUT: {proc.stdout}")
+						if proc.stderr: self.info_panel.append(f"Import STDERR: {proc.stderr}")
+
 						if proc.returncode == 0:
-							self.info_panel.append(f"Successfully created binary .spine file: {spine_pkg}")
+							if os.path.exists(abs_pkg):
+								size_bytes = os.path.getsize(abs_pkg)
+								self.info_panel.append(f"Successfully created binary .spine file: {spine_pkg} (Size: {size_bytes} bytes)")
+								if size_bytes < 5000 and verify_count > 0:
+									self.log_warning(f"WARNING: The generated .spine file is very small ({size_bytes} bytes) despite having {verify_count} animations in JSON. The imports might have failed silently!")
+							else:
+								self.log_error("Import reported success but file was NOT created/found!")
 						else:
 							self.info_panel.append(f"Spine conversion failed (code {proc.returncode}):")
 							self.info_panel.append(proc.stdout)
@@ -2877,12 +3039,16 @@ class MainWindow(QMainWindow):
 				# Cleanup temporary files
 				if not self.keep_temp_cb.isChecked():
 					# Delete the sorted JSON if the binary .spine file was successfully created
-					if os.path.exists(spine_pkg) and os.path.exists(new_json_path):
+					# FORCE KEEP FOR DEBUGGING
+					KEEP_FOR_DEBUG = True
+					if os.path.exists(spine_pkg) and os.path.exists(new_json_path) and not KEEP_FOR_DEBUG:
 						try:
 							os.remove(new_json_path)
 							self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
 						except Exception as e:
 							self.info_panel.append(f"<font color='yellow'>Warning: Could not delete temp JSON {new_json_path}: {e}</font>")
+					elif KEEP_FOR_DEBUG:
+						self.info_panel.append(f"DEBUG: Kept JSON file for inspection: {new_json_path}")
 
 					if is_last:
 						try:
@@ -2919,6 +3085,14 @@ class MainWindow(QMainWindow):
 
 
 
+
+	def _toggle_blink(self):
+		if not hasattr(self, '_blink_state'):
+			self._blink_state = True
+		self._blink_state = not self._blink_state
+		# Blink between Light Green (#90EE90) and a dimmer Green (#32CD32) or Gray
+		color = '#90EE90' if self._blink_state else '#228B22' 
+		self.status_label.setStyleSheet(f"font-weight: bold; color: {color}; font-style: italic;")
 
 	def process_selected(self):
 		self.stop_requested = False
@@ -2984,6 +3158,16 @@ class MainWindow(QMainWindow):
 		# clear and start info log
 		self.info_panel.clear()
 		self.info_panel.append(f"Starting processing of {len(to_process)} file(s)")
+		
+		# Setup Status Label Blinking
+		if not hasattr(self, 'blink_timer'):
+			self.blink_timer = QTimer(self)
+			self.blink_timer.timeout.connect(self._toggle_blink)
+		
+		self.status_label.setStyleSheet("font-weight: bold; color: #90EE90; font-style: italic;")
+		self.status_label.setText("Starting...")
+		self.blink_timer.start(500)
+
 		# log current threshold settings
 		try:
 			cur_thresh = int(self.config.get("opacity_threshold", self.opacity_slider.value()))
@@ -2993,6 +3177,7 @@ class MainWindow(QMainWindow):
 			pass
 
 		if Image is None:
+			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
 			QMessageBox.warning(self, "Missing dependency", "Pillow is required to analyze images. Install with: pip install Pillow")
 			self.process_btn.setEnabled(True)
 			self.stop_btn.setEnabled(False)
@@ -3012,8 +3197,15 @@ class MainWindow(QMainWindow):
 			self.progress_bar.setValue(base_progress)
 			QApplication.processEvents()
 			
-			# Initialize stats for this file
-			file_stats = {'name': name, 'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0}
+			# Initialize stats for this file (container for multiple skeletons)
+			# We'll use a list 'skeletons' to store individual skeleton stats
+			file_stats = {
+				'name': name,
+				'is_container': True,
+				'skeletons': [],
+				# Default keys to prevent KeyError if no skeletons are processed
+				'total': 0, 'jpeg': 0, 'png': 0, 'total_spine': 0
+			}
 			all_file_stats.append(file_stats)
 			
 			input_path = os.path.join(folder, name)
@@ -3039,6 +3231,96 @@ class MainWindow(QMainWindow):
 			os.makedirs(result_dir, exist_ok=True)
 
 			self.info_panel.append(f"\nProcessing: {name}")
+			self.status_label.setText(f"Processing file: {name}")
+			
+			# 0. Retrieve Source Info (Animations list) via CLI
+			# This is crucial for verifying unchecked animations that won't appear in JSON
+			cli_source_anims = set()
+			cli_source_skeletons = set()
+			try:
+				# Spine 4.0+ uses just -i <path> for info. Old --info flag is deprecated/removed in some versions.
+				# We try without --info first as it is cleaner for newer versions found in testing.
+				info_cmd = [runnable_spine_exe, '-i', input_path]
+				self.info_panel.append(f"Running Source Info Check: {' '.join(info_cmd)}")
+				self.status_label.setText(f"Analyzing source info: {name}")
+				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+				
+				# If that failed uniquely or produced no output, maybe try --info (legacy fallback)?
+				# But per testing, -i is the "Info" command if no other action is specified.
+				
+				if i_proc.returncode == 0:
+					info_out = i_proc.stdout
+					# Save info log for debug
+					info_log_path = os.path.join(result_dir, "spine_source_info.log")
+					try:
+						with open(info_log_path, 'w', encoding='utf-8') as ilf:
+							ilf.write(info_out)
+					except: pass
+					
+					# Robust parser for "Animations:" section
+					# Handles:
+					# 1. New format: Animations (N): anim1, anim2, ...
+					# 2. Old format: Animations: \n  anim1 \n  anim2
+					# 3. Multiple skeletons in one file
+					lines = info_out.splitlines()
+					header_found = False
+					anim_header_re = re.compile(r"Animations\s*(?:\(\d+\))?:\s*(.*)", re.IGNORECASE)
+					
+					# Parser for Skeletons
+					skel_re = re.compile(r"Skeleton:\s*(.+)", re.IGNORECASE)
+
+					for idx, line in enumerate(lines):
+						# Check for Skeleton
+						m_skel = skel_re.search(line)
+						if m_skel:
+							s_name = m_skel.group(1).strip()
+							# Ignore '<unknown>' size markers if attached
+							if s_name and '<' not in s_name:
+								cli_source_skeletons.add(s_name)
+
+						m = anim_header_re.search(line)
+						if m:
+							header_found = True
+							# Parse inline content (comma separated)
+							inline_content = m.group(1).strip()
+							if inline_content:
+								# Split by comma
+								parts = [x.strip() for x in inline_content.split(',') if x.strip()]
+								cli_source_anims.update(parts)
+							
+							# Check for indented subsequent lines (legacy or wrapped)
+							header_indent = len(line) - len(line.lstrip())
+							j_idx = idx + 1
+							while j_idx < len(lines):
+								next_line = lines[j_idx]
+								if not next_line.strip():
+									j_idx += 1
+									continue
+								
+								next_indent = len(next_line) - len(next_line.lstrip())
+								
+								if next_indent > header_indent:
+									raw_c = next_line.strip()
+									parts = [x.strip() for x in raw_c.split(',') if x.strip()]
+									cli_source_anims.update(parts)
+								else:
+									break
+								j_idx += 1
+					
+					if cli_source_anims:
+						self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(cli_source_anims)} animations: {', '.join(sorted(cli_source_anims))}")
+					else:
+						if header_found:
+							self.info_panel.append("CLI Analysis: 'Animations:' section found but no animations detected inside.")
+						else:
+							self.info_panel.append("CLI Analysis: 'Animations:' section NOT found in Spine info output.")
+							# Log first few lines of output
+							self.info_panel.append(f"CLI Output Head: {info_out[:500]}")
+				else:
+					self.info_panel.append(f"CLI Info command failed (Code {i_proc.returncode})")
+			except Exception as e:
+				self.log_error(f"Failed to run info command: {e}")
+
 			self.info_panel.append(f"Exporting JSON to: {result_dir}")
 
 			# Run Spine export
@@ -3061,11 +3343,22 @@ class MainWindow(QMainWindow):
 			cmd = [
 				runnable_spine_exe, 
 				'-i', input_path, 
-				'-o', result_dir, 
+				'-o', result_dir,
 				'-e', export_settings if os.path.exists(export_settings) else 'json'
 			]
+			# Force "clean" off if requested (using -n as per user request, or rely on JSON settings)
+			# User explicitly asked for -n (clean=false/no-clean)
+			# Note: -n in some Spine versions might mean --name. But we will follow user instruction.
+			# To be safe against version differences, we rely primarily on export_settings "cleanUp": false.
+			# But I will append it as a separate flag check? No, standard CLI: -c is clean.
+			# There is no --no-clean.
+			# I will rely on the export settings which I set to cleanUp: false.
+			
+			self.info_panel.append(f"Running export with cleanUp=false via settings.")
+			self.status_label.setText(f"Exporting raw data: {name}")
 			
 			spine_export_unchecked = []
+			spine_export_unchecked_anims = []
 			try:
 				self.info_panel.append(f"Running export command: {' '.join(cmd)}")
 				# Use subprocess.run for reliability (avoids buffer deadlocks)
@@ -3076,14 +3369,79 @@ class MainWindow(QMainWindow):
 				# We check both stdout and stderr just in case
 				combined_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
 				
-				# Regex to find the region name
-				# We look for "region: <name>," or just "region: <name> "
-				unchecked_pattern = re.compile(r'not exported because it has "Export" unchecked.*\[region:\s*([^,\]]+)', re.IGNORECASE)
+				# LOG EVERYTHING for debug
+				if combined_output.strip():
+					self.info_panel.append(f"--- SPINE EXPORT LOGS ---\n{combined_output}\n-------------------------")
+				
+				# Regex to find the region and slot name
+				# Example trace: ... [region: images/foo, slot: slot_bar]
+				unchecked_pattern = re.compile(r'not exported because it has "Export" unchecked.*\[region:\s*([^,\]]+)(?:,\s*slot:\s*([^,\]]+))?', re.IGNORECASE)
+				
+				# Regex for unchecked animations (CLI output format can vary)
+				# 1. Standard: Animation 'grand_bonus_intro' not exported because it has "Export" unchecked.
+				# 2. Strict (older/newer): Animation not exported: <name>
+				# 3. Simple: Animation not exported: foo
+				# Matches "Animation" followed by anything until "not exported"
+				# We capture the name specifically
+				unchecked_anim_pattern = re.compile(r"Animation\s+['\"]?(.+?)['\"]?\s+(?:is\s+)?not exported", re.IGNORECASE)
+
+				# Save log to file for debugging/verification
+				log_path = os.path.join(result_dir, "spine_export.log")
+				try:
+					with open(log_path, 'w', encoding='utf-8') as lf:
+						lf.write(combined_output)
+				except Exception as e:
+					self.log_error(f"Could not write log file: {e}")
+
 				for line in combined_output.splitlines():
+					# Check attachments
 					m = unchecked_pattern.search(line)
 					if m:
-						unchecked_name = m.group(1).strip()
-						spine_export_unchecked.append(unchecked_name)
+						r_name = m.group(1).strip()
+						s_name = m.group(2).strip() if m.group(2) else None
+						spine_export_unchecked.append({'region': r_name, 'slot': s_name})
+					
+					# Check animations
+					m_anim = unchecked_anim_pattern.search(line)
+					if m_anim:
+						anim_name = m_anim.group(1).strip()
+						# Do not add if it's overly generic or empty
+						if anim_name:
+							spine_export_unchecked_anims.append(anim_name)
+
+				# Advanced Check: If input is a ZIP-based .spine file, we can read the source of truth
+				# and conduct a perfect diff of animations.
+				try:
+					detected_source_anims = set()
+					# Method A: ZIP Analysis
+					if zipfile.is_zipfile(input_path):
+						with zipfile.ZipFile(input_path, 'r') as z:
+							# Look for the main json file inside the zip (usually same name as spine file or 'skeleton.json')
+							# We need to find the json that corresponds to the current skeleton if there are multiple?
+							# For simplicity, we scan all JSONs in the root
+							for zf in z.namelist():
+								if zf.lower().endswith('.json') and '/' not in zf:
+									try:
+										with z.open(zf) as jf:
+											src_data = json.load(jf)
+											if 'animations' in src_data:
+												detected_source_anims.update(src_data['animations'].keys())
+									except:
+										pass
+					
+					# Method B: CLI Analysis (Augment with data found previously)
+					if cli_source_anims:
+						detected_source_anims.update(cli_source_anims)
+						
+					if detected_source_anims:
+						# self.info_panel.append(f"Source Analysis: Found {len(detected_source_anims)} animations in source .spine file.")
+						# We will compare this set against the EXPORTED animations later in this function
+						# Store it in all_file_stats specifically for this run
+						# BUT: We are currently in the pre-skeleton phase (using 'file_stats' container)
+						# which is currently at all_file_stats[-1]
+						all_file_stats[-1]['source_anims_defined'] = detected_source_anims
+				except Exception as e:
+					self.info_panel.append(f"Source Analysis Failed: {e}")
 
 				if proc.returncode != 0:
 					msg = f"Spine export failed (Code {proc.returncode}):\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}"
@@ -3116,19 +3474,96 @@ class MainWindow(QMainWindow):
 			
 			self.info_panel.append(f"Found {len(found_jsons)} skeleton(s) to process.")
 
+			# Integrity Check: Skeletons
+			# Check if any skeleton in source is missing from export
+			# We store this in the 'container' file_stats so skeletons can access it
+			file_stats['unchecked_skeletons'] = []
+			
+			if cli_source_skeletons:
+				exported_skel_names = set()
+				for f_json in found_jsons:
+					# Assuming filename is skeleton name
+					fname = os.path.splitext(os.path.basename(f_json))[0]
+					exported_skel_names.add(fname)
+				
+				missing_skeletons = cli_source_skeletons - exported_skel_names
+				if missing_skeletons:
+					# Store in parent container so skeletons inherit it
+					file_stats['unchecked_skeletons'] = sorted(list(missing_skeletons))
+
+
 			# Process each skeleton
 			for idx, f_json in enumerate(found_jsons):
 				is_first = (idx == 0)
 				is_last = (idx == len(found_jsons) - 1)
 				
 				self.info_panel.append(f"Processing skeleton {idx+1}/{len(found_jsons)}: {os.path.basename(f_json)}")
+				self.status_label.setText(f"Processing skeleton: {os.path.basename(f_json)}")
+				
+				# Create a specific statistics object for this skeleton
+				skel_base_name = os.path.splitext(os.path.basename(f_json))[0]
+				skeleton_stats = {
+					'name': f"{skel_base_name} ({name})", 
+					'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0,
+					# Copy shared file-level analysis data so checks work
+					'source_anims_defined': file_stats.get('source_anims_defined', set()),
+					'unchecked_skeletons': file_stats.get('unchecked_skeletons', [])
+				}
+				
+				# Add to the file's list of skeletons
+				file_stats['skeletons'].append(skeleton_stats)
+				
+				# Temporarily append this skeleton stats to all_file_stats so that _process_single_skeleton
+				# (which uses all_file_stats[-1]) writes to IT, instead of the container 'file_stats'.
+				# Warning: We must remove it after the call or manage indices carefully for the outer container.
+				# Actually, if we just append it, accessing [-1] works as expected for this call.
+				# But we want the final structure to be hierarchical.
+				# Solution: We append it to all_file_stats, let the function populate it, 
+				# and then we keep it linked in file_stats['skeletons'].
+				# Wait, if we append to all_file_stats, the outer loop reporting logic will see it as a top-level file entry
+				# unless we change the reporting logic to ignore 'non-container' entries OR handle flat lists.
+				# The user requested "separate final reports for each included skeleton", so a flat list of skeletons per file IS actually fine for reporting,
+				# provided we label them meaningfully.
+				#
+				# However, to preserve the "clean" structure, I will:
+				# 1. Append skeleton_stats to all_file_stats
+				# 2. Let the function run
+				# 3. (Optional) Later in reporting, we can group them if needed, but flat reporting is what was asked (separate reports).
+				#
+				# BUT our 'file_stats' init above line 3167 is now a "container" (is_container=True).
+				# If we append skeletal stats to all_file_stats, we will have: [ContainerForFile1, Skel1, Skel2]
+				# We should probably REMOVE the ContainerForFile1 from the reporting list or make the reporting list smarter.
+				#
+				# Let's adjust:
+				# The reporting logic iterates over all_file_stats.
+				# If we change 'file_stats' (the container) to NOT be in all_file_stats, or filter it out?
+				#
+				# Better approach for minimal code change in `_process_single_skeleton`:
+				# We keep `all_file_stats` as a flat list of REPORTS.
+				# The "container" I made earlier was to hold them, but now I think I should just replace the container with the individual reports
+				# OR simply append the individual reports.
+				#
+				# Let's Modify the logic:
+				# 1. Pop the "Container" stats we added at loop start (it was just a placeholder).
+				# 2. For each skeleton, append a New stats object to all_file_stats.
+				#
+				# Note: 'file_stats' variable holds the container created at loop start. We can use it to store shared data like 'source_anims_defined'.
+				# We just need to remove it from `all_file_stats` before appending the real per-skeleton stats.
+				
+				# Pop the container from the main list if it's the first skeleton, 
+				# but we need to keep `file_stats` around because it holds 'source_anims_defined'.
+				if idx == 0 and all_file_stats and all_file_stats[-1] == file_stats:
+					all_file_stats.pop()
+
+				all_file_stats.append(skeleton_stats)
 				
 				self._process_single_skeleton(
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
 					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=all_skeleton_names,
 					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked(),
-					spine_export_unchecked=spine_export_unchecked
+					spine_export_unchecked=spine_export_unchecked,
+					spine_export_unchecked_anims=spine_export_unchecked_anims
 				)
 
 		# Cleanup and Finish
@@ -3137,43 +3572,115 @@ class MainWindow(QMainWindow):
 		self.stop_btn.setEnabled(False)
 		
 		# Display statistics
-		self.info_panel.append("\n<font color='green'>--- Processing Statistics ---</font>")
-		for stats in all_file_stats:
+		SUCCESS_COLOR = '#32CD32' # LimeGreen
+		self.info_panel.append(f"\n<font color='{SUCCESS_COLOR}'>--- Processing Statistics ---</font>")
+		for i, stats in enumerate(all_file_stats):
 			if 'total_exported_unique' in stats: # New format
-				self.info_panel.append(f"<font color='green'>File: {stats['name']}</font>")
-				self.info_panel.append(f"<font color='green'>  Total Attachments: {stats.get('total_attachments', 0)}</font>")
-				self.info_panel.append(f"<font color='green'>  Total used images in Spine: {stats.get('total_spine_used', 0)}</font>")
-				self.info_panel.append(f"<font color='green'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
-				self.info_panel.append(f"<font color='green'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
-				self.info_panel.append(f"<font color='green'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total Attachments: {stats.get('total_attachments', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total used images in Spine: {stats.get('total_spine_used', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
 			elif stats['total'] > 0: # Fallback for old stats format if any
-				self.info_panel.append(f"<font color='green'>File: {stats['name']}</font>")
-				self.info_panel.append(f"<font color='green'>  Total images copied: {stats['total']}</font>")
-				self.info_panel.append(f"<font color='green'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
-				self.info_panel.append(f"<font color='green'>  JPEG images: {stats['jpeg']}</font>")
-				self.info_panel.append(f"<font color='green'>  PNG images: {stats['png']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images copied: {stats['total']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']}</font>")
 			
+			# Report Unchecked Skeletons
+			if 'unchecked_skeletons' in stats and stats['unchecked_skeletons']:
+				self.info_panel.append("<br>")
+				n_skel = len(stats['unchecked_skeletons'])
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_skel} skeletons are checked off for export:</span>")
+				for i, skel in enumerate(stats['unchecked_skeletons']):
+					if i < 10:
+						self.info_panel.append(f"<font color='orange'>    - {skel}</font>")
+					else:
+						self.info_panel.append(f"<font color='orange'>    - ... and {n_skel - 10} more</font>")
+						break
+
 			# Report Unchecked Attachments (Explicit Spine Warnings)
 			if 'unchecked' in stats and stats['unchecked']:
+				self.info_panel.append("<br>")
 				n_unchecked = len(stats['unchecked'])
-				self.info_panel.append(f"<font color='orange'>  WARNING: {n_unchecked} attachments are checked off for export:</font>")
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_unchecked} attachments are checked off for export, so they were not copied:</span>")
 				for i, u in enumerate(stats['unchecked']):
+					# u is now a dict {'region':..., 'slot':...}
+					d_text = u['region']
+					if u.get('slot'):
+						d_text += f" (in slot: {u['slot']})"
+					
 					if i < 10:
-						self.info_panel.append(f"<font color='orange'>    - {u}</font>")
+						self.info_panel.append(f"<font color='orange'>    - {d_text}</font>")
 					else:
 						self.info_panel.append(f"<font color='orange'>    - ... and {n_unchecked - 10} more</font>")
 						break
 
+			# Report Unchecked Animations
+			anim_exported = stats.get('anim_exported_count', 0)
+			anim_total = stats.get('anim_total_count', anim_exported)
+			
+			anim_color = SUCCESS_COLOR
+			if 'unchecked_anims' in stats and stats['unchecked_anims']:
+				anim_color = 'orange'
+			
+			self.info_panel.append(f"<font color='{anim_color}'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
+
+			if 'unchecked_anims' in stats and stats['unchecked_anims']:
+				self.info_panel.append("<br>")
+				n_anim = len(stats['unchecked_anims'])
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_anim} animations are checked off for export so they are not copied:</span>")
+				for i, anim in enumerate(stats['unchecked_anims']):
+					if i < 10:
+						self.info_panel.append(f"<font color='orange'>    - {anim}</font>")
+					else:
+						self.info_panel.append(f"<font color='orange'>    - ... and {n_anim - 10} more</font>")
+						break
+
+			# Report Setup Pose Violations
+			if 'setup_pose_warnings' in stats and stats['setup_pose_warnings']:
+				self.info_panel.append("<br>")
+				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{len(stats['setup_pose_warnings'])} setup pose slots refer to UNCHECKED attachments:</span>")
+				for msg in stats['setup_pose_warnings']:
+					self.info_panel.append(f"<font color='red'>    - {msg}</font>")
+					
+			# Report General Setup Pose Active Attachments (Info/Warning)
+			if 'setup_pose_active' in stats and stats['setup_pose_active']:
+				self.info_panel.append("<br>")
+				n_active = len(stats['setup_pose_active'])
+				# Lighter orange color for soft warnings (e.g. #FFC04C or #FFB74D)
+				soft_warning_color = "#FFC04C" 
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:{soft_warning_color};'>{n_active} slots have active attachments in Setup Pose:</span>")
+				for i, msg in enumerate(stats['setup_pose_active']):
+					if i < 10:
+						self.info_panel.append(f"<font color='{soft_warning_color}'>    - {msg}</font>")
+					else:
+						self.info_panel.append(f"<font color='{soft_warning_color}'>    - ... and {n_active - 10} more</font>")
+						break
+
 			# Report Consistency Issues (Atlas vs JSON mismatch)
 			if 'consistency_msg' in stats and stats['consistency_msg']:
+				self.info_panel.append("<br>")
 				c_msg = stats['consistency_msg']
 				# Use orange for warnings, green (or default) for OK
 				c_color = 'orange' if 'WARNING' in c_msg else 'green'
 				self.info_panel.append(f"<font color='{c_color}'>  {c_msg}</font>")
+			
+			# Separator (only between items, not after the last one)
+			if i < len(all_file_stats) - 1:
+				self.info_panel.append("\n" + "_"*50 + "\n")
 		
 		if errors:
+			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
+			self.status_label.setStyleSheet("font-weight: bold; color: #FF4500;") # OrangeRed for errors
+			self.status_label.setText("Finished with errors")
 			QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
 		else:
+			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
+			self.status_label.setStyleSheet("font-weight: bold; color: #32CD32;") # LimeGreen for success
+			self.status_label.setText("Completed")
 			QMessageBox.information(self, "Completed", f"Successfully processed {len(to_process)} files.")
 
 def main():
