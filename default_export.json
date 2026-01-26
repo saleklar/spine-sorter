@@ -1,0 +1,1 @@
+{"class": "export-json", "name": "JSON", "extension": ".json", "format": "JSON", "prettyPrint": false, "nonessential": true, "cleanUp": false, "packAtlas": { "flattenPaths": false, "maxWidth": 8192, "maxHeight": 8192, "combineSubdirectories": false }, "packSource": "attachments", "warnings": true}

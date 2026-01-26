@@ -1,0 +1,132 @@
+{
+  "skeleton": {
+    "hash": "ygOa0qBWtoQ",
+    "spine": "4.1.24",
+    "x": -2340,
+    "y": -1440,
+    "width": 4680,
+    "height": 2880,
+    "images": "./images/",
+    "audio": ""
+  },
+  "bones": [
+    {
+      "name": "root"
+    },
+    {
+      "name": "bone",
+      "parent": "root",
+      "color": "fdff00ff"
+    }
+  ],
+  "slots": [
+    {
+      "name": "reference/LANDSCAPE_BG_REF",
+      "bone": "bone",
+      "attachment": "reference/LANDSCAPE_BG_REF"
+    },
+    {
+      "name": "reference/UI_LANDSCAPE_REF",
+      "bone": "root",
+      "attachment": "reference/UI_LANDSCAPE_REF"
+    },
+    {
+      "name": "reference/safe-area_LANDSCAPE",
+      "bone": "root",
+      "attachment": "reference/safe-area_LANDSCAPE"
+    },
+    {
+      "name": "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_00",
+      "bone": "bone",
+      "attachment": "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_",
+      "blend": "additive"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_00": {
+          "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_": {
+            "width": 1048,
+            "height": 2072,
+            "sequence": {
+              "count": 31,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_"
+          }
+        },
+        "reference/LANDSCAPE_BG_REF": {
+          "reference/LANDSCAPE_BG_REF": {
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/LANDSCAPE_BG_REF"
+          }
+        },
+        "reference/safe-area_LANDSCAPE": {
+          "reference/safe-area_LANDSCAPE": {
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/safe-area_LANDSCAPE"
+          }
+        },
+        "reference/UI_LANDSCAPE_REF": {
+          "reference/UI_LANDSCAPE_REF": {
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/UI_LANDSCAPE_REF"
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "animation": {
+      "slots": {
+        "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_00": {
+          "rgba": [
+            {
+              "color": "ffffffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1,
+              "color": "ffffffff"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "bone": {
+          "translate": [
+            {
+              "x": -7.08,
+              "y": -20.42
+            }
+          ]
+        }
+      },
+      "attachments": {
+        "default": {
+          "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_00": {
+            "reel_anticipation/jpeg/reel_anticipation_light/reel_anticipation_light_": {
+              "sequence": [
+                {
+                  "mode": "loop",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          }
+        }
+      },
+      "drawOrder": [
+        {
+          "time": 0.4667
+        }
+      ]
+    }
+  }
+}

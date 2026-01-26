@@ -878,6 +878,12 @@ class MainWindow(QMainWindow):
 		self.info_panel.setMinimumHeight(160)
 		self.info_panel.setStyleSheet("background-color: #1e1e1e; color: white;")
 		layout.addWidget(self.info_panel)
+		# Button to open a full plain-text report (created when processing finishes)
+		self.open_report_btn = QPushButton("Open full report")
+		self.open_report_btn.setVisible(False)
+		self.open_report_btn.clicked.connect(self._open_report_file)
+		layout.addWidget(self.open_report_btn)
+		self.last_report_path = None
 
 		central.setLayout(layout)
 		self.setCentralWidget(central)
@@ -1140,6 +1146,23 @@ class MainWindow(QMainWindow):
 			except Exception:
 				pass
 			self._save_spine_selection()
+
+
+	def _open_report_file(self):
+		"""Open the last generated plain-text report with the system default viewer."""
+		path = getattr(self, 'last_report_path', None)
+		if not path or not os.path.exists(path):
+			QMessageBox.information(self, "Report not available", "No report file is available to open.")
+			return
+		try:
+			if os.name == 'nt':
+				os.startfile(path)
+			elif sys.platform == 'darwin':
+				subprocess.Popen(['open', path])
+			else:
+				subprocess.Popen(['xdg-open', path])
+		except Exception as e:
+			QMessageBox.warning(self, "Open failed", f"Could not open report: {e}")
 
 
 	# Removed detect_spine_version and scan_spine_versions as they are now in SpineScannerThread
@@ -3681,6 +3704,52 @@ class MainWindow(QMainWindow):
 		
 		if jpeg_forced_png_warnings:
 			any_warnings = True
+
+		# Generate a plain-text full report with errors and warnings
+		try:
+			out_root = self.output_display.text() or os.path.expanduser("~")
+			os.makedirs(out_root, exist_ok=True)
+			report_path = os.path.join(out_root, f"spine_report_{timestamp}.txt")
+			with open(report_path, 'w', encoding='utf-8') as rf:
+				rf.write("Spine Sorter Full Report\n")
+				rf.write(time.strftime("Generated: %Y-%m-%d %H:%M:%S\n", time.localtime(timestamp)))
+				rf.write("\nErrors:\n")
+				if errors:
+					for e in errors:
+						rf.write(f"- {e}\n")
+				else:
+					rf.write("None\n")
+				rf.write("\nWarnings and details per file:\n")
+				for stats in all_file_stats:
+					rf.write(f"\nFile: {stats.get('name')}\n")
+					if stats.get('unchecked'):
+						rf.write("Unchecked attachments:\n")
+						for u in stats.get('unchecked'):
+							rf.write(f" - {u.get('region')} (slot: {u.get('slot')})\n")
+					if stats.get('unchecked_anims'):
+						rf.write("Unchecked animations:\n")
+						for a in stats.get('unchecked_anims'):
+							rf.write(f" - {a}\n")
+					if stats.get('setup_pose_warnings'):
+						rf.write("Setup pose warnings:\n")
+						for s in stats.get('setup_pose_warnings'):
+							rf.write(f" - {s}\n")
+					if stats.get('setup_pose_active'):
+						rf.write("Active attachments in setup pose:\n")
+						for s in stats.get('setup_pose_active'):
+							rf.write(f" - {s}\n")
+					if stats.get('consistency_msg'):
+						rf.write(f"Consistency: {stats.get('consistency_msg')}\n")
+				if jpeg_forced_png_warnings:
+					rf.write("\nJPEG forced->PNG warnings:\n")
+					for w in jpeg_forced_png_warnings:
+						rf.write(f" - {w}\n")
+			# reveal report button and remember path
+			self.last_report_path = report_path
+			self.open_report_btn.setVisible(True)
+			self.info_panel.append(f"\nFull report written to: {report_path}")
+		except Exception as e:
+			self.info_panel.append(f"Could not write report: {e}")
 
 		if errors:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()

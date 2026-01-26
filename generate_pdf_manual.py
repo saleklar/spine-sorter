@@ -94,9 +94,9 @@ def create_pdf(filename):
             "body": [
                 "The log at the bottom uses a simple Traffic Light system:",
                 "<br/>",
-                "<font color='green'><b>GREEN messages</b></font> = All good! Relax.",
-                "<font color='orange'><b>ORANGE messages</b></font> = <b>Warning.</b> Something might be wrong, but it won't crash the game.",
-                "<font color='red'><b>RED messages</b></font> = <b>CRITICAL.</b> Something is definitely broken (missing file, invisible animations)."
+                "<font color='#32CD32'><b>GREEN messages</b></font> = All good! Relax.",
+                "<font color='#FFA500'><b>ORANGE messages</b></font> = <b>Warning.</b> Something might be wrong (check export settings), but it won't crash the game.",
+                "<font color='#FF4500'><b>RED messages</b></font> = <b>CRITICAL.</b> Something is definitely broken (missing file, invisible animations)."
             ]
         },
         {
@@ -126,7 +126,7 @@ def create_pdf(filename):
                 "<b>The Reality:</b> Front end developers cannot find your animation.",
                 "<br/>",
                 "<b>The Solution:</b> This tool compares your Spine project file against the output.",
-                "<b>If it sees:</b> <font color='red'>WARNING: 1 animations are checked off...</font>",
+                "<b>If it sees:</b> <font color='#FF4500'>WARNING:</font> <font color='#FFA500'>1 animations are checked off...</font>",
                 "<b>It means:</b> One of your animations is NOT in the game data. Check your export settings!"
             ]
         },
@@ -135,7 +135,7 @@ def create_pdf(filename):
             "body": [
                 "<b>Additive Blending:</b> Any slot using 'Additive' or 'Screen' blend modes is automatically sent to the JPEG folder (it saves space!).",
                 "<b>Reference Images:</b> Keep your ref images in a folder named 'refs' or 'unused'. The tool tries to ignore them.",
-                "<b>Final Check:</b> Always scroll to the bottom of the log. If you see <font color='green'>'Process Complete'</font> with no red text, you are safe."
+                "<b>Final Check:</b> Always scroll to the bottom of the log. If you see <font color='#32CD32'>'Completed OK'</font>, you are safe. If you see <font color='#FFA500'>CHECK THE WARNINGS</font>, scroll up the log."
             ]
         }
     ]

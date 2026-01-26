@@ -1,0 +1,4 @@
+ANALYSIS START: Resolved count=258, Has 'free_p_sky'? True
+ANALYSIS: Processing Z:/spine sorter v257/test_files_from_collegues/muthahar\images\ambient\png\free_p_sky.png (Limit: 2147483648)
+ANALYSIS ERROR: Z:/spine sorter v257/test_files_from_collegues/muthahar\images\ambient\png\free_p_sky.png | Too much memory used in text chunks: 85514448>MAX_TEXT_MEMORY
+SORT: Checking Z:/spine sorter v257/test_files_from_collegues/muthahar\images\ambient\png\free_p_sky.png -> OPAQUE (FOUND in map) [Key Used: Z:/spine sorter v257/test_files_from_collegues/muthahar\images\ambient\png\free_p_sky.png]

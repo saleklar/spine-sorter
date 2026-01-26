@@ -1,0 +1,7694 @@
+{
+  "skeleton": {
+    "hash": "HhA3uGxOJvM",
+    "spine": "4.1.24",
+    "images": "./images/",
+    "audio": "../PSD/"
+  },
+  "bones": [
+    {
+      "name": "root"
+    },
+    {
+      "name": "master",
+      "parent": "root",
+      "color": "00ffbbff"
+    },
+    {
+      "name": "main_scale",
+      "parent": "master",
+      "color": "00ffbbff"
+    },
+    {
+      "name": "sacred_text",
+      "parent": "main_scale",
+      "x": -4.51,
+      "y": 104.15,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "buffalo_text",
+      "parent": "main_scale",
+      "x": -1.84,
+      "y": -28.31,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "wood",
+      "parent": "main_scale",
+      "color": "00ffbbff"
+    },
+    {
+      "name": "horn_r",
+      "parent": "wood",
+      "x": 182.85,
+      "y": 49.99,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "horn_l",
+      "parent": "wood",
+      "x": -204.87,
+      "y": 53.95,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "yellow_feathers_l",
+      "parent": "wood",
+      "length": 146.75,
+      "rotation": 160.09,
+      "x": -394.36,
+      "y": 77.22,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_l_3",
+      "parent": "wood",
+      "length": 241.4,
+      "rotation": -124.55,
+      "x": -356.33,
+      "y": 121.76,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "yellow_feathers_r",
+      "parent": "wood",
+      "length": 206.65,
+      "rotation": 17.82,
+      "x": 348.42,
+      "y": 74.87,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feathers",
+      "parent": "wood",
+      "length": 157.2,
+      "rotation": -56.55,
+      "x": 330.85,
+      "y": 114.68,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_r_5",
+      "parent": "wood",
+      "length": 181.2,
+      "rotation": -84.44,
+      "x": 370.67,
+      "y": -17.65,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_r_1",
+      "parent": "wood",
+      "length": 175.99,
+      "rotation": -106.63,
+      "x": 363.64,
+      "y": -44.58,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_r_4",
+      "parent": "wood",
+      "length": 140.1,
+      "rotation": -51.79,
+      "x": 417.51,
+      "y": 2.26,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_l_9",
+      "parent": "wood",
+      "length": 310.47,
+      "rotation": -91.73,
+      "x": -378.29,
+      "y": 98.29,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_top_l",
+      "parent": "wood",
+      "length": 125.31,
+      "rotation": 164.28,
+      "x": -261.19,
+      "y": 135.76,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_top_r",
+      "parent": "wood",
+      "length": 121.47,
+      "rotation": 19.13,
+      "x": 231.83,
+      "y": 135.76,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "feather_l_8",
+      "parent": "wood",
+      "rotation": -73.88,
+      "x": -383.44,
+      "y": -4.85,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "logo/jpeg/horn/horn_sweep_logo_00",
+      "parent": "main_scale",
+      "x": -228.68,
+      "y": 68.44,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "logo/jpeg/horn/horn_sweep_logo_01",
+      "parent": "main_scale",
+      "x": 205.61,
+      "y": 68.44,
+      "scaleX": -1,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "piggy_banks/jpeg/dissapear_fx/disspear_00",
+      "parent": "master",
+      "rotation": 90,
+      "scaleX": 1.9024,
+      "scaleY": 1.9024,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "logo/jpeg/sacred/sacred_sweep_00",
+      "parent": "main_scale",
+      "x": -18.7,
+      "y": 81.64,
+      "scaleX": 0.4467,
+      "scaleY": 0.4467,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "logo/jpeg/buffalo/buffalo_sweep_00",
+      "parent": "master",
+      "x": -34.41,
+      "y": -47.01,
+      "scaleX": 0.4603,
+      "scaleY": 0.4603,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "piggy_banks/jpeg/fs_light",
+      "parent": "master",
+      "y": -5.61,
+      "color": "00ffbbff"
+    },
+    {
+      "name": "piggy_banks/jpeg/fs_glow2",
+      "parent": "master",
+      "color": "00ffbbff"
+    },
+    {
+      "name": "piggy_banks/jpeg/particles/particles_00",
+      "parent": "master",
+      "color": "00ffbbff"
+    }
+  ],
+  "slots": [
+    {
+      "name": "reference/BG_PORTRAIT",
+      "bone": "master"
+    },
+    {
+      "name": "reference/UI_PORTRAIT",
+      "bone": "master"
+    },
+    {
+      "name": "piggy_banks/jpeg/dissapear_fx/disspear_00",
+      "bone": "piggy_banks/jpeg/dissapear_fx/disspear_00",
+      "blend": "additive"
+    },
+    {
+      "name": "piggy_banks/jpeg/fs_glow2",
+      "bone": "piggy_banks/jpeg/fs_glow2",
+      "blend": "additive"
+    },
+    {
+      "name": "piggy_banks/jpeg/fs_light",
+      "bone": "piggy_banks/jpeg/fs_light",
+      "blend": "additive"
+    },
+    {
+      "name": "piggy_banks/jpeg/particles/particles_00",
+      "bone": "piggy_banks/jpeg/particles/particles_00",
+      "blend": "additive"
+    },
+    {
+      "name": "piggy_banks/jpeg/particles/particles_01",
+      "bone": "piggy_banks/jpeg/particles/particles_00",
+      "blend": "additive"
+    },
+    {
+      "name": "wood",
+      "bone": "wood"
+    },
+    {
+      "name": "wood2",
+      "bone": "wood",
+      "blend": "additive"
+    },
+    {
+      "name": "yellow_feathers_l",
+      "bone": "yellow_feathers_l"
+    },
+    {
+      "name": "decor_top_l",
+      "bone": "wood"
+    },
+    {
+      "name": "decor_top_r",
+      "bone": "wood"
+    },
+    {
+      "name": "feather_top_l",
+      "bone": "feather_top_l"
+    },
+    {
+      "name": "feather_top_r",
+      "bone": "feather_top_r"
+    },
+    {
+      "name": "logo/png/top_new",
+      "bone": "wood"
+    },
+    {
+      "name": "logo/png/top_new2",
+      "bone": "wood",
+      "blend": "additive"
+    },
+    {
+      "name": "sh_r_2",
+      "bone": "feathers"
+    },
+    {
+      "name": "feather_l_9",
+      "bone": "feather_l_9"
+    },
+    {
+      "name": "feather_l_8",
+      "bone": "feather_l_8"
+    },
+    {
+      "name": "feather_l_7",
+      "bone": "main_scale"
+    },
+    {
+      "name": "feather_r_1",
+      "bone": "feather_r_1"
+    },
+    {
+      "name": "feather_r_5",
+      "bone": "feather_r_5"
+    },
+    {
+      "name": "feather_r_4",
+      "bone": "feather_r_4"
+    },
+    {
+      "name": "feather_l_3",
+      "bone": "feather_l_3"
+    },
+    {
+      "name": "feather_l_1",
+      "bone": "main_scale"
+    },
+    {
+      "name": "yellow_feathers_r",
+      "bone": "yellow_feathers_r"
+    },
+    {
+      "name": "sh_r_1",
+      "bone": "yellow_feathers_r"
+    },
+    {
+      "name": "feathers",
+      "bone": "feathers"
+    },
+    {
+      "name": "sh",
+      "bone": "main_scale"
+    },
+    {
+      "name": "sg_3",
+      "bone": "main_scale"
+    },
+    {
+      "name": "horn_r",
+      "bone": "horn_r"
+    },
+    {
+      "name": "horn_r2",
+      "bone": "horn_r",
+      "blend": "additive"
+    },
+    {
+      "name": "horn_l",
+      "bone": "horn_l"
+    },
+    {
+      "name": "horn_l2",
+      "bone": "horn_l",
+      "blend": "additive"
+    },
+    {
+      "name": "logo/jpeg/horn/horn_sweep_logo_00",
+      "bone": "logo/jpeg/horn/horn_sweep_logo_00"
+    },
+    {
+      "name": "logo/jpeg/horn/horn_sweep_logo_01",
+      "bone": "logo/jpeg/horn/horn_sweep_logo_01",
+      "blend": "additive"
+    },
+    {
+      "name": "buffalo_text",
+      "bone": "buffalo_text"
+    },
+    {
+      "name": "buffalo_text2",
+      "bone": "buffalo_text",
+      "blend": "additive"
+    },
+    {
+      "name": "logo/jpeg/buffalo/buffalo_sweep_00",
+      "bone": "logo/jpeg/buffalo/buffalo_sweep_00"
+    },
+    {
+      "name": "glow_b",
+      "bone": "main_scale"
+    },
+    {
+      "name": "sacred_text",
+      "bone": "sacred_text"
+    },
+    {
+      "name": "sacred_text2",
+      "bone": "sacred_text",
+      "blend": "additive"
+    },
+    {
+      "name": "glitter01",
+      "bone": "main_scale"
+    },
+    {
+      "name": "glitter",
+      "bone": "main_scale"
+    },
+    {
+      "name": "logo/jpeg/sacred/sacred_sweep_00",
+      "bone": "logo/jpeg/sacred/sacred_sweep_00",
+      "blend": "additive"
+    },
+    {
+      "name": "reference/LANDSCAPE_BG_REF",
+      "bone": "root"
+    },
+    {
+      "name": "reference/UI_LANDSCAPE_REF",
+      "bone": "root"
+    },
+    {
+      "name": "reference/safe-area_LANDSCAPE",
+      "bone": "root"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "buffalo_text": {
+          "logo/png/buffalo_text": {
+            "x": -6.66,
+            "y": -17.69,
+            "width": 679,
+            "height": 186,
+            "path": "logo/png/buffalo_text"
+          }
+        },
+        "buffalo_text2": {
+          "logo/png/buffalo_text": {
+            "x": -6.66,
+            "y": -17.69,
+            "width": 679,
+            "height": 186,
+            "path": "logo/png/buffalo_text"
+          }
+        },
+        "decor_top_l": {
+          "logo/png/decor_top_l": {
+            "x": -350.5,
+            "y": 119,
+            "width": 117,
+            "height": 54,
+            "path": "logo/png/decor_top_l"
+          }
+        },
+        "decor_top_r": {
+          "logo/png/decor_top_r": {
+            "x": 325,
+            "y": 110.5,
+            "width": 118,
+            "height": 55,
+            "path": "logo/png/decor_top_r"
+          }
+        },
+        "feathers": {
+          "logo/png/feathers": {
+            "x": 93.02,
+            "y": -3.75,
+            "rotation": 56.55,
+            "width": 134,
+            "height": 200,
+            "path": "logo/png/feathers"
+          }
+        },
+        "feather_l_1": {
+          "logo/png/feather_l_1": {
+            "x": -374,
+            "y": 22,
+            "width": 30,
+            "height": 118,
+            "path": "logo/png/feather_l_1"
+          }
+        },
+        "feather_l_3": {
+          "logo/png/feather_l_3": {
+            "x": 126.57,
+            "y": -3.51,
+            "rotation": 124.55,
+            "width": 188,
+            "height": 245,
+            "path": "logo/png/feather_l_3"
+          }
+        },
+        "feather_l_7": {
+          "logo/png/feather_l_7": {
+            "x": -411.5,
+            "y": 40.5,
+            "width": 79,
+            "height": 117,
+            "path": "logo/png/feather_l_7"
+          }
+        },
+        "feather_l_8": {
+          "logo/png/feather_l_8": {
+            "x": 115.18,
+            "y": 3.59,
+            "rotation": 73.88,
+            "width": 82,
+            "height": 237,
+            "path": "logo/png/feather_l_8"
+          }
+        },
+        "feather_l_9": {
+          "logo/png/feather_l_9": {
+            "x": 160.75,
+            "y": -12.86,
+            "rotation": 91.73,
+            "width": 116,
+            "height": 326,
+            "path": "logo/png/feather_l_9"
+          }
+        },
+        "feather_r_1": {
+          "logo/png/feather_r_1": {
+            "x": 90.22,
+            "y": -12.34,
+            "rotation": 106.63,
+            "width": 98,
+            "height": 201,
+            "path": "logo/png/feather_r_1"
+          }
+        },
+        "feather_r_4": {
+          "logo/png/feather_r_4": {
+            "x": 66.7,
+            "y": 3.47,
+            "rotation": 51.79,
+            "width": 99,
+            "height": 132,
+            "path": "logo/png/feather_r_4"
+          }
+        },
+        "feather_r_5": {
+          "logo/png/feather_r_5": {
+            "x": 95.49,
+            "y": 7.11,
+            "rotation": 84.44,
+            "width": 48,
+            "height": 218,
+            "path": "logo/png/feather_r_5"
+          }
+        },
+        "feather_top_l": {
+          "logo/png/feather_top_l": {
+            "x": 61.01,
+            "y": 0.31,
+            "rotation": -164.28,
+            "width": 140,
+            "height": 70,
+            "path": "logo/png/feather_top_l"
+          }
+        },
+        "feather_top_r": {
+          "logo/png/feather_top_r": {
+            "x": 65.83,
+            "y": -3,
+            "rotation": -19.13,
+            "width": 140,
+            "height": 69,
+            "path": "logo/png/feather_top_r"
+          }
+        },
+        "glitter": {
+          "logo/png/glitter": {
+            "x": -165.5,
+            "y": 127.5,
+            "width": 75,
+            "height": 87,
+            "path": "logo/png/glitter"
+          }
+        },
+        "glitter01": {
+          "logo/png/glitter01": {
+            "x": 93,
+            "y": 61.5,
+            "width": 188,
+            "height": 69,
+            "path": "logo/png/glitter01"
+          }
+        },
+        "glow_b": {
+          "logo/png/glow_b": {
+            "x": 6,
+            "y": 122,
+            "width": 446,
+            "height": 170,
+            "path": "logo/png/glow_b"
+          }
+        },
+        "horn_l": {
+          "logo/png/horn_l": {
+            "x": -20.13,
+            "y": 34.55,
+            "width": 180,
+            "height": 269,
+            "path": "logo/png/horn_l"
+          }
+        },
+        "horn_l2": {
+          "logo/png/horn_l": {
+            "x": -20.13,
+            "y": 34.55,
+            "width": 180,
+            "height": 269,
+            "path": "logo/png/horn_l"
+          }
+        },
+        "horn_r": {
+          "logo/png/horn_r": {
+            "x": 46.15,
+            "y": 38.51,
+            "width": 180,
+            "height": 269,
+            "path": "logo/png/horn_r"
+          }
+        },
+        "horn_r2": {
+          "logo/png/horn_r": {
+            "x": 46.15,
+            "y": 38.51,
+            "width": 180,
+            "height": 269,
+            "path": "logo/png/horn_r"
+          }
+        },
+        "logo/jpeg/buffalo/buffalo_sweep_00": {
+          "logo/jpeg/buffalo/buffalo_sweep_": {
+            "x": 43.96,
+            "y": 16.41,
+            "width": 1506,
+            "height": 452,
+            "sequence": {
+              "count": 31,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "logo/png/buffalo/buffalo_sweep/buffalo_sweep_"
+          }
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "logo/jpeg/horn/horn_sweep_logo_": {
+            "x": -4.52,
+            "y": 31.66,
+            "width": 164,
+            "height": 238,
+            "sequence": {
+              "count": 31,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "logo/png/horn/horn_sweep_logo/horn_sweep_logo_"
+          }
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "logo/jpeg/horn/horn_sweep_logo_": {
+            "x": -4.52,
+            "y": 31.66,
+            "width": 164,
+            "height": 238,
+            "sequence": {
+              "count": 31,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "logo/png/horn/horn_sweep_logo/horn_sweep_logo_"
+          }
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "logo/jpeg/sacred/sacred_sweep_": {
+            "x": 7.99,
+            "y": 42.99,
+            "width": 878,
+            "height": 312,
+            "sequence": {
+              "count": 31,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "logo/jpeg/sacred/sacred_sweep/sacred_sweep_"
+          }
+        },
+        "logo/png/top_new": {
+          "logo/png/top_new": {
+            "x": -14.12,
+            "y": 161.23,
+            "width": 534,
+            "height": 137,
+            "path": "logo/png/top_new"
+          }
+        },
+        "logo/png/top_new2": {
+          "logo/png/top_new": {
+            "x": -14.12,
+            "y": 161.23,
+            "width": 534,
+            "height": 137,
+            "path": "logo/png/top_new"
+          }
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "piggy_banks/jpeg/dissapear_fx/disspear_": {
+            "x": 2.89,
+            "y": 248.44,
+            "width": 722,
+            "height": 520,
+            "sequence": {
+              "count": 21,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "piggy_bank/jpeg/dissapear_fx/disspear/disspear_"
+          }
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "piggy_banks/jpeg/fs_glow2": {
+            "y": -4.71,
+            "width": 573,
+            "height": 540,
+            "path": "piggy_bank/jpeg/fs_glow2"
+          }
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "piggy_banks/jpeg/fs_light": {
+            "rotation": 90,
+            "width": 1049,
+            "height": 646,
+            "path": "piggy_bank/jpeg/fs_light"
+          }
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "piggy_banks/jpeg/particles/particles_": {
+            "x": 11.1,
+            "y": -5.05,
+            "width": 536,
+            "height": 640,
+            "sequence": {
+              "count": 21,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "piggy_bank/jpeg/particles/particles_"
+          }
+        },
+        "piggy_banks/jpeg/particles/particles_01": {
+          "piggy_banks/jpeg/particles/particles_": {
+            "x": 11.1,
+            "y": -5.05,
+            "width": 536,
+            "height": 640,
+            "sequence": {
+              "count": 21,
+              "start": 0,
+              "digits": 2
+            },
+            "path": "piggy_bank/jpeg/particles/particles_"
+          }
+        },
+        "reference/BG_PORTRAIT": {
+          "reference/BG_PORTRAIT": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              1073.83,
+              -3467.06,
+              -1086.17,
+              -3467.06,
+              -1086.17,
+              372.94,
+              1073.83,
+              372.94
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 2160,
+            "height": 3840,
+            "path": "reference/BG_PORTRAIT"
+          }
+        },
+        "reference/LANDSCAPE_BG_REF": {
+          "reference/LANDSCAPE_BG_REF": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              2340,
+              -1440,
+              -2340,
+              -1440,
+              -2340,
+              1440,
+              2340,
+              1440
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/LANDSCAPE_BG_REF"
+          }
+        },
+        "reference/safe-area_LANDSCAPE": {
+          "reference/safe-area_LANDSCAPE": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              2340,
+              -1440,
+              -2340,
+              -1440,
+              -2340,
+              1440,
+              2340,
+              1440
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/safe-area_LANDSCAPE"
+          }
+        },
+        "reference/UI_LANDSCAPE_REF": {
+          "reference/UI_LANDSCAPE_REF": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              2340,
+              -1440,
+              -2340,
+              -1440,
+              -2340,
+              1440,
+              2340,
+              1440
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 4680,
+            "height": 2880,
+            "path": "reference/UI_LANDSCAPE_REF"
+          }
+        },
+        "reference/UI_PORTRAIT": {
+          "reference/UI_PORTRAIT": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              1185.33,
+              -3458.06,
+              -1197.67,
+              -3458.06,
+              -1197.67,
+              363.94,
+              1185.33,
+              363.94
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 2383,
+            "height": 3822,
+            "path": "reference/UI_PORTRAIT"
+          },
+          "reference/UI_PORTRAIT_WITHOUT_LOGO": {
+            "type": "mesh",
+            "uvs": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0
+            ],
+            "triangles": [
+              1,
+              2,
+              3,
+              1,
+              3,
+              0
+            ],
+            "vertices": [
+              1185.33,
+              -3458.06,
+              -1197.67,
+              -3458.06,
+              -1197.67,
+              363.94,
+              1185.33,
+              363.94
+            ],
+            "hull": 4,
+            "edges": [
+              0,
+              2,
+              2,
+              4,
+              4,
+              6,
+              0,
+              6
+            ],
+            "width": 2383,
+            "height": 3822,
+            "path": "reference/UI_PORTRAIT_WITHOUT_LOGO"
+          }
+        },
+        "sacred_text": {
+          "logo/png/sacred_text": {
+            "x": -0.99,
+            "y": -3.65,
+            "width": 393,
+            "height": 135,
+            "path": "logo/png/sacred_text"
+          }
+        },
+        "sacred_text2": {
+          "logo/png/sacred_text": {
+            "x": -0.99,
+            "y": -3.65,
+            "width": 393,
+            "height": 135,
+            "path": "logo/png/sacred_text"
+          }
+        },
+        "sg_3": {
+          "logo/png/sg_3": {
+            "x": -14,
+            "y": 44.5,
+            "width": 738,
+            "height": 287,
+            "path": "logo/png/sg_3"
+          }
+        },
+        "sh": {
+          "logo/png/sh": {
+            "x": 2,
+            "y": -86.5,
+            "width": 510,
+            "height": 149,
+            "path": "logo/png/sh"
+          }
+        },
+        "sh_r_1": {
+          "logo/png/sh_r_1": {
+            "x": 89.32,
+            "y": -16.49,
+            "rotation": -17.82,
+            "width": 129,
+            "height": 79,
+            "path": "logo/png/sh_r_1"
+          }
+        },
+        "sh_r_2": {
+          "logo/png/sh_r_2": {
+            "x": 136.14,
+            "y": -1.08,
+            "rotation": 56.55,
+            "width": 148,
+            "height": 195,
+            "path": "logo/png/sh_r_2"
+          }
+        },
+        "wood": {
+          "logo/png/wood": {
+            "x": -12.5,
+            "y": -2,
+            "width": 983,
+            "height": 336,
+            "path": "logo/png/wood"
+          }
+        },
+        "wood2": {
+          "logo/png/wood": {
+            "x": -12.5,
+            "y": -2,
+            "width": 983,
+            "height": 336,
+            "path": "logo/png/wood"
+          }
+        },
+        "yellow_feathers_l": {
+          "logo/png/yellow_feathers_l": {
+            "x": 67.25,
+            "y": -4.66,
+            "rotation": -160.09,
+            "width": 242,
+            "height": 195,
+            "path": "logo/png/yellow_feathers_l"
+          }
+        },
+        "yellow_feathers_r": {
+          "logo/png/yellow_feathers_r": {
+            "x": 112.17,
+            "y": -9.13,
+            "rotation": -17.82,
+            "width": 242,
+            "height": 195,
+            "path": "logo/png/yellow_feathers_r"
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "logo_ambient_landscape": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.8333,
+              "color": "ffffffa3"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff7c"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff7c"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffffb7"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "reference/LANDSCAPE_BG_REF": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "reference/safe-area_LANDSCAPE": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "reference/UI_LANDSCAPE_REF": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff8e"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffffb7"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {
+              "curve": [
+                0.333,
+                0,
+                0.667,
+                -2.02
+              ]
+            },
+            {
+              "time": 1,
+              "value": -2.02,
+              "curve": [
+                1.333,
+                -2.02,
+                1.667,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.278,
+                0,
+                0.556,
+                0,
+                0.278,
+                0,
+                0.556,
+                -2.61
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": -2.61,
+              "curve": [
+                1.222,
+                0,
+                1.611,
+                0,
+                1.222,
+                -2.61,
+                1.611,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                -0.55,
+                0.337,
+                -1.77
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -1.56,
+              "curve": [
+                0.837,
+                -1.14,
+                1.168,
+                1.41
+              ]
+            },
+            {
+              "time": 1.5,
+              "value": 1.41,
+              "curve": [
+                1.667,
+                1.41,
+                1.9,
+                0.47
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.168,
+                0,
+                0.337,
+                0,
+                0.1,
+                -0.34,
+                0.337,
+                -1.27
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -1.04,
+              "curve": [
+                0.837,
+                0,
+                1.168,
+                0,
+                0.837,
+                -0.61,
+                1.168,
+                1.48
+              ]
+            },
+            {
+              "time": 1.5,
+              "y": 1.48,
+              "curve": [
+                1.667,
+                0,
+                1.833,
+                0,
+                1.667,
+                1.48,
+                1.9,
+                0.49
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.28,
+                0.333,
+                2.1
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.1,
+              "curve": [
+                0.822,
+                2.1,
+                1.144,
+                -2.87
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -2.87,
+              "curve": [
+                1.644,
+                -2.87,
+                1.893,
+                -0.95
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.167,
+                0,
+                0.334,
+                0,
+                0.167,
+                0,
+                0.334,
+                -0.26
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -0.6,
+              "curve": [
+                0.812,
+                0,
+                1.123,
+                0,
+                0.812,
+                -1.22,
+                1.123,
+                -2.11
+              ]
+            },
+            {
+              "time": 1.4333,
+              "y": -2.11,
+              "curve": [
+                1.622,
+                0,
+                1.811,
+                0,
+                1.622,
+                -2.11,
+                1.811,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.367,
+                0,
+                0.733,
+                -1.24
+              ]
+            },
+            {
+              "time": 1.1,
+              "value": -1.24,
+              "curve": [
+                1.4,
+                -1.24,
+                1.7,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.289,
+                0,
+                0.578,
+                0,
+                0.289,
+                0,
+                0.578,
+                -1.92
+              ]
+            },
+            {
+              "time": 0.8667,
+              "y": -1.92,
+              "curve": [
+                1.244,
+                0,
+                1.622,
+                0,
+                1.244,
+                -1.92,
+                1.622,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {
+              "curve": [
+                0.367,
+                0,
+                0.845,
+                -1.14
+              ]
+            },
+            {
+              "time": 1.1,
+              "value": -1.14,
+              "curve": [
+                1.4,
+                -1.14,
+                1.7,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.278,
+                0,
+                0.556,
+                0,
+                0.278,
+                0,
+                0.556,
+                -2.61
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": -2.61,
+              "curve": [
+                1.222,
+                0,
+                1.611,
+                0,
+                1.222,
+                -2.61,
+                1.611,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {
+              "curve": [
+                0.107,
+                -0.31,
+                0.356,
+                -2.44
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -2.44,
+              "curve": [
+                0.856,
+                -2.44,
+                1.178,
+                2.85
+              ]
+            },
+            {
+              "time": 1.5,
+              "value": 2.85,
+              "curve": [
+                1.667,
+                2.85,
+                1.9,
+                0.44
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.27,
+                0.333,
+                2.03
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.03,
+              "curve": [
+                0.822,
+                2.03,
+                1.144,
+                -2.02
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -2.02,
+              "curve": [
+                1.644,
+                -2.02,
+                1.893,
+                -0.67
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.117,
+                0,
+                0.297,
+                0,
+                0.1,
+                0.76,
+                0.297,
+                2.72
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": 2.29,
+              "curve": [
+                0.81,
+                0,
+                1.173,
+                0,
+                0.81,
+                1.63,
+                1.173,
+                -2.61
+              ]
+            },
+            {
+              "time": 1.4667,
+              "y": -2.61,
+              "curve": [
+                1.644,
+                0,
+                1.893,
+                0,
+                1.644,
+                -2.61,
+                1.893,
+                -0.86
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.107,
+                -0.5,
+                0.356,
+                -1.51
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -1.51,
+              "curve": [
+                0.844,
+                -1.51,
+                1.156,
+                0.84
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": 0.84,
+              "curve": [
+                1.644,
+                0.84,
+                1.893,
+                0.62
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {
+              "curve": [
+                0.2,
+                1.006,
+                0.667,
+                1.036,
+                0.2,
+                1.006,
+                0.667,
+                1.036
+              ]
+            },
+            {
+              "time": 1,
+              "x": 1.036,
+              "y": 1.036,
+              "curve": [
+                1.333,
+                1.036,
+                1.8,
+                1.006,
+                1.333,
+                1.036,
+                1.8,
+                1.006
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {
+              "curve": [
+                0.107,
+                0.994,
+                0.381,
+                0.979,
+                0.107,
+                0.994,
+                0.381,
+                0.979
+              ]
+            },
+            {
+              "time": 0.5333,
+              "x": 0.983,
+              "y": 0.983,
+              "curve": [
+                0.8,
+                0.99,
+                1.067,
+                1.02,
+                0.8,
+                0.99,
+                1.067,
+                1.02
+              ]
+            },
+            {
+              "time": 1.3333,
+              "x": 1.02,
+              "y": 1.02,
+              "curve": [
+                1.556,
+                1.02,
+                1.867,
+                1.005,
+                1.556,
+                1.02,
+                1.867,
+                1.005
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.79,
+                0.333,
+                3.72
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 3.72,
+              "curve": [
+                0.844,
+                3.72,
+                1.189,
+                -3.31
+              ]
+            },
+            {
+              "time": 1.5333,
+              "value": -3.31,
+              "curve": [
+                1.689,
+                -3.31,
+                1.907,
+                -1.09
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {
+              "curve": [
+                0.333,
+                1,
+                0.667,
+                1.02,
+                0.333,
+                1,
+                0.667,
+                1.02
+              ]
+            },
+            {
+              "time": 1,
+              "x": 1.02,
+              "y": 1.02,
+              "curve": [
+                1.333,
+                1.02,
+                1.667,
+                1,
+                1.333,
+                1.02,
+                1.667,
+                1
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.5,
+                0.333,
+                2.58
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.58,
+              "curve": [
+                0.822,
+                2.58,
+                1.144,
+                -3.06
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -3.06,
+              "curve": [
+                1.644,
+                -3.06,
+                1.893,
+                -1.01
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                -0.45,
+                0.333,
+                -1.38
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -1.38,
+              "curve": [
+                0.822,
+                -1.38,
+                1.144,
+                3
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": 3,
+              "curve": [
+                1.644,
+                3,
+                1.893,
+                0.99
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        }
+      },
+      "attachments": {
+        "default": {
+          "reference/LANDSCAPE_BG_REF": {
+            "reference/LANDSCAPE_BG_REF": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          },
+          "reference/safe-area_LANDSCAPE": {
+            "reference/safe-area_LANDSCAPE": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          },
+          "reference/UI_LANDSCAPE_REF": {
+            "reference/UI_LANDSCAPE_REF": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "logo_ambient_portrait": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.8333,
+              "color": "ffffffa3"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff7c"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff7c"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffffb7"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "reference/LANDSCAPE_BG_REF": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "reference/safe-area_LANDSCAPE": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "reference/UI_LANDSCAPE_REF": {
+          "rgba": [
+            {
+              "color": "ffffff9a"
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffff8e"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            },
+            {
+              "time": 1,
+              "color": "ffffffb7"
+            },
+            {
+              "time": 2,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {
+              "curve": [
+                0.333,
+                0,
+                0.667,
+                -2.02
+              ]
+            },
+            {
+              "time": 1,
+              "value": -2.02,
+              "curve": [
+                1.333,
+                -2.02,
+                1.667,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.278,
+                0,
+                0.556,
+                0,
+                0.278,
+                0,
+                0.556,
+                -2.61
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": -2.61,
+              "curve": [
+                1.222,
+                0,
+                1.611,
+                0,
+                1.222,
+                -2.61,
+                1.611,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                -0.55,
+                0.337,
+                -1.77
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -1.56,
+              "curve": [
+                0.837,
+                -1.14,
+                1.168,
+                1.41
+              ]
+            },
+            {
+              "time": 1.5,
+              "value": 1.41,
+              "curve": [
+                1.667,
+                1.41,
+                1.9,
+                0.47
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.168,
+                0,
+                0.337,
+                0,
+                0.1,
+                -0.34,
+                0.337,
+                -1.27
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -1.04,
+              "curve": [
+                0.837,
+                0,
+                1.168,
+                0,
+                0.837,
+                -0.61,
+                1.168,
+                1.48
+              ]
+            },
+            {
+              "time": 1.5,
+              "y": 1.48,
+              "curve": [
+                1.667,
+                0,
+                1.833,
+                0,
+                1.667,
+                1.48,
+                1.9,
+                0.49
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.28,
+                0.333,
+                2.1
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.1,
+              "curve": [
+                0.822,
+                2.1,
+                1.144,
+                -2.87
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -2.87,
+              "curve": [
+                1.644,
+                -2.87,
+                1.893,
+                -0.95
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.167,
+                0,
+                0.334,
+                0,
+                0.167,
+                0,
+                0.334,
+                -0.26
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -0.6,
+              "curve": [
+                0.812,
+                0,
+                1.123,
+                0,
+                0.812,
+                -1.22,
+                1.123,
+                -2.11
+              ]
+            },
+            {
+              "time": 1.4333,
+              "y": -2.11,
+              "curve": [
+                1.622,
+                0,
+                1.811,
+                0,
+                1.622,
+                -2.11,
+                1.811,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.367,
+                0,
+                0.733,
+                -1.24
+              ]
+            },
+            {
+              "time": 1.1,
+              "value": -1.24,
+              "curve": [
+                1.4,
+                -1.24,
+                1.7,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.289,
+                0,
+                0.578,
+                0,
+                0.289,
+                0,
+                0.578,
+                -1.92
+              ]
+            },
+            {
+              "time": 0.8667,
+              "y": -1.92,
+              "curve": [
+                1.244,
+                0,
+                1.622,
+                0,
+                1.244,
+                -1.92,
+                1.622,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {
+              "curve": [
+                0.367,
+                0,
+                0.845,
+                -1.14
+              ]
+            },
+            {
+              "time": 1.1,
+              "value": -1.14,
+              "curve": [
+                1.4,
+                -1.14,
+                1.7,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.278,
+                0,
+                0.556,
+                0,
+                0.278,
+                0,
+                0.556,
+                -2.61
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": -2.61,
+              "curve": [
+                1.222,
+                0,
+                1.611,
+                0,
+                1.222,
+                -2.61,
+                1.611,
+                0
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {
+              "curve": [
+                0.107,
+                -0.31,
+                0.356,
+                -2.44
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -2.44,
+              "curve": [
+                0.856,
+                -2.44,
+                1.178,
+                2.85
+              ]
+            },
+            {
+              "time": 1.5,
+              "value": 2.85,
+              "curve": [
+                1.667,
+                2.85,
+                1.9,
+                0.44
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.27,
+                0.333,
+                2.03
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.03,
+              "curve": [
+                0.822,
+                2.03,
+                1.144,
+                -2.02
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -2.02,
+              "curve": [
+                1.644,
+                -2.02,
+                1.893,
+                -0.67
+              ]
+            },
+            {
+              "time": 2
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.117,
+                0,
+                0.297,
+                0,
+                0.1,
+                0.76,
+                0.297,
+                2.72
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": 2.29,
+              "curve": [
+                0.81,
+                0,
+                1.173,
+                0,
+                0.81,
+                1.63,
+                1.173,
+                -2.61
+              ]
+            },
+            {
+              "time": 1.4667,
+              "y": -2.61,
+              "curve": [
+                1.644,
+                0,
+                1.893,
+                0,
+                1.644,
+                -2.61,
+                1.893,
+                -0.86
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.107,
+                -0.5,
+                0.356,
+                -1.51
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -1.51,
+              "curve": [
+                0.844,
+                -1.51,
+                1.156,
+                0.84
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": 0.84,
+              "curve": [
+                1.644,
+                0.84,
+                1.893,
+                0.62
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {
+              "curve": [
+                0.2,
+                1.006,
+                0.667,
+                1.036,
+                0.2,
+                1.006,
+                0.667,
+                1.036
+              ]
+            },
+            {
+              "time": 1,
+              "x": 1.036,
+              "y": 1.036,
+              "curve": [
+                1.333,
+                1.036,
+                1.8,
+                1.006,
+                1.333,
+                1.036,
+                1.8,
+                1.006
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {
+              "curve": [
+                0.107,
+                0.994,
+                0.381,
+                0.979,
+                0.107,
+                0.994,
+                0.381,
+                0.979
+              ]
+            },
+            {
+              "time": 0.5333,
+              "x": 0.983,
+              "y": 0.983,
+              "curve": [
+                0.8,
+                0.99,
+                1.067,
+                1.02,
+                0.8,
+                0.99,
+                1.067,
+                1.02
+              ]
+            },
+            {
+              "time": 1.3333,
+              "x": 1.02,
+              "y": 1.02,
+              "curve": [
+                1.556,
+                1.02,
+                1.867,
+                1.005,
+                1.556,
+                1.02,
+                1.867,
+                1.005
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.79,
+                0.333,
+                3.72
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 3.72,
+              "curve": [
+                0.844,
+                3.72,
+                1.189,
+                -3.31
+              ]
+            },
+            {
+              "time": 1.5333,
+              "value": -3.31,
+              "curve": [
+                1.689,
+                -3.31,
+                1.907,
+                -1.09
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {
+              "curve": [
+                0.333,
+                1,
+                0.667,
+                1.02,
+                0.333,
+                1,
+                0.667,
+                1.02
+              ]
+            },
+            {
+              "time": 1,
+              "x": 1.02,
+              "y": 1.02,
+              "curve": [
+                1.333,
+                1.02,
+                1.667,
+                1,
+                1.333,
+                1.02,
+                1.667,
+                1
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0.5,
+                0.333,
+                2.58
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": 2.58,
+              "curve": [
+                0.822,
+                2.58,
+                1.144,
+                -3.06
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": -3.06,
+              "curve": [
+                1.644,
+                -3.06,
+                1.893,
+                -1.01
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                -0.45,
+                0.333,
+                -1.38
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -1.38,
+              "curve": [
+                0.822,
+                -1.38,
+                1.144,
+                3
+              ]
+            },
+            {
+              "time": 1.4667,
+              "value": 3,
+              "curve": [
+                1.644,
+                3,
+                1.893,
+                0.99
+              ]
+            },
+            {
+              "time": 2
+            }
+          ]
+        }
+      },
+      "attachments": {
+        "default": {
+          "reference/LANDSCAPE_BG_REF": {
+            "reference/LANDSCAPE_BG_REF": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          },
+          "reference/safe-area_LANDSCAPE": {
+            "reference/safe-area_LANDSCAPE": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          },
+          "reference/UI_LANDSCAPE_REF": {
+            "reference/UI_LANDSCAPE_REF": {
+              "deform": [
+                {
+                  "offset": 1,
+                  "vertices": [
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865,
+                    0,
+                    -878.9865
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "logo_idle_landscape": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/buffalo/buffalo_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_glow2"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_light"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {}
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {}
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {}
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "scale": [
+            {
+              "x": 0.525,
+              "y": 0.525
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "scale": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "scale": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "translate": [
+            {}
+          ]
+        }
+      }
+    },
+    "logo_idle_portrait": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/buffalo/buffalo_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_glow2"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_light"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_01": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {}
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {}
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {}
+          ],
+          "shear": [
+            {}
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {}
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "scale": [
+            {
+              "x": 0.525,
+              "y": 0.525
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "scale": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "scale": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "translate": [
+            {}
+          ]
+        }
+      }
+    },
+    "logo_win_landscape": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.2,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/buffalo/buffalo_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            },
+            {
+              "time": 1,
+              "color": "ffffff00"
+            },
+            {
+              "time": 1.1333,
+              "color": "fcff89ff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.6667,
+              "color": "fcff89ff"
+            },
+            {
+              "time": 1.8,
+              "color": "fcff8900"
+            }
+          ],
+          "attachment": [
+            {},
+            {
+              "time": 1,
+              "name": "logo/jpeg/buffalo/buffalo_sweep_"
+            },
+            {
+              "time": 1.8333
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.5333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.6667,
+              "color": "ffffffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.4333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.5667,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            },
+            {
+              "time": 1.5667
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.5333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.6667,
+              "color": "ffffffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.4333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.5667,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            },
+            {
+              "time": 1.5667
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            },
+            {
+              "time": 0.6667,
+              "color": "a2edff00"
+            },
+            {
+              "time": 0.8,
+              "color": "a2edffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.5667,
+              "color": "a2edffff"
+            },
+            {
+              "time": 1.7333,
+              "color": "a2edff00"
+            }
+          ],
+          "attachment": [
+            {},
+            {
+              "time": 0.6667,
+              "name": "logo/jpeg/sacred/sacred_sweep_"
+            },
+            {
+              "time": 1.7333
+            }
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffd1"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_glow2"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_light"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.7667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.1333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            },
+            {
+              "time": 0.3667
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_01": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.7667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.1333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            },
+            {
+              "time": 0.3667
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {
+              "curve": [
+                0.049,
+                0,
+                0.151,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2,
+              "value": 2.98,
+              "curve": [
+                0.267,
+                2.98,
+                0.4,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.4667,
+              "value": -5.18,
+              "curve": [
+                0.516,
+                -5.18,
+                0.651,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7,
+              "value": 0.66,
+              "curve": [
+                0.778,
+                0.66,
+                0.856,
+                0.52
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.067,
+                0,
+                0.133,
+                0,
+                0.067,
+                0,
+                0.133,
+                16.51
+              ]
+            },
+            {
+              "time": 0.2,
+              "y": 16.51,
+              "curve": [
+                0.289,
+                0,
+                0.378,
+                0,
+                0.289,
+                16.51,
+                0.378,
+                -8.81
+              ]
+            },
+            {
+              "time": 0.4667,
+              "y": -8.81,
+              "curve": [
+                0.544,
+                0,
+                0.622,
+                0,
+                0.544,
+                -8.81,
+                0.622,
+                7.2
+              ]
+            },
+            {
+              "time": 0.7,
+              "y": 7.2,
+              "curve": [
+                0.778,
+                0,
+                0.856,
+                0,
+                0.778,
+                7.2,
+                0.856,
+                2.4
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                -2.34
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": -2.34,
+              "curve": [
+                0.333,
+                -2.34,
+                0.433,
+                0.12
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": 0.12,
+              "curve": [
+                0.611,
+                0.12,
+                0.689,
+                -2
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": -2,
+              "curve": [
+                0.867,
+                -2,
+                0.967,
+                -0.67
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                1.24
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 1.24,
+              "curve": [
+                0.322,
+                1.24,
+                0.411,
+                -3.15
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -3.15,
+              "curve": [
+                0.611,
+                -3.15,
+                0.722,
+                0.66
+              ]
+            },
+            {
+              "time": 0.8333,
+              "value": 0.66,
+              "curve": [
+                0.944,
+                0.66,
+                1.056,
+                0.22
+              ]
+            },
+            {
+              "time": 1.1667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.322,
+                0,
+                0.411,
+                0,
+                0.322,
+                7.26,
+                0.411,
+                -7
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.722,
+                0,
+                0.611,
+                -7,
+                0.722,
+                4.06
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": 4.06,
+              "curve": [
+                0.944,
+                0,
+                1.056,
+                0,
+                0.944,
+                4.06,
+                1.056,
+                1.35
+              ]
+            },
+            {
+              "time": 1.1667
+            }
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {
+              "curve": [
+                0.049,
+                0,
+                0.151,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2,
+              "value": 2.98,
+              "curve": [
+                0.267,
+                2.98,
+                0.4,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.4667,
+              "value": -5.18,
+              "curve": [
+                0.52,
+                -5.18,
+                0.647,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7,
+              "value": 0.66,
+              "curve": [
+                0.778,
+                0.66,
+                0.856,
+                0.52
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.067,
+                0,
+                0.133,
+                0,
+                0.067,
+                0,
+                0.133,
+                24.75
+              ]
+            },
+            {
+              "time": 0.2,
+              "y": 24.75,
+              "curve": [
+                0.289,
+                0,
+                0.378,
+                0,
+                0.289,
+                24.75,
+                0.378,
+                -8.81
+              ]
+            },
+            {
+              "time": 0.4667,
+              "y": -8.81,
+              "curve": [
+                0.544,
+                0,
+                0.622,
+                0,
+                0.544,
+                -8.81,
+                0.622,
+                7.2
+              ]
+            },
+            {
+              "time": 0.7,
+              "y": 7.2,
+              "curve": [
+                0.778,
+                0,
+                0.856,
+                0,
+                0.778,
+                7.2,
+                0.856,
+                2.4
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0,
+                0.2,
+                -0.75
+              ]
+            },
+            {
+              "time": 0.3,
+              "value": -0.75,
+              "curve": [
+                0.422,
+                -0.75,
+                0.544,
+                0.52
+              ]
+            },
+            {
+              "time": 0.6667,
+              "value": 0.52,
+              "curve": [
+                0.756,
+                0.52,
+                0.844,
+                -0.69
+              ]
+            },
+            {
+              "time": 0.9333,
+              "value": -0.69,
+              "curve": [
+                1.033,
+                -0.69,
+                1.133,
+                -0.23
+              ]
+            },
+            {
+              "time": 1.2333
+            }
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {},
+            {
+              "time": 0.1333,
+              "x": 0.933,
+              "y": 0.933
+            },
+            {
+              "time": 0.3,
+              "x": 1.097,
+              "y": 1.097
+            },
+            {
+              "time": 0.4,
+              "x": 0.889,
+              "y": 0.889
+            },
+            {
+              "time": 0.5
+            }
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {},
+            {
+              "time": 0.2,
+              "x": 0.9,
+              "y": 0.9
+            },
+            {
+              "time": 0.3667,
+              "x": 1.133,
+              "y": 1.133
+            },
+            {
+              "time": 0.4667,
+              "x": 0.933,
+              "y": 0.933
+            },
+            {
+              "time": 0.5667
+            }
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                -3.55
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": -3.55,
+              "curve": [
+                0.333,
+                -3.55,
+                0.433,
+                1.08
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": 1.08,
+              "curve": [
+                0.611,
+                1.08,
+                0.689,
+                -3.15
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": -3.15,
+              "curve": [
+                0.867,
+                -3.15,
+                0.967,
+                -1.05
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {
+              "curve": [
+                0.033,
+                0.986,
+                0.067,
+                0.946,
+                0.033,
+                0.986,
+                0.067,
+                0.946
+              ]
+            },
+            {
+              "time": 0.1,
+              "x": 0.946,
+              "y": 0.946,
+              "curve": [
+                0.156,
+                0.946,
+                0.211,
+                1.055,
+                0.156,
+                0.946,
+                0.211,
+                1.055
+              ]
+            },
+            {
+              "time": 0.2667,
+              "x": 1.055,
+              "y": 1.055,
+              "curve": [
+                0.3,
+                1.055,
+                0.333,
+                0.987,
+                0.3,
+                1.055,
+                0.333,
+                0.987
+              ]
+            },
+            {
+              "time": 0.3667,
+              "x": 0.987,
+              "y": 0.987,
+              "curve": [
+                0.4,
+                0.987,
+                0.433,
+                1,
+                0.4,
+                0.987,
+                0.433,
+                1
+              ]
+            },
+            {
+              "time": 0.4667
+            }
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "scale": [
+            {
+              "x": 0.525,
+              "y": 0.525
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "translate": [
+            {
+              "time": 0.2,
+              "y": 2.46
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "scale": [
+            {},
+            {
+              "time": 0.3333,
+              "x": 1.969,
+              "y": 0.733
+            },
+            {
+              "time": 0.4667,
+              "x": 2.794,
+              "y": 0.809
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "scale": [
+            {
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333
+            },
+            {
+              "time": 0.4667,
+              "x": 2.797,
+              "y": 0.795
+            },
+            {
+              "time": 1.3667,
+              "x": 3.027,
+              "y": 1.293
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "translate": [
+            {
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667
+            }
+          ],
+          "scale": [
+            {
+              "time": 0.3667,
+              "x": 0.463,
+              "y": 0.463
+            },
+            {
+              "time": 0.7333
+            }
+          ]
+        }
+      },
+      "attachments": {
+        "default": {
+          "logo/jpeg/buffalo/buffalo_sweep_00": {
+            "logo/jpeg/buffalo/buffalo_sweep_": {
+              "sequence": [
+                {
+                  "time": 1,
+                  "mode": "once",
+                  "index": 7,
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/horn/horn_sweep_logo_00": {
+            "logo/jpeg/horn/horn_sweep_logo_": {
+              "sequence": [
+                {
+                  "time": 0.5333,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/horn/horn_sweep_logo_01": {
+            "logo/jpeg/horn/horn_sweep_logo_": {
+              "sequence": [
+                {
+                  "time": 0.5333,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/sacred/sacred_sweep_00": {
+            "logo/jpeg/sacred/sacred_sweep_": {
+              "sequence": [
+                {
+                  "time": 0.6667,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "piggy_banks/jpeg/particles/particles_00": {
+            "piggy_banks/jpeg/particles/particles_": {
+              "sequence": [
+                {
+                  "time": 0.3667,
+                  "mode": "loop",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "piggy_banks/jpeg/particles/particles_01": {
+            "piggy_banks/jpeg/particles/particles_": {
+              "sequence": [
+                {
+                  "time": 0.3667,
+                  "mode": "loop",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "logo_win_portrait": {
+      "slots": {
+        "buffalo_text": {
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "buffalo_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.2,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/buffalo_text"
+            }
+          ]
+        },
+        "decor_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_l"
+            }
+          ]
+        },
+        "decor_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/decor_top_r"
+            }
+          ]
+        },
+        "feathers": {
+          "attachment": [
+            {
+              "name": "logo/png/feathers"
+            }
+          ]
+        },
+        "feather_l_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_1"
+            }
+          ]
+        },
+        "feather_l_3": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_3"
+            }
+          ]
+        },
+        "feather_l_7": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_7"
+            }
+          ]
+        },
+        "feather_l_8": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_8"
+            }
+          ]
+        },
+        "feather_l_9": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_l_9"
+            }
+          ]
+        },
+        "feather_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_1"
+            }
+          ]
+        },
+        "feather_r_4": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_4"
+            }
+          ]
+        },
+        "feather_r_5": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_r_5"
+            }
+          ]
+        },
+        "feather_top_l": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_l"
+            }
+          ]
+        },
+        "feather_top_r": {
+          "attachment": [
+            {
+              "name": "logo/png/feather_top_r"
+            }
+          ]
+        },
+        "glitter": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter"
+            }
+          ]
+        },
+        "glitter01": {
+          "attachment": [
+            {
+              "name": "logo/png/glitter01"
+            }
+          ]
+        },
+        "glow_b": {
+          "attachment": [
+            {
+              "name": "logo/png/glow_b"
+            }
+          ]
+        },
+        "horn_l": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_l2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_l"
+            }
+          ]
+        },
+        "horn_r": {
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "horn_r2": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/horn_r"
+            }
+          ]
+        },
+        "logo/jpeg/buffalo/buffalo_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            },
+            {
+              "time": 1,
+              "color": "ffffff00"
+            },
+            {
+              "time": 1.1333,
+              "color": "fcff89ff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.6667,
+              "color": "fcff89ff"
+            },
+            {
+              "time": 1.8,
+              "color": "fcff8900"
+            }
+          ],
+          "attachment": [
+            {},
+            {
+              "time": 1,
+              "name": "logo/jpeg/buffalo/buffalo_sweep_"
+            },
+            {
+              "time": 1.8333
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_00": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.5333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.6667,
+              "color": "ffffffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.4333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.5667,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            },
+            {
+              "time": 1.5667
+            }
+          ]
+        },
+        "logo/jpeg/horn/horn_sweep_logo_01": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.5333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.6667,
+              "color": "ffffffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.4333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.5667,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/jpeg/horn/horn_sweep_logo_"
+            },
+            {
+              "time": 1.5667
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "rgba": [
+            {
+              "color": "ffffffff"
+            },
+            {
+              "time": 0.6667,
+              "color": "a2edff00"
+            },
+            {
+              "time": 0.8,
+              "color": "a2edffff",
+              "curve": "stepped"
+            },
+            {
+              "time": 1.5667,
+              "color": "a2edffff"
+            },
+            {
+              "time": 1.7333,
+              "color": "a2edff00"
+            }
+          ],
+          "attachment": [
+            {},
+            {
+              "time": 0.6667,
+              "name": "logo/jpeg/sacred/sacred_sweep_"
+            },
+            {
+              "time": 1.7333
+            }
+          ]
+        },
+        "logo/png/top_new": {
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "logo/png/top_new2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffd1"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/top_new"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "rgba": [
+            {
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_glow2"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/fs_light"
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.7667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.1333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            },
+            {
+              "time": 0.3667
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_01": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.4667,
+              "color": "fffffffe",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.7667,
+              "color": "fffffffe"
+            },
+            {
+              "time": 1.1333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "piggy_banks/jpeg/particles/particles_"
+            },
+            {
+              "time": 0.3667
+            }
+          ]
+        },
+        "sacred_text": {
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sacred_text2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1333,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3333,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/sacred_text"
+            }
+          ]
+        },
+        "sg_3": {
+          "attachment": [
+            {
+              "name": "logo/png/sg_3"
+            }
+          ]
+        },
+        "sh": {
+          "attachment": [
+            {
+              "name": "logo/png/sh"
+            }
+          ]
+        },
+        "sh_r_1": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_1"
+            }
+          ]
+        },
+        "sh_r_2": {
+          "attachment": [
+            {
+              "name": "logo/png/sh_r_2"
+            }
+          ]
+        },
+        "wood": {
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "wood2": {
+          "rgba": [
+            {
+              "color": "ffffff00",
+              "curve": "stepped"
+            },
+            {
+              "time": 0.1667,
+              "color": "ffffff00"
+            },
+            {
+              "time": 0.3667,
+              "color": "ffffffff"
+            },
+            {
+              "time": 1.3333,
+              "color": "ffffff00"
+            }
+          ],
+          "attachment": [
+            {
+              "name": "logo/png/wood"
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_l"
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "attachment": [
+            {
+              "name": "logo/png/yellow_feathers_r"
+            }
+          ]
+        }
+      },
+      "bones": {
+        "feather_l_9": {
+          "rotate": [
+            {
+              "curve": [
+                0.049,
+                0,
+                0.151,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2,
+              "value": 2.98,
+              "curve": [
+                0.267,
+                2.98,
+                0.4,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.4667,
+              "value": -5.18,
+              "curve": [
+                0.516,
+                -5.18,
+                0.651,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7,
+              "value": 0.66,
+              "curve": [
+                0.778,
+                0.66,
+                0.856,
+                0.52
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.067,
+                0,
+                0.133,
+                0,
+                0.067,
+                0,
+                0.133,
+                16.51
+              ]
+            },
+            {
+              "time": 0.2,
+              "y": 16.51,
+              "curve": [
+                0.289,
+                0,
+                0.378,
+                0,
+                0.289,
+                16.51,
+                0.378,
+                -8.81
+              ]
+            },
+            {
+              "time": 0.4667,
+              "y": -8.81,
+              "curve": [
+                0.544,
+                0,
+                0.622,
+                0,
+                0.544,
+                -8.81,
+                0.622,
+                7.2
+              ]
+            },
+            {
+              "time": 0.7,
+              "y": 7.2,
+              "curve": [
+                0.778,
+                0,
+                0.856,
+                0,
+                0.778,
+                7.2,
+                0.856,
+                2.4
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ]
+        },
+        "feather_l_3": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feather_l_8": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "yellow_feathers_l": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                -2.34
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": -2.34,
+              "curve": [
+                0.333,
+                -2.34,
+                0.433,
+                0.12
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": 0.12,
+              "curve": [
+                0.611,
+                0.12,
+                0.689,
+                -2
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": -2,
+              "curve": [
+                0.867,
+                -2,
+                0.967,
+                -0.67
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feathers": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                1.24
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 1.24,
+              "curve": [
+                0.322,
+                1.24,
+                0.411,
+                -3.15
+              ]
+            },
+            {
+              "time": 0.5,
+              "value": -3.15,
+              "curve": [
+                0.611,
+                -3.15,
+                0.722,
+                0.66
+              ]
+            },
+            {
+              "time": 0.8333,
+              "value": 0.66,
+              "curve": [
+                0.944,
+                0.66,
+                1.056,
+                0.22
+              ]
+            },
+            {
+              "time": 1.1667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.322,
+                0,
+                0.411,
+                0,
+                0.322,
+                7.26,
+                0.411,
+                -7
+              ]
+            },
+            {
+              "time": 0.5,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.722,
+                0,
+                0.611,
+                -7,
+                0.722,
+                4.06
+              ]
+            },
+            {
+              "time": 0.8333,
+              "y": 4.06,
+              "curve": [
+                0.944,
+                0,
+                1.056,
+                0,
+                0.944,
+                4.06,
+                1.056,
+                1.35
+              ]
+            },
+            {
+              "time": 1.1667
+            }
+          ]
+        },
+        "feather_r_5": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": 2.98,
+              "curve": [
+                0.333,
+                2.98,
+                0.433,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": -5.18,
+              "curve": [
+                0.611,
+                -5.18,
+                0.689,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": 0.66,
+              "curve": [
+                0.867,
+                0.66,
+                0.967,
+                0.22
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "feather_r_1": {
+          "rotate": [
+            {
+              "curve": [
+                0.049,
+                0,
+                0.151,
+                2.98
+              ]
+            },
+            {
+              "time": 0.2,
+              "value": 2.98,
+              "curve": [
+                0.267,
+                2.98,
+                0.4,
+                -5.18
+              ]
+            },
+            {
+              "time": 0.4667,
+              "value": -5.18,
+              "curve": [
+                0.52,
+                -5.18,
+                0.647,
+                0.66
+              ]
+            },
+            {
+              "time": 0.7,
+              "value": 0.66,
+              "curve": [
+                0.778,
+                0.66,
+                0.856,
+                0.52
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.067,
+                0,
+                0.133,
+                0,
+                0.067,
+                0,
+                0.133,
+                24.75
+              ]
+            },
+            {
+              "time": 0.2,
+              "y": 24.75,
+              "curve": [
+                0.289,
+                0,
+                0.378,
+                0,
+                0.289,
+                24.75,
+                0.378,
+                -8.81
+              ]
+            },
+            {
+              "time": 0.4667,
+              "y": -8.81,
+              "curve": [
+                0.544,
+                0,
+                0.622,
+                0,
+                0.544,
+                -8.81,
+                0.622,
+                7.2
+              ]
+            },
+            {
+              "time": 0.7,
+              "y": 7.2,
+              "curve": [
+                0.778,
+                0,
+                0.856,
+                0,
+                0.778,
+                7.2,
+                0.856,
+                2.4
+              ]
+            },
+            {
+              "time": 0.9333
+            }
+          ]
+        },
+        "yellow_feathers_r": {
+          "rotate": [
+            {
+              "curve": [
+                0.1,
+                0,
+                0.2,
+                -0.75
+              ]
+            },
+            {
+              "time": 0.3,
+              "value": -0.75,
+              "curve": [
+                0.422,
+                -0.75,
+                0.544,
+                0.52
+              ]
+            },
+            {
+              "time": 0.6667,
+              "value": 0.52,
+              "curve": [
+                0.756,
+                0.52,
+                0.844,
+                -0.69
+              ]
+            },
+            {
+              "time": 0.9333,
+              "value": -0.69,
+              "curve": [
+                1.033,
+                -0.69,
+                1.133,
+                -0.23
+              ]
+            },
+            {
+              "time": 1.2333
+            }
+          ]
+        },
+        "sacred_text": {
+          "scale": [
+            {},
+            {
+              "time": 0.1333,
+              "x": 0.933,
+              "y": 0.933
+            },
+            {
+              "time": 0.3,
+              "x": 1.097,
+              "y": 1.097
+            },
+            {
+              "time": 0.4,
+              "x": 0.889,
+              "y": 0.889
+            },
+            {
+              "time": 0.5
+            }
+          ]
+        },
+        "buffalo_text": {
+          "scale": [
+            {},
+            {
+              "time": 0.2,
+              "x": 0.9,
+              "y": 0.9
+            },
+            {
+              "time": 0.3667,
+              "x": 1.133,
+              "y": 1.133
+            },
+            {
+              "time": 0.4667,
+              "x": 0.933,
+              "y": 0.933
+            },
+            {
+              "time": 0.5667
+            }
+          ]
+        },
+        "feather_r_4": {
+          "rotate": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                -3.55
+              ]
+            },
+            {
+              "time": 0.2333,
+              "value": -3.55,
+              "curve": [
+                0.333,
+                -3.55,
+                0.433,
+                1.08
+              ]
+            },
+            {
+              "time": 0.5333,
+              "value": 1.08,
+              "curve": [
+                0.611,
+                1.08,
+                0.689,
+                -3.15
+              ]
+            },
+            {
+              "time": 0.7667,
+              "value": -3.15,
+              "curve": [
+                0.867,
+                -3.15,
+                0.967,
+                -1.05
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ],
+          "shear": [
+            {
+              "curve": [
+                0.078,
+                0,
+                0.156,
+                0,
+                0.078,
+                0,
+                0.156,
+                7.26
+              ]
+            },
+            {
+              "time": 0.2333,
+              "y": 7.26,
+              "curve": [
+                0.333,
+                0,
+                0.433,
+                0,
+                0.333,
+                7.26,
+                0.433,
+                -7
+              ]
+            },
+            {
+              "time": 0.5333,
+              "y": -7,
+              "curve": [
+                0.611,
+                0,
+                0.689,
+                0,
+                0.611,
+                -7,
+                0.689,
+                4.06
+              ]
+            },
+            {
+              "time": 0.7667,
+              "y": 4.06,
+              "curve": [
+                0.867,
+                0,
+                0.967,
+                0,
+                0.867,
+                4.06,
+                0.967,
+                1.35
+              ]
+            },
+            {
+              "time": 1.0667
+            }
+          ]
+        },
+        "main_scale": {
+          "scale": [
+            {
+              "curve": [
+                0.033,
+                0.986,
+                0.067,
+                0.946,
+                0.033,
+                0.986,
+                0.067,
+                0.946
+              ]
+            },
+            {
+              "time": 0.1,
+              "x": 0.946,
+              "y": 0.946,
+              "curve": [
+                0.156,
+                0.946,
+                0.211,
+                1.055,
+                0.156,
+                0.946,
+                0.211,
+                1.055
+              ]
+            },
+            {
+              "time": 0.2667,
+              "x": 1.055,
+              "y": 1.055,
+              "curve": [
+                0.3,
+                1.055,
+                0.333,
+                0.987,
+                0.3,
+                1.055,
+                0.333,
+                0.987
+              ]
+            },
+            {
+              "time": 0.3667,
+              "x": 0.987,
+              "y": 0.987,
+              "curve": [
+                0.4,
+                0.987,
+                0.433,
+                1,
+                0.4,
+                0.987,
+                0.433,
+                1
+              ]
+            },
+            {
+              "time": 0.4667
+            }
+          ]
+        },
+        "feather_top_l": {
+          "rotate": [
+            {}
+          ]
+        },
+        "feather_top_r": {
+          "rotate": [
+            {}
+          ]
+        },
+        "piggy_banks/jpeg/dissapear_fx/disspear_00": {
+          "scale": [
+            {
+              "x": 0.525,
+              "y": 0.525
+            }
+          ]
+        },
+        "logo/jpeg/sacred/sacred_sweep_00": {
+          "translate": [
+            {
+              "time": 0.2,
+              "y": 2.46
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_light": {
+          "scale": [
+            {},
+            {
+              "time": 0.3333,
+              "x": 1.969,
+              "y": 0.733
+            },
+            {
+              "time": 0.4667,
+              "x": 2.794,
+              "y": 0.809
+            }
+          ]
+        },
+        "piggy_banks/jpeg/fs_glow2": {
+          "scale": [
+            {
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3333
+            },
+            {
+              "time": 0.4667,
+              "x": 2.797,
+              "y": 0.795
+            },
+            {
+              "time": 1.3667,
+              "x": 3.027,
+              "y": 1.293
+            }
+          ]
+        },
+        "piggy_banks/jpeg/particles/particles_00": {
+          "translate": [
+            {
+              "curve": "stepped"
+            },
+            {
+              "time": 0.3667
+            }
+          ],
+          "scale": [
+            {
+              "time": 0.3667,
+              "x": 0.463,
+              "y": 0.463
+            },
+            {
+              "time": 0.7333
+            }
+          ]
+        }
+      },
+      "attachments": {
+        "default": {
+          "logo/jpeg/buffalo/buffalo_sweep_00": {
+            "logo/jpeg/buffalo/buffalo_sweep_": {
+              "sequence": [
+                {
+                  "time": 1,
+                  "mode": "once",
+                  "index": 7,
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/horn/horn_sweep_logo_00": {
+            "logo/jpeg/horn/horn_sweep_logo_": {
+              "sequence": [
+                {
+                  "time": 0.5333,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/horn/horn_sweep_logo_01": {
+            "logo/jpeg/horn/horn_sweep_logo_": {
+              "sequence": [
+                {
+                  "time": 0.5333,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "logo/jpeg/sacred/sacred_sweep_00": {
+            "logo/jpeg/sacred/sacred_sweep_": {
+              "sequence": [
+                {
+                  "time": 0.6667,
+                  "mode": "once",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "piggy_banks/jpeg/particles/particles_00": {
+            "piggy_banks/jpeg/particles/particles_": {
+              "sequence": [
+                {
+                  "time": 0.3667,
+                  "mode": "loop",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          },
+          "piggy_banks/jpeg/particles/particles_01": {
+            "piggy_banks/jpeg/particles/particles_": {
+              "sequence": [
+                {
+                  "time": 0.3667,
+                  "mode": "loop",
+                  "delay": 0.0333
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
