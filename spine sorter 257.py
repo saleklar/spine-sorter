@@ -2135,7 +2135,7 @@ class MainWindow(QMainWindow):
 				# Global Scan Data (for pre-scan pass)
 				SCAN_SLOT_USAGE = {} # path -> set(slots)
 				PRECALC_DESTINATIONS = {} # path -> 'jpeg' or 'png'
-				EXPORTED_UNIQUE_IMAGES = set()
+				EXPORTED_UNIQUE_IMAGES = set()  # will record only actually exported (or placeholder) source paths
 				TOTAL_ATTACHMENTS_COUNT = 0
 				UNIQUE_COPIED_PATHS = set()
 
@@ -2177,13 +2177,9 @@ class MainWindow(QMainWindow):
 							# find real source file
 							src = find_source_image(ref, skin_context=skin_name)
 							
-							if src:
-								matches_src = src if isinstance(src, (list, tuple)) else [src]
-								for m_src in matches_src:
-									try:
-										EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(m_src))
-									except Exception:
-										pass
+							# Note: do NOT record candidate matches here — we only want to count
+							# source files that were actually exported/copied or placeholders created.
+							# `EXPORTED_UNIQUE_IMAGES` will be updated on successful copy/create below.
 							
 							if scan_mode:
 								if src:
@@ -2598,6 +2594,11 @@ class MainWindow(QMainWindow):
 													stats['jpeg'] += 1
 												else:
 													stats['png'] += 1
+												try:
+													# Record the source path that was actually exported
+													EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(m))
+												except Exception:
+													pass
 									except Exception as e:
 										self.info_panel.append(f"Failed to copy {m} -> {dst}: {e}")
 										continue
@@ -2755,6 +2756,24 @@ class MainWindow(QMainWindow):
 													# Fallback to 1x1 transparent PNG bytes
 													with open(ph_dst, 'wb') as ph:
 														ph.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
+									except Exception:
+										pass
+									# If we created a placeholder file, update stats/sets similarly to a copied file
+									try:
+										if not self.config.get("json_export_only", False) and all_file_stats:
+											norm_ph = os.path.normpath(ph_dst).lower()
+											if norm_ph not in UNIQUE_COPIED_PATHS:
+												UNIQUE_COPIED_PATHS.add(norm_ph)
+												stats = all_file_stats[-1]
+												stats['total'] += 1
+												if 'jpeg' in base_dest.lower():
+													stats['jpeg'] += 1
+												else:
+													stats['png'] += 1
+												try:
+													EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(ph_dst))
+												except Exception:
+													pass
 									except Exception:
 										pass
 									
@@ -2922,28 +2941,22 @@ class MainWindow(QMainWindow):
 					# if spine_export_unchecked_anims:
 					# 	print(f"DEBUG: Found unchecked anims: {spine_export_unchecked_anims}")
 
-					# Calculate Unique Exports by type
-					unique_jpeg = 0
-					unique_png = 0
-					for img_path in EXPORTED_UNIQUE_IMAGES:
-						lower_p = img_path.lower()
-						if lower_p.endswith(('.jpg', '.jpeg')):
-							unique_jpeg += 1
-						else:
-							unique_png += 1
-
-					# 1. Total Attachments (Usage count)
+					# Use the actually copied/created destinations for exported counts
 					stats['total_attachments'] = TOTAL_ATTACHMENTS_COUNT
-					
-					# 2. Total Used Images in Spine (Unique found on disk + Unchecked warnings)
-					stats['total_spine_used'] = len(EXPORTED_UNIQUE_IMAGES) + len(unique_unchecked_list)
-					
-					# 3. Total Exported (Unique found on disk)
-					stats['total_exported_unique'] = len(EXPORTED_UNIQUE_IMAGES)
-					
-					# 4. Exported Jpeg/Png (Unique)
-					stats['unique_jpeg'] = unique_jpeg
-					stats['unique_png'] = unique_png
+
+					# total_spine_used: best-effort estimate = number of unique source paths discovered
+					# fall back to TOTAL_ATTACHMENTS_COUNT if we have no EXPORTED_UNIQUE_IMAGES
+					try:
+						stats['total_spine_used'] = len(EXPORTED_UNIQUE_IMAGES) + len(unique_unchecked_list)
+					except Exception:
+						stats['total_spine_used'] = TOTAL_ATTACHMENTS_COUNT
+
+					# total_exported_unique: number of unique destination files we actually created/copied
+					stats['total_exported_unique'] = stats.get('total', 0)
+
+					# Exported Jpeg/Png counts come from the per-file stats we maintained during copying
+					stats['unique_jpeg'] = stats.get('jpeg', 0)
+					stats['unique_png'] = stats.get('png', 0)
 
 				# normalize skeleton images path so Spine can resolve images inside archive
 				skel = j.get('skeleton')
