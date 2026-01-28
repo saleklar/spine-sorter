@@ -13,6 +13,6 @@ rm -rf build dist
 
 # Build the application
 echo "Building application..."
-pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter v5.04" "spine sorter 257.py"
+pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter v5.52" "spine sorter 257.py"
 
-echo "Build complete. Check the 'dist' folder for 'Spine Sorter v5.04.app'."
+echo "Build complete. Check the 'dist' folder for 'Spine Sorter v5.52.app'."

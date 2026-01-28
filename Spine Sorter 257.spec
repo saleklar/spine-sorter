@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Spine Sorter v5.04',
+    name='Spine Sorter v5.52',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.51 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.52 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -3896,7 +3896,7 @@ def main():
 	if os.name == 'nt':
 		try:
 			# Set AppUserModelID so the taskbar icon displays correctly on Windows
-			myappid = 'spinesorter.v5.51' 
+			myappid = 'spinesorter.v5.52' 
 			ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 		except Exception:
 			pass
