@@ -30,6 +30,7 @@ import ctypes
 import zipfile
 import io
 import errno
+import random
 
 # --- Configuration Constants ---
 # Default Spine versions for the version selector dropdown.
@@ -61,7 +62,7 @@ except Exception:
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
 	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -800,11 +801,11 @@ class MainWindow(QMainWindow):
 		self.select_all_cb.stateChanged.connect(self.toggle_select_all)
 		
 		self.process_btn = QPushButton("3. Process selected")
-		self.process_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+		self.process_btn.setStyleSheet("background-color: #109c00; color: white; font-weight: bold;")
 		self.process_btn.clicked.connect(self.process_selected)
 
 		self.stop_btn = QPushButton("Stop")
-		self.stop_btn.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+		self.stop_btn.setStyleSheet("background-color: #9c0000; color: white; font-weight: bold;")
 		self.stop_btn.clicked.connect(self.stop_process)
 		self.stop_btn.setEnabled(False)
 		
@@ -870,6 +871,7 @@ class MainWindow(QMainWindow):
 		self.status_label = QLabel("")
 		self.status_label.setStyleSheet("color: #AAAAAA; font-style: italic; font-weight: bold; margin-left: 10px;")
 		info_header_layout.addWidget(self.status_label)
+
 		info_header_layout.addStretch()
 		layout.addLayout(info_header_layout)
 
@@ -2555,6 +2557,11 @@ class MainWindow(QMainWindow):
 								for idx, m in enumerate(matches):
 									if self.stop_requested:
 										raise Exception("Process stopped by user")
+									
+									# Only process PNG and JPEG files to avoid confusion with junk files (PSD, AEP, etc.)
+									if not m.lower().endswith(('.png', '.jpg', '.jpeg')):
+										continue
+									
 									QApplication.processEvents()
 									
 									# Build destination path with nested folder structure
@@ -3075,22 +3082,20 @@ class MainWindow(QMainWindow):
 				# Cleanup temporary files
 				if not self.keep_temp_cb.isChecked():
 					# Delete the sorted JSON if the binary .spine file was successfully created
-					# FORCE KEEP FOR DEBUGGING
-					KEEP_FOR_DEBUG = True
-					if os.path.exists(spine_pkg) and os.path.exists(new_json_path) and not KEEP_FOR_DEBUG:
+					if os.path.exists(spine_pkg) and os.path.exists(new_json_path):
 						try:
 							os.remove(new_json_path)
-							self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
+							# self.info_panel.append(f"Deleted temporary JSON: {new_json_path}")
 						except Exception as e:
 							self.info_panel.append(f"<font color='yellow'>Warning: Could not delete temp JSON {new_json_path}: {e}</font>")
-					elif KEEP_FOR_DEBUG:
-						self.info_panel.append(f"DEBUG: Kept JSON file for inspection: {new_json_path}")
 
 					if is_last:
 						try:
 							# Remove the temporary export folder (spine_temp_...)
 							if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
 								import shutil
+								# Ensure no files are locked
+								time.sleep(0.1) 
 								shutil.rmtree(result_dir, ignore_errors=True)
 								self.info_panel.append(f"Cleaned up temp folder: {result_dir}")
 						except Exception as e:
@@ -3125,6 +3130,8 @@ class MainWindow(QMainWindow):
 	def _toggle_blink(self):
 		if not hasattr(self, '_blink_state'):
 			self._blink_state = True
+			self._funny_counter = 0
+
 		self._blink_state = not self._blink_state
 		# Blink between Light Green (#90EE90) and a dimmer Green (#32CD32) or Gray
 		color = '#90EE90' if self._blink_state else '#228B22' 
@@ -3202,6 +3209,7 @@ class MainWindow(QMainWindow):
 		
 		self.status_label.setStyleSheet("font-weight: bold; color: #90EE90; font-style: italic;")
 		self.status_label.setText("Starting...")
+			
 		self.blink_timer.start(500)
 
 		# log current threshold settings
@@ -3279,13 +3287,22 @@ class MainWindow(QMainWindow):
 				info_cmd = [runnable_spine_exe, '-i', input_path]
 				self.info_panel.append(f"Running Source Info Check: {' '.join(info_cmd)}")
 				self.status_label.setText(f"Analyzing source info: {name}")
-				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
+				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
 				# If that failed uniquely or produced no output, maybe try --info (legacy fallback)?
 				# But per testing, -i is the "Info" command if no other action is specified.
 				
+				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
+				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+				
+				# ANSI Strip Helper
+				def strip_ansi(text):
+					ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+					return ansi_escape.sub('', text)
+
 				if i_proc.returncode == 0:
-					info_out = i_proc.stdout
+					info_out = strip_ansi(i_proc.stdout)
 					# Save info log for debug
 					info_log_path = os.path.join(result_dir, "spine_source_info.log")
 					try:
@@ -3298,33 +3315,50 @@ class MainWindow(QMainWindow):
 					# 1. New format: Animations (N): anim1, anim2, ...
 					# 2. Old format: Animations: \n  anim1 \n  anim2
 					# 3. Multiple skeletons in one file
+					# 4. Strict format: Animation: name (singular?)
+					# 5. Loose/Garbage header: ... Animations: ...
 					lines = info_out.splitlines()
 					header_found = False
-					anim_header_re = re.compile(r"Animations\s*(?:\(\d+\))?:\s*(.*)", re.IGNORECASE)
+					# Match "Animations", "Animations (N)", "Animations:", "Animations (N):" - Allow preceding chars
+					anim_headers_patterns = [
+						re.compile(r"Animations\s*(?:\(\d+\))?:\s*(.*)", re.IGNORECASE),
+						re.compile(r"Animations\s*$", re.IGNORECASE), # Header on own line
+						re.compile(r"Animations\s*\(\d+\)\s*$", re.IGNORECASE)
+					]
 					
 					# Parser for Skeletons
 					skel_re = re.compile(r"Skeleton:\s*(.+)", re.IGNORECASE)
 
 					for idx, line in enumerate(lines):
+						line_strip = line.strip()
 						# Check for Skeleton
 						m_skel = skel_re.search(line)
 						if m_skel:
 							s_name = m_skel.group(1).strip()
-							# Ignore '<unknown>' size markers if attached
 							if s_name and '<' not in s_name:
 								cli_source_skeletons.add(s_name)
 
-						m = anim_header_re.search(line)
+						# Iterative header check
+						m = None
+						for p_idx, p in enumerate(anim_headers_patterns):
+							# We search anywhere in the line now (removed ^ anchor via regex def above)
+							m = p.search(line) 
+							if m: 
+								# Ensure it's not "No Animations" or similar false positive, though improbable with colon
+								break
+						
 						if m:
 							header_found = True
-							# Parse inline content (comma separated)
-							inline_content = m.group(1).strip()
-							if inline_content:
-								# Split by comma
-								parts = [x.strip() for x in inline_content.split(',') if x.strip()]
-								cli_source_anims.update(parts)
+							# If pattern captured content (Pattern 1), parse it
+							# Pattern 1 is index 0
+							if p.pattern.endswith("(.*)"):
+								inline_content = m.group(1).strip()
+								if inline_content:
+									parts = [x.strip() for x in inline_content.split(',') if x.strip()]
+									cli_source_anims.update(parts)
 							
-							# Check for indented subsequent lines (legacy or wrapped)
+							# Check for indented subsequent lines OR lines that look like animation names
+							# Spine info usually indents. But if indentation is lost, we look for non-header lines.
 							header_indent = len(line) - len(line.lstrip())
 							j_idx = idx + 1
 							while j_idx < len(lines):
@@ -3333,14 +3367,25 @@ class MainWindow(QMainWindow):
 									j_idx += 1
 									continue
 								
-								next_indent = len(next_line) - len(next_line.lstrip())
-								
-								if next_indent > header_indent:
-									raw_c = next_line.strip()
-									parts = [x.strip() for x in raw_c.split(',') if x.strip()]
-									cli_source_anims.update(parts)
-								else:
+								# Break if we hit another Header (e.g. "Skins:", "Bones:")
+								if re.search(r"^\s*(?:Skins|Bones|Slots|Events|Constraints)\s*(?:\(\d+\))?:", next_line, re.IGNORECASE):
 									break
+								
+								# If it's a list, it usually keeps indentation
+								# But let's be generous: Any line that is NOT a header and has content might be part of the list
+								raw_c = next_line.strip()
+								if raw_c:
+									# Ignore known noise words or non-animation lines that slipped in
+									if raw_c.lower() in ['complete.', 'complete', 'done', 'finishing export']:
+										j_idx += 1
+										continue
+
+									if ',' in raw_c:
+										parts = [x.strip() for x in raw_c.split(',') if x.strip()]
+										cli_source_anims.update(parts)
+									else:
+										cli_source_anims.add(raw_c)
+								
 								j_idx += 1
 					
 					if cli_source_anims:
@@ -3398,7 +3443,8 @@ class MainWindow(QMainWindow):
 			try:
 				self.info_panel.append(f"Running export command: {' '.join(cmd)}")
 				# Use subprocess.run for reliability (avoids buffer deadlocks)
-				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
+				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
 				# Parse output for unchecked export warnings
 				# Example: Attachment's keys not exported because it has "Export" unchecked: [region: pop/coin_fx/coin_fx_00, slot: fx]
@@ -3417,9 +3463,14 @@ class MainWindow(QMainWindow):
 				# 1. Standard: Animation 'grand_bonus_intro' not exported because it has "Export" unchecked.
 				# 2. Strict (older/newer): Animation not exported: <name>
 				# 3. Simple: Animation not exported: foo
-				# Matches "Animation" followed by anything until "not exported"
-				# We capture the name specifically
-				unchecked_anim_pattern = re.compile(r"Animation\s+['\"]?(.+?)['\"]?\s+(?:is\s+)?not exported", re.IGNORECASE)
+				# 4. Inverted: not exported: Animation 'foo'
+				# We use a list of patterns to capture various formats
+				unchecked_anim_patterns = [
+					re.compile(r"Animation\s+['\"]?(.+?)['\"]?\s+(?:is\s+)?not exported", re.IGNORECASE),
+					re.compile(r"Animation\s+not\s+exported\s*:\s*['\"]?(.+?)['\"]?$", re.IGNORECASE),
+					re.compile(r"not exported\s*:\s*Animation\s+['\"]?(.+?)['\"]?$", re.IGNORECASE),
+					re.compile(r"Animation\s+['\"]?(.+?)['\"]?\s+skipped", re.IGNORECASE)
+				]
 
 				# Save log to file for debugging/verification
 				log_path = os.path.join(result_dir, "spine_export.log")
@@ -3437,13 +3488,15 @@ class MainWindow(QMainWindow):
 						s_name = m.group(2).strip() if m.group(2) else None
 						spine_export_unchecked.append({'region': r_name, 'slot': s_name})
 					
-					# Check animations
-					m_anim = unchecked_anim_pattern.search(line)
-					if m_anim:
-						anim_name = m_anim.group(1).strip()
-						# Do not add if it's overly generic or empty
-						if anim_name:
-							spine_export_unchecked_anims.append(anim_name)
+					# Check animations using multiple patterns
+					for p in unchecked_anim_patterns:
+						m_anim = p.search(line)
+						if m_anim:
+							anim_name = m_anim.group(1).strip()
+							# Do not add if it's overly generic or empty
+							if anim_name:
+								spine_export_unchecked_anims.append(anim_name)
+							break
 
 				# Advanced Check: If input is a ZIP-based .spine file, we can read the source of truth
 				# and conduct a perfect diff of animations.
@@ -3468,7 +3521,55 @@ class MainWindow(QMainWindow):
 					# Method B: CLI Analysis (Augment with data found previously)
 					if cli_source_anims:
 						detected_source_anims.update(cli_source_anims)
-						
+					
+					# Method C: Direct JSON Analysis (Fallback)
+					if not detected_source_anims:
+						try:
+							with open(input_path, 'r', encoding='utf-8', errors='ignore') as f:
+								content = f.read()
+								# 1. Try Strict JSON Parsing first
+								json_success = False
+								try:
+									src_data = json.loads(content)
+									if 'animations' in src_data:
+										detected_source_anims.update(src_data['animations'].keys())
+										self.info_panel.append(f"Direct JSON Parse: Found {len(src_data['animations'])} animations.")
+										json_success = True
+								except:
+									pass
+								
+								# 2. Heuristic Raw Regex Search (The "Out of the Box" solution)
+								# If strict JSON failed (maybe it's old format, or has comments, or is essentially text-based)
+								if not json_success:
+									# Look for "animations": { ... } or animations: { ... }
+									# Standard Spine JSON/Text format: key: { ... }
+									m_anim = re.search(r'(?:["\']animations["\']|animations)\s*[:=]\s*\{', content)
+									if m_anim:
+										self.info_panel.append("Source file appears to contain text-based animation definitions. Scanning...")
+										# Limit scan to avoid scanning the whole file if it's huge, but large enough for anims
+										start_idx = m_anim.end()
+										scan_window = content[start_idx:start_idx+100000] # 100kb window
+										
+										# Find keys like:  "run": {  or  run: {
+										# Capture group 1 is the name
+										# We filter out common property names that might appear inside an animation if the regex matches too deep
+										# But usually animations are top-level in their block.
+										found_keys = re.findall(r'(?:["\']([\w\s\-\.\(\)]+)["\']|([\w\s\-\.\(\)]+))\s*:\s*\{', scan_window)
+										
+										# Flatten and clean
+										candidates = set()
+										for k1, k2 in found_keys:
+											val = (k1 or k2).strip()
+											# Filter reserved words just in case we drifted into a sub-block
+											if val not in ['bones', 'slots', 'ik', 'transform', 'events', 'drawOrder', 'attachments']:
+												candidates.add(val)
+										
+										if candidates:
+											detected_source_anims.update(candidates)
+											self.info_panel.append(f"Raw Text Analysis: Found {len(candidates)} potential animations (e.g. {list(candidates)[:3]}).")
+						except Exception as e:
+							self.info_panel.append(f"Fallback Analysis Failed: {e}")
+					
 					if detected_source_anims:
 						# self.info_panel.append(f"Source Analysis: Found {len(detected_source_anims)} animations in source .spine file.")
 						# We will compare this set against the EXPORTED animations later in this function
@@ -3659,13 +3760,24 @@ class MainWindow(QMainWindow):
 
 			# Report Unchecked Animations
 			anim_exported = stats.get('anim_exported_count', 0)
-			anim_total = stats.get('anim_total_count', anim_exported)
+			anim_total = stats.get('anim_total_count', 0) # Raw count from source analysis
 			
-			anim_color = SUCCESS_COLOR
-			if 'unchecked_anims' in stats and stats['unchecked_anims']:
+			# If we have 0 source animations but >0 exported, source analysis failed
+			source_analysis_failed = (anim_total == 0 and anim_exported > 0)
+			
+			if source_analysis_failed:
 				anim_color = 'orange'
-			
-			self.info_panel.append(f"<font color='{anim_color}'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
+				self.info_panel.append(f"<font color='orange'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>Source analysis found 0 animations (but {anim_exported} exported). Cannot verify unchecked animations.</span>")
+			else:
+				# Normal reporting
+				anim_str = f"Detected Animations: {anim_total} (Exported: {anim_exported})"
+				if 'unchecked_anims' in stats and stats['unchecked_anims']:
+					anim_color = 'orange'
+					self.info_panel.append(f"<font color='orange'>  {anim_str}</font>")
+				else:
+					anim_color = SUCCESS_COLOR
+					self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  {anim_str}</font>")
 
 			if 'unchecked_anims' in stats and stats['unchecked_anims']:
 				any_warnings = True
@@ -3791,6 +3903,25 @@ def main():
 
 	try:
 		app = QApplication(sys.argv)
+		app.setStyle("Fusion")
+		
+		# Force a standard Dark Theme for consistency across all platforms
+		palette = QPalette()
+		palette.setColor(QPalette.Window, QColor(43, 43, 43))
+		palette.setColor(QPalette.WindowText, Qt.white)
+		palette.setColor(QPalette.Base, QColor(25, 25, 25))
+		palette.setColor(QPalette.AlternateBase, QColor(43, 43, 43))
+		palette.setColor(QPalette.ToolTipBase, Qt.white)
+		palette.setColor(QPalette.ToolTipText, Qt.black)
+		palette.setColor(QPalette.Text, Qt.white)
+		palette.setColor(QPalette.Button, QColor(35, 35, 35))
+		palette.setColor(QPalette.ButtonText, Qt.white)
+		palette.setColor(QPalette.BrightText, Qt.red)
+		palette.setColor(QPalette.Link, QColor(255, 87, 34))
+		palette.setColor(QPalette.Highlight, QColor(255, 87, 34))
+		palette.setColor(QPalette.HighlightedText, Qt.black)
+		app.setPalette(palette)
+
 		w = MainWindow()
 		w.show()
 		sys.exit(app.exec())
