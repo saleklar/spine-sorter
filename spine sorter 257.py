@@ -596,7 +596,7 @@ class SpinePackageValidator:
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter v5.51")
+		self.setWindowTitle("Spine Sorter v5.52")
 		self._setup_icons()
 
 		# Configuration
