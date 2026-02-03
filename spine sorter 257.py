@@ -82,6 +82,7 @@ try:
 		QSpinBox,
 		QDialog,
 		QProgressBar,
+		QStyle,
 	)
 except ModuleNotFoundError:
 	print("PySide6 is not installed. Install with: pip install PySide6")
