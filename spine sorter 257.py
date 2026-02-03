@@ -61,8 +61,8 @@ except Exception:
 # --- GUI Dependencies ---
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
-	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette
+	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer, QUrl
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QDesktopServices
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -839,6 +839,13 @@ class MainWindow(QMainWindow):
 		settings_btn.clicked.connect(self.settings_dialog.show)
 		combined_folders_layout.addWidget(settings_btn)
 
+		# Help button
+		help_btn = QPushButton("?")
+		help_btn.setToolTip("Open User Manual")
+		help_btn.setFixedWidth(30)
+		help_btn.clicked.connect(self.open_help)
+		combined_folders_layout.addWidget(help_btn)
+
 		layout.addLayout(combined_folders_layout)
 		# layout.addLayout(threshold_layout) # Moved to settings
 		self.list_widget = QListWidget()
@@ -984,6 +991,13 @@ class MainWindow(QMainWindow):
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #FF0000; font-weight: bold; }")
 		else:
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #AA0000; font-weight: bold; }")
+
+	def open_help(self):
+		manual_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USER_MANUAL.txt")
+		if os.path.exists(manual_path):
+			QDesktopServices.openUrl(QUrl.fromLocalFile(manual_path))
+		else:
+			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_path}")
 
 	def _setup_icons(self):
 		# Create icons for different states
