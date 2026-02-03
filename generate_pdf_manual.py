@@ -74,7 +74,8 @@ def create_pdf(filename):
                 "• <b>Active Attachment Check:</b> Detects active attachments in Setup Mode.",
                 "• <b>Hidden/Invisible Slot Detection:</b> Finds items that will be invisible in-game.",
                 "• <b>Popup Reports:</b> Results now open in a dialog (no more text file spam).",
-                "• <b>Validation Mode:</b> Run a super-fast check without processing images."
+                "• <b>Validation Mode:</b> Run a super-fast check without processing images.",
+                "• <b>UI Improvements:</b> Added '?' Help button and detailed tooltips for all controls."
             ],
             "is_cover": True
         },
@@ -136,7 +137,10 @@ def create_pdf(filename):
                 "Check the box 'Check for Errors Only' to skip image processing. Use this for a super-fast health check of your spine file.",
                 "<br/>",
                 "<b>Popup Reports:</b>",
-                "Reports now open in a clean popup window. You can hit 'Save As' to keep a copy, preventing your folder from filling up with junk text files."
+                "Reports now open in a clean popup window. You can hit 'Save As' to keep a copy, preventing your folder from filling up with junk text files.",
+                "<br/>",
+                "<b>Interactive Help:</b>",
+                "Hover your mouse over any button or text box to see a tooltip explanation. Click the <b>'?'</b> button to verify this manual."
             ]
         },
         {
