@@ -67,7 +67,13 @@ def create_pdf(filename):
                 "<b>No more manual sorting. No more missing files.</b>",
                 "<br/>",
                 "This tool ensures your Spine projects are optimal for the game engine.",
-                "It thinks like an engineer so you can work like an artist."
+                "It thinks like an engineer so you can work like an artist.",
+                "<br/>",
+                "<br/>",
+                "<b>WHAT'S NEW IN THIS EDITION (v5.53):</b>",
+                "• <b>Hidden/Invisible Slot Detection:</b> Finds items that will be invisible in-game.",
+                "• <b>Popup Reports:</b> Results now open in a dialog (no more text file spam).",
+                "• <b>Validation Mode:</b> Run a super-fast check without processing images."
             ],
             "is_cover": True
         },
