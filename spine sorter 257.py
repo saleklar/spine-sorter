@@ -286,6 +286,55 @@ class SpineScannerThread(QThread):
 		self.versions_found.emit(results)
 
 
+class ReportDialog(QDialog):
+	def __init__(self, parent=None, report_text=""):
+		super().__init__(parent)
+		self.setWindowTitle("Process Report")
+		self.resize(800, 600)
+		
+		layout = QVBoxLayout(self)
+		
+		label = QLabel("Processing complete. Review the report below:")
+		label.setStyleSheet("font-weight: bold; font-size: 14px;")
+		layout.addWidget(label)
+
+		self.text_edit = QTextEdit()
+		self.text_edit.setReadOnly(True)
+		self.text_edit.setText(report_text)
+		# Use monospace font for better formatting of lists
+		font = QFont("Consolas", 10)
+		font.setStyleHint(QFont.Monospace)
+		self.text_edit.setFont(font)
+		layout.addWidget(self.text_edit)
+		
+		btn_layout = QHBoxLayout()
+		
+		self.save_btn = QPushButton("Save Report As...")
+		self.save_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton) if hasattr(QStyle, 'SP_DialogSaveButton') else QIcon())
+		self.save_btn.clicked.connect(self.save_report)
+		btn_layout.addWidget(self.save_btn)
+		
+		btn_layout.addStretch()
+
+		self.close_btn = QPushButton("Close")
+		self.close_btn.clicked.connect(self.accept)
+		btn_layout.addWidget(self.close_btn)
+		
+		layout.addLayout(btn_layout)
+		
+	def save_report(self):
+		timestamp = int(time.time())
+		default_name = f"spine_report_{timestamp}.txt"
+		path, _ = QFileDialog.getSaveFileName(self, "Save Report", default_name, "Text Files (*.txt)")
+		if path:
+			try:
+				with open(path, 'w', encoding='utf-8') as f:
+					f.write(self.text_edit.toPlainText())
+				QMessageBox.information(self, "Saved", f"Report saved to:\n{path}")
+			except Exception as e:
+				QMessageBox.critical(self, "Error", f"Could not save report:\n{e}")
+
+
 class ImageCache:
 	"""
 	Persists image metadata to disk to speed up subsequent loads.
@@ -848,6 +897,15 @@ class MainWindow(QMainWindow):
 		actions_layout.addWidget(self.open_after_checkbox)
 		actions_layout.addWidget(self.force_local_cb)
 
+		# Validate / Analyze Only option (Main Frame)
+		self.validate_only_cb = QCheckBox("Check for Errors Only (No Export)")
+		self.validate_only_cb.setToolTip("If checked, analyzes the Spine file for animation and setup pose warnings but skips sorting/exporting images.")
+		self.validate_only_cb.setStyleSheet("font-weight: bold; color: #2E8B57;")
+		# Default to False (unchecked) if not in config, ensuring it is off by default
+		self.validate_only_cb.setChecked(bool(self.config.get("validate_only", False)))
+		self.validate_only_cb.stateChanged.connect(lambda v: self._save_validate_only_config(v))
+		actions_layout.addWidget(self.validate_only_cb)
+
 		layout.addLayout(actions_layout)
 
 		# Progress bar
@@ -1065,6 +1123,13 @@ class MainWindow(QMainWindow):
 	def _save_json_only_config(self, v):
 		try:
 			self.config["json_export_only"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_validate_only_config(self, v):
+		try:
+			self.config["validate_only"] = bool(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -1415,6 +1480,99 @@ class MainWindow(QMainWindow):
 											msg = f"Slot '{s_name}' uses UNCHECKED attachment '{a_name}' in Setup Pose!"
 											all_file_stats[-1].setdefault('setup_pose_warnings', []).append(msg)
 											self.log_warning(msg)
+					
+					# -------------------------------------------------------------------------
+					# EARLY REPORTING: Unchecked Animations & Setup Pose Warnings
+					# -------------------------------------------------------------------------
+					try:
+						stats = all_file_stats[-1]
+						j = obj # Alias for compatibility with copied code
+
+						# 1. Unchecked Animations Logic
+						unique_unchecked_anims = sorted(list(set(spine_export_unchecked_anims))) if spine_export_unchecked_anims else []
+						
+						if 'source_anims_defined' in stats:
+							all_def = stats['source_anims_defined']
+							exported_anims = set()
+							if 'animations' in j:
+								exported_anims.update(j['animations'].keys())
+							
+							missing_from_comparision = all_def - exported_anims
+							if missing_from_comparision:
+								for m in missing_from_comparision:
+									if m not in unique_unchecked_anims:
+										unique_unchecked_anims.append(m)
+								unique_unchecked_anims.sort()
+						
+						stats['unchecked_anims'] = unique_unchecked_anims
+						
+						# Report Unchecked Animations
+						if unique_unchecked_anims:
+							self.info_panel.append("<br>")
+							n_anim = len(unique_unchecked_anims)
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>{n_anim} animations are checked off for export so they are not copied:</span>")
+							for i, anim in enumerate(unique_unchecked_anims):
+								if i < 10:
+									self.info_panel.append(f"<font color='orange'>    - {anim}</font>")
+								else:
+									self.info_panel.append(f"<font color='orange'>    - ... and {n_anim - 10} more</font>")
+									break
+
+						# Report Setup Pose Violations (Critical)
+						if 'setup_pose_warnings' in stats and stats['setup_pose_warnings']:
+							self.info_panel.append("<br>")
+							self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{len(stats['setup_pose_warnings'])} setup pose slots refer to UNCHECKED attachments:</span>")
+							for msg in stats['setup_pose_warnings']:
+								self.info_panel.append(f"<font color='red'>    - {msg}</font>")
+						
+						# Report Active Setup Pose (Warning)
+						if 'setup_pose_active' in stats and stats['setup_pose_active']:
+							self.info_panel.append("<br>")
+							n_active = len(stats['setup_pose_active'])
+							soft_warning_color = "#FFC04C"
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:{soft_warning_color};'>{n_active} slots have active attachments in Setup Pose:</span>")
+							for i, msg in enumerate(stats['setup_pose_active']):
+								if i < 10:
+									self.info_panel.append(f"<font color='{soft_warning_color}'>    - {msg}</font>")
+								else:
+									self.info_panel.append(f"<font color='{soft_warning_color}'>    - ... and {n_active - 10} more</font>")
+									break
+						
+						# Report Invisible Setup Pose (Warning)
+						if 'setup_pose_invisible' in stats and stats['setup_pose_invisible']:
+							self.info_panel.append("<br>")
+							n_inv = len(stats['setup_pose_invisible'])
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF4500;'>{n_inv} slots are INVISIBLE (Alpha=0) in Setup Pose but have active attachments:</span>")
+							for i, msg in enumerate(stats['setup_pose_invisible']):
+								if i < 10:
+									self.info_panel.append(f"<font color='#FF4500'>    - {msg}</font>")
+								else:
+									self.info_panel.append(f"<font color='#FF4500'>    - ... and {n_inv - 10} more</font>")
+									break
+
+						# Report Hidden Setup Pose (Warning)
+						if 'setup_pose_hidden' in stats and stats['setup_pose_hidden']:
+							self.info_panel.append("<br>")
+							n_hidden = len(stats['setup_pose_hidden'])
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#CD5C5C;'>{n_hidden} slots are HIDDEN (visible: false) in Setup Pose:</span>")
+							for i, msg in enumerate(stats['setup_pose_hidden']):
+								if i < 10:
+									self.info_panel.append(f"<font color='#CD5C5C'>    - {msg}</font>")
+								else:
+									self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
+									break
+									
+						QApplication.processEvents()
+
+						# Stop here if Validate Only is strictly requested
+						if self.config.get("validate_only", False):
+							self.info_panel.append("<br><b><font color='blue'>Analysis Mode: Validation complete. Skipping image processing and file generation.</font></b>")
+							return
+
+					except Exception as e:
+						self.log_error(f"Early Reporting Error: {e}")
+					# -------------------------------------------------------------------------
+
 
 					def collect_from_json(x):
 						if isinstance(x, str):
@@ -3869,49 +4027,60 @@ class MainWindow(QMainWindow):
 
 		# Generate a plain-text full report with errors and warnings
 		try:
-			out_root = self.output_display.text() or os.path.expanduser("~")
-			os.makedirs(out_root, exist_ok=True)
-			report_path = os.path.join(out_root, f"spine_report_{timestamp}.txt")
-			with open(report_path, 'w', encoding='utf-8') as rf:
-				rf.write("Spine Sorter Full Report\n")
-				rf.write(time.strftime("Generated: %Y-%m-%d %H:%M:%S\n", time.localtime(timestamp)))
-				rf.write("\nErrors:\n")
-				if errors:
-					for e in errors:
-						rf.write(f"- {e}\n")
-				else:
-					rf.write("None\n")
-				rf.write("\nWarnings and details per file:\n")
-				for stats in all_file_stats:
-					rf.write(f"\nFile: {stats.get('name')}\n")
-					if stats.get('unchecked'):
-						rf.write("Unchecked attachments:\n")
-						for u in stats.get('unchecked'):
-							rf.write(f" - {u.get('region')} (slot: {u.get('slot')})\n")
-					if stats.get('unchecked_anims'):
-						rf.write("Unchecked animations:\n")
-						for a in stats.get('unchecked_anims'):
-							rf.write(f" - {a}\n")
-					if stats.get('setup_pose_warnings'):
-						rf.write("Setup pose warnings:\n")
-						for s in stats.get('setup_pose_warnings'):
-							rf.write(f" - {s}\n")
-					if stats.get('setup_pose_active'):
-						rf.write("Active attachments in setup pose:\n")
-						for s in stats.get('setup_pose_active'):
-							rf.write(f" - {s}\n")
-					if stats.get('consistency_msg'):
-						rf.write(f"Consistency: {stats.get('consistency_msg')}\n")
-				if jpeg_forced_png_warnings:
-					rf.write("\nJPEG forced->PNG warnings:\n")
-					for w in jpeg_forced_png_warnings:
-						rf.write(f" - {w}\n")
-			# reveal report button and remember path
-			self.last_report_path = report_path
-			self.open_report_btn.setVisible(True)
-			self.info_panel.append(f"\nFull report written to: {report_path}")
+			# Generate Report Content in Memory
+			report_lines = []
+			report_lines.append("Spine Sorter Full Report")
+			report_lines.append(time.strftime("Generated: %Y-%m-%d %H:%M:%S", time.localtime(timestamp)))
+			report_lines.append("\nErrors:")
+			if errors:
+				for e in errors:
+					report_lines.append(f"- {e}")
+			else:
+				report_lines.append("None")
+			
+			report_lines.append("\nWarnings and details per file:")
+			for stats in all_file_stats:
+				report_lines.append(f"\nFile: {stats.get('name')}")
+				if stats.get('unchecked'):
+					report_lines.append("Unchecked attachments:")
+					for u in stats.get('unchecked'):
+						report_lines.append(f" - {u.get('region')} (slot: {u.get('slot')})")
+				if stats.get('unchecked_anims'):
+					report_lines.append("Unchecked animations:")
+					for a in stats.get('unchecked_anims'):
+						report_lines.append(f" - {a}")
+				if stats.get('setup_pose_warnings'):
+					report_lines.append("Setup pose warnings:")
+					for s in stats.get('setup_pose_warnings'):
+						report_lines.append(f" - {s}")
+				if stats.get('setup_pose_active'):
+					report_lines.append("Active attachments in setup pose:")
+					for s in stats.get('setup_pose_active'):
+						report_lines.append(f" - {s}")
+				if stats.get('setup_pose_invisible'):
+					report_lines.append("Invisible (Alpha=0) attachments in setup pose:")
+					for s in stats.get('setup_pose_invisible'):
+						report_lines.append(f" - {s}")
+				if stats.get('setup_pose_hidden'):
+					report_lines.append("Hidden (visible=false) slots in setup pose:")
+					for s in stats.get('setup_pose_hidden'):
+						report_lines.append(f" - {s}")
+				if stats.get('consistency_msg'):
+					report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
+			
+			if jpeg_forced_png_warnings:
+				report_lines.append("\nJPEG forced->PNG warnings:")
+				for w in jpeg_forced_png_warnings:
+					report_lines.append(f" - {w}")
+
+			report_content = "\n".join(report_lines)
+
+			# Show report dialog
+			dlg = ReportDialog(self, report_content)
+			dlg.exec()
+
 		except Exception as e:
-			self.info_panel.append(f"Could not write report: {e}")
+			self.info_panel.append(f"Could not generate report: {e}")
 
 		if errors:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
