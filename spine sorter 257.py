@@ -1383,8 +1383,17 @@ class MainWindow(QMainWindow):
 					# Check for active attachments in SETUP POSE
 					if 'slots' in obj:
 						for slot in obj['slots']:
+							s_name = slot.get('name', 'unknown')
+							
+							# Check if slot is explicitly hidden (visible: false)
+							if 'visible' in slot and slot['visible'] is False:
+								msg_hidden = f"Slot '{s_name}' is HIDDEN (visible: false) in Setup Pose"
+								all_file_stats[-1].setdefault('setup_pose_hidden', []).append(msg_hidden)
+								# If it's hidden, we might not care if it has an attachment (it won't verify well anyway)
+								# but let's allow fallthrough if desired. For now, we count it as Hidden.
+
 							if 'attachment' in slot and slot['attachment']:
-								s_name = slot['name']
+								# s_name already retrieved
 								a_name = slot['attachment']
 								
 								# General warning: Setup pose should ideally be empty
@@ -3367,8 +3376,9 @@ class MainWindow(QMainWindow):
 									j_idx += 1
 									continue
 								
-								# Break if we hit another Header (e.g. "Skins:", "Bones:")
-								if re.search(r"^\s*(?:Skins|Bones|Slots|Events|Constraints)\s*(?:\(\d+\))?:", next_line, re.IGNORECASE):
+								# Break if we hit another Header (e.g. "Skins:", "Bones:", "Skeleton:", "Size:")
+								# Note: "Skeleton" and "Size" might appear after Animations in some output formats
+								if re.search(r"^\s*(?:Skins|Bones|Slots|Events|(?:Ik|Transform|Path)?\s*Constraints|Skeleton|Size|Spine)\s*(?:\(\d+\))?:", next_line, re.IGNORECASE):
 									break
 								
 								# If it's a list, it usually keeps indentation
@@ -3812,6 +3822,33 @@ class MainWindow(QMainWindow):
 						self.info_panel.append(f"<font color='{soft_warning_color}'>    - {msg}</font>")
 					else:
 						self.info_panel.append(f"<font color='{soft_warning_color}'>    - ... and {n_active - 10} more</font>")
+						break
+
+			# Report Invisible Setup Pose Slots
+			if 'setup_pose_invisible' in stats and stats['setup_pose_invisible']:
+				any_warnings = True
+				self.info_panel.append("<br>")
+				n_inv = len(stats['setup_pose_invisible'])
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF4500;'>{n_inv} slots are INVISIBLE (Alpha=0) in Setup Pose but have active attachments:</span>")
+				for i, msg in enumerate(stats['setup_pose_invisible']):
+					if i < 10:
+						self.info_panel.append(f"<font color='#FF4500'>    - {msg}</font>")
+					else:
+						self.info_panel.append(f"<font color='#FF4500'>    - ... and {n_inv - 10} more</font>")
+						break
+
+			# Report HIDDEN (visible: false) Setup Pose Slots
+			if 'setup_pose_hidden' in stats and stats['setup_pose_hidden']:
+				any_warnings = True
+				self.info_panel.append("<br>")
+				n_hidden = len(stats['setup_pose_hidden'])
+				# Using a distinct color, e.g. blueish or gray
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#CD5C5C;'>{n_hidden} slots are HIDDEN (visible: false) in Setup Pose:</span>")
+				for i, msg in enumerate(stats['setup_pose_hidden']):
+					if i < 10:
+						self.info_panel.append(f"<font color='#CD5C5C'>    - {msg}</font>")
+					else:
+						self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
 						break
 
 			# Report Consistency Issues (Atlas vs JSON mismatch)
