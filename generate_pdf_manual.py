@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v.5.51",
+            "title": "Spine Sorter v.5.53",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -77,22 +77,23 @@ def create_pdf(filename):
                 "<b>1. Smart Sorting:</b> Automatically separates JPEGs (opaque) from PNGs (transparent).",
                 "<b>2. Safety Checks:</b> Finds files you forgot to export.",
                 "<b>3. Broken Link Detector:</b> Finds images that are missing from your computer.",
-                "<b>4. Animation Guardian:</b> Counts your animations to make sure none were left behind."
+                "<b>4. Animation Guardian:</b> Counts your animations to make sure none were left behind.",
+                "<b>5. Visibility Police:</b> Finds invisible or hidden slots that shouldn't be there."
             ]
         },
         {
             "title": "How To Use It (In 4 Steps)",
             "body": [
-                "<b>1. Browse:</b> select the folder with your <b>.spine</b> files.",
+                "<b>1. Browse:</b> Select the folder with your <b>.spine</b> files.",
                 "<b>2. Select:</b> Choose the character file from the list.",
                 "<b>3. Run:</b> Click the big <b>'Run Selected File'</b> button.",
-                "<b>4. Read:</b> Look at the report at the bottom for colored messages."
+                "<b>4. Review:</b> A popup report appears with the results. You can save it if you want."
             ]
         },
         {
             "title": "Understanding the Colors",
             "body": [
-                "The log at the bottom uses a simple Traffic Light system:",
+                "The report uses a simple Traffic Light system:",
                 "<br/>",
                 "<font color='#32CD32'><b>GREEN messages</b></font> = All good! Relax.",
                 "<font color='#FFA500'><b>ORANGE messages</b></font> = <b>Warning.</b> Something might be wrong (check export settings), but it won't crash the game.",
@@ -100,13 +101,35 @@ def create_pdf(filename):
             ]
         },
         {
-            "title": "The 'Orange' Warnings: Checkboxes",
+            "title": "Common Warnings: Checkboxes",
             "body": [
                 "<b>Message:</b> <font color='orange'>'Unchecked for Export'</font>",
                 "<br/>",
                 "<b>The Problem:</b> You are using an image, attachment, or an entire skeleton that has the <b>Export</b> checkbox UNCHECKED in Spine.",
                 "<b>The Result:</b> It looks fine in Spine, but it will be invisible in the game.",
                 "<b>The Fix:</b> Go to Spine Tree view, find the item, and check the 'Export' dot."
+            ]
+        },
+        {
+            "title": "New Checks: Hidden & Invisible Items",
+            "body": [
+                "<b>Message:</b> <font color='orange'>'Slot is HIDDEN in Setup Pose'</font>",
+                "<b>Problem:</b> You turned off the visibility dot in Setup Mode. It might never show up in game.",
+                "<br/>",
+                "<b>Message:</b> <font color='orange'>'Slot is INVISIBLE (Alpha=0)'</font>",
+                "<b>Problem:</b> The slot color has 0 alpha in Setup Mode. It is technically there, but invisible.",
+                "<br/>",
+                "<b>The Fix:</b> Ensure all slots meant to be seen are visible and opaque in the Setup Pose."
+            ]
+        },
+        {
+            "title": "New Features: Workflow & Reporting",
+            "body": [
+                "<b>Validate Only Mode:</b>",
+                "Check the box 'Check for Errors Only' to skip image processing. Use this for a super-fast health check of your spine file.",
+                "<br/>",
+                "<b>Popup Reports:</b>",
+                "Reports now open in a clean popup window. You can hit 'Save As' to keep a copy, preventing your folder from filling up with junk text files."
             ]
         },
         {
@@ -131,12 +154,13 @@ def create_pdf(filename):
             ]
         },
         {
-            "title": "Pro Tips for Animators",
-            "body": [
-                "<b>Additive Blending:</b> Any slot using 'Additive' or 'Screen' blend modes is automatically sent to the JPEG folder (it saves space!).",
-                "<b>Reference Images:</b> Keep your ref images in a folder named 'refs' or 'unused'. The tool tries to ignore them.",
-                "<b>Final Check:</b> Always scroll to the bottom of the log. If you see <font color='#32CD32'>'Completed OK'</font>, you are safe. If you see <font color='#FFA500'>CHECK THE WARNINGS</font>, scroll up the log."
-            ]
+             "title": "Changelog",
+             "body": [
+                "<b>v5.53:</b> Hidden/Invisible slot checks. Popup Reports. 'Validate Only' in main UI. Fixed CLI parsing.",
+                "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
+                "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
+                "<b>v5.0:</b> Smart Image Sorting. Source of Truth verification. JSON Minification."
+             ]
         }
     ]
 
@@ -153,20 +177,19 @@ def create_pdf(filename):
                 
             story.append(PageBreak())
         else:
-            # Add spacing before new section (unless it's the top of a page, but ReportLab handles flow)
-            # We only add spacer if it's not the first item after cover
-            if i > 1: 
-                story.append(Spacer(1, 25))
+             # Always start a new page for each slide (except the first one which follows cover logic)
+             if i > 0 and not slides[i-1].get("is_cover"):
+                 story.append(PageBreak())
                 
-            story.append(Paragraph(slide["title"], slide_title_style))
-            story.append(Spacer(1, 10))
+             story.append(Paragraph(slide["title"], slide_title_style))
+             story.append(Spacer(1, 10))
         
-            for item in slide["body"]:
-                story.append(Paragraph(f"• {item}" if not item[0].isdigit() and not item.startswith("<") else item, bullet_style))
-                story.append(Spacer(1, 5))
+             for item in slide["body"]:
+                 story.append(Paragraph(f"• {item}" if not item[0].isdigit() and not item.startswith("<") else item, bullet_style))
+                 story.append(Spacer(1, 5))
 
     doc.build(story)
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.51_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.53_Artist_Guide.pdf")

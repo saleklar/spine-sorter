@@ -1,4 +1,4 @@
-SPINE SORTER v5.51 - ARTIST GUIDE
+SPINE SORTER v5.53 - ARTIST GUIDE
 ========================================
 
 WHAT DOES THIS TOOL DO?
@@ -13,7 +13,7 @@ HOW TO USE IT
 2. Click "Browse" and select your folder containing .spine files.
 3. Select the file you want to process from the list.
 4. Click "Run Selected File".
-5. Wait for the process to finish. A report will appear at the bottom.
+5. Wait for the process to finish. A popup report will appear with options to review and save.
 
 KEY FEATURES
 ----------------------------------------
@@ -51,6 +51,11 @@ KEY FEATURES
    - Result: The animation will not play in the game.
    - Fix: The tool compares your active animations against the source file. If one is missing from the export data, it warns you.
 
+   [HIDDEN / INVISIBLE SLOTS] [NEW]
+   - Problem: A slot is set to "Hidden" (visible checkmark off) or "Invisible" (Alpha = 0) in the Setup Pose.
+   - Result: This item may never appear in-game, even if you keyframe it to be visible later (depending on game engine logic).
+   - Fix: Ensure all slots meant to be seen are visible and opaque in the Setup Pose.
+
 3. THE REPORT CARD
    At the end of a run, you get a summary:
    - Total Attachments: How many distinct slots/attachments are in your Spine skeleton.
@@ -69,6 +74,9 @@ KEY FEATURES
 The main interface has several checkboxes that control how the tool works.
 
 [STANDARD OPTIONS]
+
+- Check for Errors Only:
+  If checked, the tool will SKIP the image sorting/conversion process. It will only run the validation logic (checking for missing files, unchecked animations, hidden slots, etc.) and generate a report. Use this for a quick health check.
 
 - Open .spine after export:
   If checked, the tool will automatically launch the newly created .spine project file immediately after processing is complete.
@@ -134,4 +142,31 @@ Body:
 *   Pass: "Animation Count: 18/18 (100%)"
 *   Fail: "WARNING: Found 20 animations in source, but only 19 in export!"
 *   Action: The tool names exactly which animation is missing, so you can fix it in seconds.
+
+
+========================================
+CHANGELOG (v5.0 - v5.53)
+========================================
+
+v5.53 (Current)
+*   NEW: Added check for "Hidden" slots (visible: false) in Setup Pose.
+*   NEW: Added check for "Invisible" slots (Alpha=0) in Setup Pose.
+*   NEW: "Check for Errors Only" mode moved to main settings for easier access.
+*   NEW: Reports now open in a Popup Dialog with a "Save As" option (no longer auto-saves .txt files).
+*   FIX: Improved CLI parsing to ignore "Skeleton" and "Size" headers in Spine logs.
+
+v5.52
+*   NEW: Added "Unchecked Animations" detection.
+*   NEW: Added support for checking multiple skeletons in one project.
+*   FIX: Enhanced CLI integration reliability.
+
+v5.51
+*   NEW: "Validate Only" mode introduced (Dev Options).
+*   FIX: Better handling of Soft Edges in JPEG/PNG sorting.
+
+v5.0
+*   Major Release: Smart Image Sorting (Auto-detecting Transparency).
+*   NEW: CLI-based "Source of Truth" verification.
+*   NEW: JSON Minification options.
+
 
