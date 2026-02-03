@@ -167,7 +167,7 @@ def create_pdf(filename):
         {
              "title": "Changelog",
              "body": [
-                "<b>v5.53:</b> Hidden/Invisible slot checks. Popup Reports. 'Validate Only' in main UI. Fixed CLI parsing.",
+                "<b>v5.53:</b> UI improvements (Tooltips, Help Button). Hidden/Invisible slot checks. Popup Reports. 'Validate Only' in main UI.",
                 "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
                 "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
                 "<b>v5.0:</b> Smart Image Sorting. Source of Truth verification. JSON Minification."
