@@ -71,6 +71,7 @@ def create_pdf(filename):
                 "<br/>",
                 "<br/>",
                 "<b>WHAT'S NEW IN THIS EDITION (v5.53):</b>",
+                "• <b>Active Attachment Check:</b> Detects active attachments in Setup Mode.",
                 "• <b>Hidden/Invisible Slot Detection:</b> Finds items that will be invisible in-game.",
                 "• <b>Popup Reports:</b> Results now open in a dialog (no more text file spam).",
                 "• <b>Validation Mode:</b> Run a super-fast check without processing images."
