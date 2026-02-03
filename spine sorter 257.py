@@ -722,7 +722,9 @@ class MainWindow(QMainWindow):
 		folder_layout = QHBoxLayout()
 		folder_label = QLabel("Spine files folder:")
 		self.folder_display = QLineEdit(self.config.get("spine_folder", ""))
+		self.folder_display.setToolTip("The directory containing your .spine files")
 		browse_btn = QPushButton("1. Browse...")
+		browse_btn.setToolTip("Select the folder where your .spine project files are located")
 		browse_btn.clicked.connect(self.browse_folder)
 		folder_layout.addWidget(folder_label)
 		folder_layout.addWidget(self.folder_display)
@@ -732,7 +734,9 @@ class MainWindow(QMainWindow):
 		output_layout = QHBoxLayout()
 		output_label = QLabel("Output folder:")
 		self.output_display = QLineEdit(self.config.get("output_folder", ""))
+		self.output_display.setToolTip("The directory where the processed files will be saved")
 		output_browse = QPushButton("2. Browse...")
+		output_browse.setToolTip("Select the destination folder for the exported skeleton and sorted images")
 		output_browse.clicked.connect(self.browse_output)
 		output_layout.addWidget(output_label)
 		output_layout.addWidget(self.output_display)
@@ -836,6 +840,7 @@ class MainWindow(QMainWindow):
 		
 		# Settings button
 		settings_btn = QPushButton("Settings")
+		settings_btn.setToolTip("Open configuration dialog for advanced options")
 		settings_btn.clicked.connect(self.settings_dialog.show)
 		combined_folders_layout.addWidget(settings_btn)
 
@@ -855,13 +860,16 @@ class MainWindow(QMainWindow):
 		actions_layout = QHBoxLayout()
 		
 		self.select_all_cb = QCheckBox("Select all")
+		self.select_all_cb.setToolTip("Select or deselect all files in the list")
 		self.select_all_cb.stateChanged.connect(self.toggle_select_all)
 		
 		self.process_btn = QPushButton("3. Process selected")
+		self.process_btn.setToolTip("Start processing the selected .spine files")
 		self.process_btn.setStyleSheet("background-color: #109c00; color: white; font-weight: bold;")
 		self.process_btn.clicked.connect(self.process_selected)
 
 		self.stop_btn = QPushButton("Stop")
+		self.stop_btn.setToolTip("Stop the current operation")
 		self.stop_btn.setStyleSheet("background-color: #9c0000; color: white; font-weight: bold;")
 		self.stop_btn.clicked.connect(self.stop_process)
 		self.stop_btn.setEnabled(False)
@@ -918,6 +926,7 @@ class MainWindow(QMainWindow):
 
 		# Progress bar
 		self.progress_bar = QProgressBar()
+		self.progress_bar.setToolTip("Current progress of the operation")
 		self.progress_bar.setTextVisible(True)
 		self.progress_bar.setRange(0, 100)
 		self.progress_bar.setValue(0)
@@ -929,6 +938,7 @@ class MainWindow(QMainWindow):
 		layout.addWidget(self.progress_bar)
 
 		layout.addWidget(QLabel("Spine files in folder:"))
+		self.list_widget.setToolTip("List of .spine files found in the selected folder")
 		layout.addWidget(self.list_widget)
 
 		# Info / detailed log panel header
@@ -942,6 +952,7 @@ class MainWindow(QMainWindow):
 		layout.addLayout(info_header_layout)
 
 		self.info_panel = QTextEdit()
+		self.info_panel.setToolTip("Detailed activity log and error messages")
 		self.info_panel.setReadOnly(True)
 		self.info_panel.setMinimumHeight(160)
 		self.info_panel.setStyleSheet("background-color: #1e1e1e; color: white;")
