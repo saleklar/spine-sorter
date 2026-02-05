@@ -1748,9 +1748,11 @@ class MainWindow(QMainWindow):
 			if spine_export_unchecked:
 				# We already know why there is no atlas/info (or why it might be incomplete)
 				export_msg = "Export Consistency Check: Incomplete (See 'Unchecked' warnings above)"
+				self.info_panel.append(export_msg)
 			else:
-				export_msg = "Export Consistency Check: Skipped (No Info/Atlas file found to compare)"
-			self.info_panel.append(export_msg)
+				# No atlas/info present — do not add a 'Skipped' line to reports.
+				# Leave `export_msg` unset so final reports do not show a confusing 'Skipped' message.
+				export_msg = None
 		
 		# Store msg in stats for final report
 		if all_file_stats and export_msg:
