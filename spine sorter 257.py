@@ -1748,11 +1748,9 @@ class MainWindow(QMainWindow):
 			if spine_export_unchecked:
 				# We already know why there is no atlas/info (or why it might be incomplete)
 				export_msg = "Export Consistency Check: Incomplete (See 'Unchecked' warnings above)"
-				self.info_panel.append(export_msg)
 			else:
-				# No atlas/info present — do not add a 'Skipped' line to reports.
-				# Leave `export_msg` unset so final reports do not show a confusing 'Skipped' message.
-				export_msg = None
+				export_msg = "Export Consistency Check: Skipped (No Info/Atlas file found to compare)"
+			self.info_panel.append(export_msg)
 		
 		# Store msg in stats for final report
 		if all_file_stats and export_msg:
@@ -4070,35 +4068,38 @@ class MainWindow(QMainWindow):
 			else:
 				report_lines.append("None")
 			
-			report_lines.append("\nWarnings and details per file:")
-			for stats in all_file_stats:
-				report_lines.append(f"\nFile: {stats.get('name')}")
-				if stats.get('unchecked'):
-					report_lines.append("Unchecked attachments:")
-					for u in stats.get('unchecked'):
-						report_lines.append(f" - {u.get('region')} (slot: {u.get('slot')})")
-				if stats.get('unchecked_anims'):
-					report_lines.append("Unchecked animations:")
-					for a in stats.get('unchecked_anims'):
-						report_lines.append(f" - {a}")
-				if stats.get('setup_pose_warnings'):
-					report_lines.append("Setup pose warnings:")
-					for s in stats.get('setup_pose_warnings'):
-						report_lines.append(f" - {s}")
-				if stats.get('setup_pose_active'):
-					report_lines.append("Active attachments in setup pose:")
-					for s in stats.get('setup_pose_active'):
-						report_lines.append(f" - {s}")
-				if stats.get('setup_pose_invisible'):
-					report_lines.append("Invisible (Alpha=0) attachments in setup pose:")
-					for s in stats.get('setup_pose_invisible'):
-						report_lines.append(f" - {s}")
-				if stats.get('setup_pose_hidden'):
-					report_lines.append("Hidden (visible=false) slots in setup pose:")
-					for s in stats.get('setup_pose_hidden'):
-						report_lines.append(f" - {s}")
-				if stats.get('consistency_msg'):
-					report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
+			if not any_warnings:
+				report_lines.append("\nWarnings per file : None")
+			else:
+				report_lines.append("\nWarnings and details per file:")
+				for stats in all_file_stats:
+					report_lines.append(f"\nFile: {stats.get('name')}")
+					if stats.get('unchecked'):
+						report_lines.append("Unchecked attachments:")
+						for u in stats.get('unchecked'):
+							report_lines.append(f" - {u.get('region')} (slot: {u.get('slot')})")
+					if stats.get('unchecked_anims'):
+						report_lines.append("Unchecked animations:")
+						for a in stats.get('unchecked_anims'):
+							report_lines.append(f" - {a}")
+					if stats.get('setup_pose_warnings'):
+						report_lines.append("Setup pose warnings:")
+						for s in stats.get('setup_pose_warnings'):
+							report_lines.append(f" - {s}")
+					if stats.get('setup_pose_active'):
+						report_lines.append("Active attachments in setup pose:")
+						for s in stats.get('setup_pose_active'):
+							report_lines.append(f" - {s}")
+					if stats.get('setup_pose_invisible'):
+						report_lines.append("Invisible (Alpha=0) attachments in setup pose:")
+						for s in stats.get('setup_pose_invisible'):
+							report_lines.append(f" - {s}")
+					if stats.get('setup_pose_hidden'):
+						report_lines.append("Hidden (visible=false) slots in setup pose:")
+						for s in stats.get('setup_pose_hidden'):
+							report_lines.append(f" - {s}")
+					if stats.get('consistency_msg'):
+						report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
 			
 			if jpeg_forced_png_warnings:
 				report_lines.append("\nJPEG forced->PNG warnings:")
