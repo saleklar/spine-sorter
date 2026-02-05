@@ -1,0 +1,18 @@
+Spine Sorter Full Report
+Generated: 2026-02-03 17:55:46
+
+Errors:
+None
+
+Warnings and details per file:
+
+File: symbols (symbols_v2.spine)
+Unchecked animations:
+ - animation
+Consistency: Export Consistency Check: Skipped (No Info/Atlas file found to compare)
+
+JPEG forced->PNG warnings:
+ - [symbols_v2.spine] <font color='red'>WARNING:</font> 'symbols/png/wild_frame_glow_3' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!
+ - [symbols_v2.spine] <font color='red'>WARNING:</font> 'symbols/png/wild_frame_glow_4' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!
+ - [symbols_v2.spine] <font color='red'>WARNING:</font> 'symbols/png/wild_frame_glow_5' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!
+ - [symbols_v2.spine] <font color='red'>WARNING:</font> 'symbols/png/wild_frame_glow_6' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!

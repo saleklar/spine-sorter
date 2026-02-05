@@ -1,0 +1,14 @@
+Spine Sorter Full Report
+Generated: 2026-01-29 00:40:58
+
+Errors:
+None
+
+Warnings and details per file:
+
+File: symbols (symbols_v14.spine)
+Unchecked attachments:
+ - lava_orb/jpeg/vfx_symbol_appearance/vfx_symbol_appearance_00 (slot: lava_orb-jpg-vfx_symbol_appearance-vfx_symbol_appearance_00)
+Unchecked animations:
+ - symbol_19_win
+Consistency: Export Consistency Check: Incomplete (See 'Unchecked' warnings above)

@@ -1744,7 +1744,10 @@ class MainWindow(QMainWindow):
 				# prepare final output image folders under the chosen output root
 				# structure: <output_root>/images/<skeleton>/{jpeg,png}
 				output_root = base_output_root
-				images_root = os.path.join(output_root, 'images', skeleton_name)
+				# Prefer the skeleton name embedded in the exported JSON (internal_skeleton_name).
+				# Fall back to the project/spine filename (`skeleton_name`) if the JSON name isn't available.
+				final_skeleton_dir = internal_skeleton_name or skeleton_name
+				images_root = os.path.join(output_root, 'images', final_skeleton_dir)
 				jpeg_dir = os.path.join(images_root, 'jpeg')
 				png_dir = os.path.join(images_root, 'png')
 				# os.makedirs(jpeg_dir, exist_ok=True)  <-- Removed to prevent empty folders
@@ -2460,10 +2463,10 @@ class MainWindow(QMainWindow):
 												# Look at folders AFTER the last marker
 												sub_parts = s_parts[last_marker_idx+1:]
 												
-												# Filter out part if it matches skeleton name to avoid redundancy
-												if sub_parts and skeleton_name:
+												# Filter out part if it matches the final skeleton folder name
+												if sub_parts and 'final_skeleton_dir' in locals():
 													p0 = sub_parts[0].lower()
-													s_name = skeleton_name.lower()
+													s_name = final_skeleton_dir.lower()
 													if p0 == s_name or p0.rstrip('s') == s_name.rstrip('s'):
 														sub_parts.pop(0)
 												

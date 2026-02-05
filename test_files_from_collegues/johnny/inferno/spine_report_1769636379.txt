@@ -1,0 +1,10 @@
+Spine Sorter Full Report
+Generated: 2026-01-28 22:39:39
+
+Errors:
+None
+
+Warnings and details per file:
+
+File: symbols (symbols_v14.spine)
+Consistency: Export Consistency Check: Skipped (No Info/Atlas file found to compare)

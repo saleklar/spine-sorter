@@ -893,7 +893,10 @@ class MainWindow(QMainWindow):
 				# prepare final output image folders under the chosen output root
 				# structure: <output_root>/images/<skeleton>/{jpeg,png}
 				output_root = base_output_root
-				images_root = os.path.join(output_root, 'images', skeleton_name)
+				# Prefer the skeleton name embedded in the exported JSON (internal_skeleton_name).
+				# Fall back to the project/spine filename (`skeleton_name`) if the JSON name isn't available.
+				final_skeleton_dir = internal_skeleton_name or skeleton_name
+				images_root = os.path.join(output_root, 'images', final_skeleton_dir)
 				jpeg_dir = os.path.join(images_root, 'jpeg')
 				png_dir = os.path.join(images_root, 'png')
 				os.makedirs(jpeg_dir, exist_ok=True)
