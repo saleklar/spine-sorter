@@ -4173,12 +4173,44 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
+				# Duplicate images summary
+				dup_groups = stats.get('duplicate_image_groups', [])
+				if dup_groups:
+					self.info_panel.append(f"  Detected identical images: {len(dup_groups)} group(s)")
+					for g in dup_groups[:5]:
+						self.info_panel.append(f"    - " + " | ".join(g))
+				else:
+					self.info_panel.append(f"  Detected identical images: none")
+				# Naming violations summary
+				naming_viol = stats.get('naming_violations', [])
+				if naming_viol:
+					self.info_panel.append(f"  Naming violations: {len(naming_viol)} file(s)")
+					for v in naming_viol[:10]:
+						self.info_panel.append(f"    - {v['basename']}: {', '.join(v['reasons'])}")
+				else:
+					self.info_panel.append(f"  Naming violations: none")
 			elif stats['total'] > 0: # Fallback for old stats format if any
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images copied: {stats['total']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']}</font>")
+				# Duplicate images summary (fallback stats format)
+				dup_groups = stats.get('duplicate_image_groups', [])
+				if dup_groups:
+					self.info_panel.append(f"  Detected identical images: {len(dup_groups)} group(s)")
+					for g in dup_groups[:5]:
+						self.info_panel.append(f"    - " + " | ".join(g))
+				else:
+					self.info_panel.append(f"  Detected identical images: none")
+				# Naming violations summary (fallback stats format)
+				naming_viol = stats.get('naming_violations', [])
+				if naming_viol:
+					self.info_panel.append(f"  Naming violations: {len(naming_viol)} file(s)")
+					for v in naming_viol[:10]:
+						self.info_panel.append(f"    - {v['basename']}: {', '.join(v['reasons'])}")
+				else:
+					self.info_panel.append(f"  Naming violations: none")
 			
 			# Report Unchecked Skeletons
 			if 'unchecked_skeletons' in stats and stats['unchecked_skeletons']:
@@ -4355,6 +4387,22 @@ class MainWindow(QMainWindow):
 							report_lines.append(f" - {s}")
 					if stats.get('consistency_msg'):
 						report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
+					# Duplicate image groups
+					dup_groups = stats.get('duplicate_image_groups', [])
+					if dup_groups:
+						report_lines.append(f"Duplicate image groups: {len(dup_groups)}")
+						for g in dup_groups:
+							report_lines.append(" - " + " | ".join(g))
+					else:
+						report_lines.append("Duplicate image groups: none")
+					# Naming violations
+					naming_viol = stats.get('naming_violations', [])
+					if naming_viol:
+						report_lines.append(f"Naming violations: {len(naming_viol)}")
+						for v in naming_viol:
+							report_lines.append(f" - {v.get('basename')}: {', '.join(v.get('reasons', []))}")
+					else:
+						report_lines.append("Naming violations: none")
 			
 			if jpeg_forced_png_warnings:
 				report_lines.append("\nJPEG forced->PNG warnings:")
