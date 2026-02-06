@@ -3487,6 +3487,14 @@ class MainWindow(QMainWindow):
 		# clear and start info log
 		self.info_panel.clear()
 		self.info_panel.append(f"Starting processing of {len(to_process)} file(s)")
+		# Debug: log effective config vs UI states to help diagnose mac cleanup issue
+		try:
+			self.info_panel.append(f"Config path: {self.config_path}")
+			self.info_panel.append(f"Config validate_only: {self.config.get('validate_only', False)}  Checkbox validate_only: {getattr(self, 'validate_only_cb', None) and self.validate_only_cb.isChecked()}")
+			self.info_panel.append(f"Config keep_temp_files: {self.config.get('keep_temp_files', False)}  Checkbox keep_temp: {getattr(self, 'keep_temp_cb', None) and self.keep_temp_cb.isChecked()}")
+			self.info_panel.append(f"Config verbose_cleanup_logging: {self.config.get('verbose_cleanup_logging', False)}  Checkbox verbose_cleanup: {getattr(self, 'verbose_cleanup_cb', None) and self.verbose_cleanup_cb.isChecked()}")
+		except Exception:
+			pass
 		
 		# Setup Status Label Blinking
 		if not hasattr(self, 'blink_timer'):
