@@ -809,6 +809,13 @@ class MainWindow(QMainWindow):
 		self.keep_temp_cb.stateChanged.connect(lambda v: self._save_keep_temp_config(v))
 		dev_layout.addWidget(self.keep_temp_cb)
 
+		# Verbose cleanup logging (useful on macOS to collect lsof and diagnostics)
+		self.verbose_cleanup_cb = QCheckBox("Verbose cleanup logging (mac)")
+		self.verbose_cleanup_cb.setToolTip("If checked, the app will collect diagnostic info (lsof, stats) when temp cleanup fails on macOS.")
+		self.verbose_cleanup_cb.setChecked(bool(self.config.get("verbose_cleanup_logging", False)))
+		self.verbose_cleanup_cb.stateChanged.connect(lambda v: self._save_verbose_cleanup_config(v))
+		dev_layout.addWidget(self.verbose_cleanup_cb)
+
 		# Pretty print JSON option
 		self.pretty_print_cb = QCheckBox("Pretty print JSON")
 		self.pretty_print_cb.setToolTip("If checked, the exported JSON will be indented for readability.")
@@ -1143,6 +1150,13 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
+	def _save_verbose_cleanup_config(self, v):
+		try:
+			self.config["verbose_cleanup_logging"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
 	def _save_pretty_print_config(self, v):
 		try:
 			self.config["pretty_print_json"] = bool(v)
@@ -1222,15 +1236,45 @@ class MainWindow(QMainWindow):
 				# brief backoff on attempts > 0
 				if attempt:
 					time.sleep(0.1 * attempt)
-					# attempt removal
-					shutil.rmtree(path)
-					self.info_panel.append(f"Cleaned up temp folder ({'reason: '+reason if reason else 'automatic'}): {path}")
-					return True
+				# attempt removal
+				shutil.rmtree(path)
+				self.info_panel.append(f"Cleaned up temp folder ({'reason: '+reason if reason else 'automatic'}): {path}")
+				return True
 			except Exception as e:
 				# log and retry
 				self.info_panel.append(f"Attempt {attempt+1}: Failed to remove {path}: {e}")
 		# Final failure
 		self.info_panel.append(f"Failed to remove temp folder after retries: {path}")
+		# If on macOS and verbose logging is enabled, collect diagnostics (lsof, dir stats)
+		try:
+			if sys.platform == 'darwin' and self.config.get('verbose_cleanup_logging', False):
+				parent = os.path.dirname(path) or '.'
+				diag_path = os.path.join(parent, f"cleanup_diag_{os.path.basename(path)}.txt")
+				with open(diag_path, 'w', encoding='utf-8') as df:
+					df.write(f"Cleanup diagnostics for: {path}\nGenerated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+					# directory listing and basic stats
+					try:
+						for fn in sorted(os.listdir(path)):
+							fp = os.path.join(path, fn)
+							try:
+								st = os.stat(fp)
+								df.write(f"{fn}\t{st.st_size}\t{st.st_mtime}\n")
+							except Exception as e:
+								df.write(f"{fn}\tERROR_STAT: {e}\n")
+					except Exception as e:
+						df.write(f"Could not list dir: {e}\n")
+					# capture lsof +D output (may require sudo); keep timeout short
+					try:
+						proc = subprocess.run(["lsof", "+D", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+						df.write("\n--- LSOF STDOUT ---\n")
+						df.write(proc.stdout or "(no output)")
+						df.write("\n--- LSOF STDERR ---\n")
+						df.write(proc.stderr or "(no stderr)")
+					except Exception as e:
+						df.write(f"lsof capture failed: {e}\n")
+				self.info_panel.append(f"Wrote cleanup diagnostics: {diag_path}")
+		except Exception as e:
+			self.info_panel.append(f"Could not write cleanup diagnostics: {e}")
 		return False
 
 	def browse_folder(self):
