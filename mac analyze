@@ -1,0 +1,703 @@
+Starting processing of 1 file(s)
+Config path: /Users/milos/Library/Preferences/Spine Sorter 257/config.json
+Config validate_only: False  Checkbox validate_only: False
+Config keep_temp_files: False  Checkbox keep_temp: False
+Config verbose_cleanup_logging: True  Checkbox verbose_cleanup: True
+Using opacity threshold: 92%  alpha cutoff: 150
+
+Processing: ambient.spine
+Running Source Info Check: /Applications/Spine.app/Contents/MacOS/Spine -i /Users/milos/Downloads/Spine/ambient.spine
+CLI Analysis (SOURCE): Found 8 animations (per-skeleton mapping available)
+CLI Analysis (SOURCE): Detected skeleton(s): ambient, ambient] to: ambient-png-bush-Layer_3, ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_00, ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_01, ambient] to: ambient-png-particles-particles_00, ambient] to: ambient-png-particles-particles_01
+CLI Analysis: 'Animations:' section found but no animations detected inside.
+Exporting JSON to: /Users/milos/Downloads/spine_temp_1770418501_0
+Running export with cleanUp=false via settings.
+Running export command: /Applications/Spine.app/Contents/MacOS/Spine -i /Users/milos/Downloads/Spine/ambient.spine -o /Users/milos/Downloads/spine_temp_1770418501_0 -e json
+--- SPINE EXPORT LOGS ---
+Spine Launcher 4.3.01 (macOS Apple Silicon)
+Esoteric Software LLC (C) 2013-2025 | http://esotericsoftware.com
+Mac OS X aarch64 15.6
+Starting: Spine 4.2.43 Enterprise
+Spine 4.2.43 Enterprise
+Licensed to: Booming Games Ltd. - Sale Klar <accounts@booming-games.com>
+WARNING: Slot forward slash disallowed, renamed [slot: ambient/png/bush/Layer_3, bone: ambient/png/bush/Layer_3, skeleton: ambient] to: ambient-png-bush-Layer_3
+WARNING: Slot forward slash disallowed, renamed [slot: ambient/png/guaranteed_win_01/guaranteed_win_00, bone: ambient/png/guaranteed_win_01/guaranteed_win_00, skeleton: ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_00
+WARNING: Slot forward slash disallowed, renamed [slot: ambient/png/guaranteed_win_01/guaranteed_win_01, bone: ambient/png/guaranteed_win_01/guaranteed_win_00, skeleton: ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_01
+WARNING: Slot forward slash disallowed, renamed [slot: ambient/png/particles/particles_00, bone: ambient/png/particles/particles_00, skeleton: ambient] to: ambient-png-particles-particles_00
+WARNING: Slot forward slash disallowed, renamed [slot: ambient/png/particles/particles_01, bone: ambient/png/particles/particles_00, skeleton: ambient] to: ambient-png-particles-particles_01
+WARNING: The project loaded with warnings:
+Project updated: 4.1.24 to 4.2.43
+Slot forward slash disallowed, renamed [slot: ambient/png/bush/Layer_3, bone: ambient/png/bush/Layer_3, skeleton: ambient] to: ambient-png-bush-Layer_3
+Slot forward slash disallowed, renamed [slot: ambient/png/guaranteed_win_01/guaranteed_win_00, bone: ambient/png/guaranteed_win_01/guaranteed_win_00, skeleton: ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_00
+Slot forward slash disallowed, renamed [slot: ambient/png/guaranteed_win_01/guaranteed_win_01, bone: ambient/png/guaranteed_win_01/guaranteed_win_00, skeleton: ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_01
+Slot forward slash disallowed, renamed [slot: ambient/png/particles/particles_00, bone: ambient/png/particles/particles_00, skeleton: ambient] to: ambient-png-particles-particles_00
+Slot forward slash disallowed, renamed [slot: ambient/png/particles/particles_01, bone: ambient/png/particles/particles_00, skeleton: ambient] to: ambient-png-particles-particles_01
+JSON export: ambient
+Complete.
+
+
+-------------------------
+Found 1 skeleton(s) to process.
+Processing skeleton 1/1: ambient.json
+
+
+WARNING: 1 slots have active attachments in Setup Pose:
+- Slot 'tumble_weed_path' has active attachment 'tumble_weed_path'
+Export Consistency Check: Skipped (No Info/Atlas file found to compare)
+Collected image refs: all, all_star, alpha, ambient-png-bush-Layer_3, ambient-png-guaranteed_win_01-guaranteed_win_00, ambient-png-guaranteed_win_01-guaranteed_win_01, ambient-png-particles-particles_00, ambient-png-particles-particles_01, ambient/jpeg/free_stars_01, ambient/jpeg/free_stars_02, ambient/jpeg/godray, ambient/png/bird/body, ambient/png/bird/tail, ambient/png/bird/wing_1, ambient/png/bird/wing_2, ambient/png/bush/Layer_3, ambient/png/bush/bush_1, ambient/png/bush/bush_2, ambient/png/bush/bush_4, ambient/png/clouds2_l, ambient/png/clouds_l_landscape_01, ambient/png/clouds_l_landscape_02, ambient/png/clouds_l_landscape_03, ambient/png/clouds_r_landscape, ambient/png/desert_l, ambient/png/desert_landscape, ambient/png/desert_p, ambient/png/dust, ambient/png/dust2, ambient/png/dust3, ambient/png/flare_spell_magic, ambient/png/free_cloud_1, ambient/png/free_cloud_2, ambient/png/free_cloud_3, ambient/png/free_cloud_4, ambient/png/free_cloud_5, ambient/png/free_cloud_6, ambient/png/free_cloud_7, ambient/png/free_cloud_8, ambient/png/free_cloud_9, ambient/png/free_dust_1, ambient/png/free_dust_2, ambient/png/free_dust_3, ambient/png/free_dust_4, ambient/png/free_grass_15, ambient/png/free_grass_16, ambient/png/free_ground_01, ambient/png/free_hoof_1, ambient/png/free_hoof_2, ambient/png/free_hoof_3, ambient/png/free_hoof_4, ambient/png/free_hoof_5, ambient/png/free_hoof_6, ambient/png/free_hoof_7, ambient/png/free_hoof_8, ambient/png/free_hoof_9, ambient/png/free_p_cloud_7, ambient/png/free_p_dust_1, ambient/png/free_p_dust_2, ambient/png/free_p_dust_3, ambient/png/free_p_dust_4, ambient/png/free_p_grass_14_2, ambient/png/free_p_grass_15, ambient/png/free_p_grass_16, ambient/png/free_p_grass_17_2, ambient/png/free_p_grass_18, ambient/png/free_p_grass_2, ambient/png/free_p_grass_4, ambient/png/free_p_grass_5, ambient/png/free_p_ground, ambient/png/free_p_hoof, ambient/png/free_p_hoof_2, ambient/png/free_p_hoof_3, ambient/png/free_p_hoof_4, ambient/png/free_p_hoof_5, ambient/png/free_p_hoof_6, ambient/png/free_p_hoof_7, ambient/png/free_p_sdw_0, ambient/png/free_p_sky, ambient/png/free_p_stones_front_r, ambient/png/free_sdw_4, ambient/png/free_sdw_5, ambient/png/free_sky, ambient/png/godray, ambient/png/guaranteed_win_01/guaranteed_win_, ambient/png/guaranteed_win_01/guaranteed_win_00, ambient/png/particles/particles_, ambient/png/particles/particles_00, ambient/png/particles/particles_2, ambient/png/sky_l, ambient_basegame_landscape, ambient_basegame_portrait, ambient_freespins_landscape, ambient_freespins_portrait, basegame_landscape, bird_cicle2, bird_cicle3, bird_cicle4, bird_cicle_2, bird_cicle_3, bird_cicle_4, bird_master2, bird_master3, bird_master4, birds, body2, body3, body4, bone, bone2, bone3, c, cloud_1, cloud_10, cloud_11, cloud_12, cloud_14, cloud_15, cloud_16, cloud_17, cloud_18, cloud_19, cloud_2, cloud_20, cloud_3, cloud_4, cloud_5, cloud_6, cloud_7, cloud_8, cloud_9, clouds2_l, clouds2_l2, clouds2_l3, clouds2_l4, clouds4_l, clouds4_l2, clouds4_l3, clouds4_l4, clouds_l_landscape_01, clouds_l_landscape_02, clouds_l_landscape_03, clouds_l_landscape_04, clouds_l_landscape_05, clouds_l_landscape_06, clouds_r_landscape, clouds_r_landscape2, curve, default, deform, desert_l, desert_l2, desert_landscape, digits, drawOrder, dust, dust2, dust3, dust4, dust5, dust6, dust_1, dust_2, dust_3, dust_4, dust_5, dust_6, dust_7, dust_8, edges, flare_spell_magic, flare_spell_magic2, free_cloud_1, free_cloud_11, free_cloud_12, free_cloud_13, free_cloud_14, free_cloud_15, free_cloud_16, free_cloud_17, free_cloud_18, free_cloud_19, free_cloud_2, free_cloud_3, free_cloud_4, free_cloud_5, free_cloud_6, free_cloud_7, free_cloud_8, free_cloud_9, free_dust_1, free_dust_2, free_dust_3, free_dust_4, free_dust_5, free_dust_6, free_dust_7, free_dust_8, free_grass_15, free_grass_16, free_ground_01, free_hoof_1, free_hoof_2, free_hoof_3, free_hoof_4, free_hoof_5, free_hoof_6, free_hoof_7, free_hoof_8, free_hoof_9, free_p_cloud_7, free_p_dust_1, free_p_dust_2, free_p_dust_3, free_p_dust_4, free_p_grass_14_2, free_p_grass_15, free_p_grass_16, free_p_grass_17_2, free_p_grass_18, free_p_grass_2, free_p_grass_4, free_p_grass_5, free_p_ground, free_p_hoof, free_p_hoof_2, free_p_hoof_3, free_p_hoof_4, free_p_hoof_5, free_p_hoof_6, free_p_hoof_7, free_p_sdw_0, free_p_sky, free_p_stones_front_r, free_sdw_4, free_sdw_5, free_sky, free_sky2, freegame_landscape, freegame_portrait, godray, godray2, grass_15, grass_16, guaranteed_win_landscape, guaranteed_win_portrait, hull, images, landscape, lengths, main, offset, offsets, rgb, rich_spin_landscape, rich_spin_portrait, root, shadow_hwls, shear, shearX, shearY, sky_l, slot, star_010, star_011, star_012, star_013, star_014, star_015, star_016, star_017, star_018, star_019, star_02, star_020, star_021, star_022, star_023, star_024, star_025, star_026, star_027, star_028, star_029, star_03, star_030, star_031, star_032, star_033, star_04, star_05, star_06, star_07, star_08, star_09, stars, stars_01, stars_010, stars_011, stars_02, stars_03, stars_04, stars_05, stars_06, stars_07, stars_08, stars_09, tail2, tail3, tail4, triangles, tumble_weed_path, type, uvs, vertexCount, vertices, wing_3, wing_4, wing_5, wing_6, wing_7, wing_8, wing_L2, wing_L3, wing_L4, wing_R2, wing_R3, wing_R4, wing_p10, wing_p11, wing_p12, wing_p13, wing_p14, wing_p15, wing_p16, wing_p4, wing_p5, wing_p6, wing_p7, wing_p8, wing_p9
+Resolved image files: /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_48.png, /Users/milos/Downloads/Spine/images/ambient/png/bird/tail.png, /Users/milos/Downloads/Spine/images/ambient/png/desert_l.png, /Users/milos/Downloads/Spine/images/ambient/png/free_grass_15.png, /Users/milos/Downloads/Spine/images/ambient/png/flare_spell_magic.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_25.png, /Users/milos/Downloads/Spine/images/ambient/png/dust3.png, /Users/milos/Downloads/Spine/images/ambient/png/clouds2_l.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_9.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_01.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_10.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_15.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_2.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_40.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_5.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_sky.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_4.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_4.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_2.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_4.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_41.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_22.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_21.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_23.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_16.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_02.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_15.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_00.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_17.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_39.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_20.png, /Users/milos/Downloads/Spine/images/ambient/png/bush/bush_4.png, /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_5.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_15.png, /Users/milos/Downloads/Spine/images/ambient/png/free_ground_01.png, /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_02.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_45.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_4.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_24.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_30.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_9.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_7.png, /Users/milos/Downloads/Spine/images/ambient/png/free_grass_16.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_26.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_1.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_22.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_cloud_7.png, /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png, /Users/milos/Downloads/Spine/images/ambient/png/dust.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_18.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_4.png, /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_47.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_14_2.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_28.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_30.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_6.png, /Users/milos/Downloads/Spine/images/ambient/png/free_dust_1.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_19.png, /Users/milos/Downloads/Spine/images/ambient/png/dust2.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_05.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_38.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_09.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_16.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_26.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_03.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_42.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_28.png, /Users/milos/Downloads/Spine/images/ambient/jpeg/godray.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_1.png, /Users/milos/Downloads/Spine/images/ambient/png/sky_l.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_32.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_35.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_14.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_25.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_17_2.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_13.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_17.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_5.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_16.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_02.png, /Users/milos/Downloads/Spine/images/ambient/png/free_sky.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_01.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_7.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_5.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_06.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_27.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_3.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_11.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_6.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_19.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_21.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_10.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_ground.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_37.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_2.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_6.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_27.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_29.png, /Users/milos/Downloads/Spine/images/ambient/png/free_dust_3.png, /Users/milos/Downloads/Spine/images/ambient/png/free_dust_4.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_05.png, /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_03.png, /Users/milos/Downloads/Spine/images/ambient/png/desert_p.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_14.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_3.png, /Users/milos/Downloads/Spine/images/ambient/png/desert_landscape.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_18.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_43.png, /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_8.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_08.png, /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_01.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_44.png, /Users/milos/Downloads/Spine/images/ambient/png/clouds_r_landscape.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_36.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_06.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_11.png, /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_13.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_18.png, /Users/milos/Downloads/Spine/images/ambient/png/godray.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_8.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_46.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_34.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_04.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_7.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_5.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_3.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_3.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_00.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_12.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_23.png, /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_07.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_20.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_33.png, /Users/milos/Downloads/Spine/images/ambient/png/bird/body.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_04.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_2.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_03.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_07.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_08.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_49.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_09.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_sdw_0.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_1.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_24.png, /Users/milos/Downloads/Spine/images/ambient/png/free_dust_2.png, /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_2.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_29.png, /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_12.png, /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_31.png, /Users/milos/Downloads/Spine/images/ambient/png/free_p_stones_front_r.png, /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_4.png
+DEBUG: MAX_TEXT_MEMORY set to 2147483648
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_48.png: 0.01% (77/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/bird/tail.png: 19.35% (162/837)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/desert_l.png: 81.72% (9370214/11466000)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_grass_15.png: 7.30% (49212/673816)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/flare_spell_magic.png: 8.21% (879/10700)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_25.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/dust3.png: 0.00% (0/330109)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/clouds2_l.png: 23.95% (737347/3078559)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_9.png: 3.07% (1073/34944)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_01.png: 0.06% (671/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_10.png: 0.03% (369/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_15.png: 0.10% (1152/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_2.png: 22.50% (229854/1021784)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_40.png: 0.00% (71/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_5.png: 5.10% (2440/47880)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_sky.png: 100.00% (8308800/8308800)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_4.png: 59.44% (1432869/2410560)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_4.png: 10.73% (7896/73568)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_2.png: 0.00% (0/1747248)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_4.png: 0.00% (7/181192)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_41.png: 0.01% (78/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_22.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_21.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_23.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_16.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_02.png: 0.00% (56/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_15.png: 3.47% (36015/1039344)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_00.png: 0.00% (41/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_17.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_39.png: 0.00% (62/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_20.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/bush/bush_4.png: 43.87% (338897/772524)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_5.png: 1.34% (3393/253023)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_15.png: 0.00% (12/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_ground_01.png: 81.53% (9054448/11105640)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_02.png: 10.01% (22653/226240)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_45.png: 0.01% (96/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_4.png: 43.87% (853853/1946252)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_24.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_30.png: 0.01% (92/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_9.png: 0.12% (663/552398)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_7.png: 23.23% (28034/120701)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_grass_16.png: 23.92% (364877/1525455)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_26.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_1.png: 0.17% (6035/3530472)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_22.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_cloud_7.png: 0.00% (0/1790598)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png: 24.32% (950/3906)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/dust.png: 0.14% (1099/792984)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_18.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_4.png: 8.02% (9002/112180)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png: 34.68% (763/2200)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_47.png: 0.01% (88/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_14_2.png: 20.82% (114366/549360)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_28.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_30.png: 0.04% (462/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_6.png: 10.77% (148944/1382637)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_dust_1.png: 0.00% (0/491898)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_19.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/dust2.png: 0.00% (0/42826)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_05.png: 0.00% (24/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_38.png: 0.00% (71/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_09.png: 0.06% (675/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_16.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_26.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_03.png: 0.06% (716/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_42.png: 0.01% (84/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_28.png: 0.00% (64/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/jpeg/godray.png: 0.00% (0/190500)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_1.png: 17.05% (44931/263580)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/sky_l.png: 59.99% (6070923/10119210)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_32.png: 0.01% (118/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_35.png: 0.01% (84/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_14.png: 0.00% (39/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_25.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_17_2.png: 3.53% (33948/962364)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_13.png: 0.05% (552/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_17.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_5.png: 26.58% (66099/248653)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_16.png: 21.43% (375683/1753003)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_02.png: 0.05% (626/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_sky.png: 100.00% (13478400/13478400)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_01.png: 0.00% (46/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_7.png: 0.00% (0/1982145)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_5.png: 24.33% (76044/312576)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_06.png: 0.04% (448/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_27.png: 0.00% (60/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_3.png: 0.22% (1447/648883)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_11.png: 0.00% (28/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_6.png: 13.58% (10283/75710)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_19.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_21.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_10.png: 0.00% (23/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_ground.png: 79.72% (6508834/8164800)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_37.png: 0.00% (57/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_2.png: 0.68% (241/35190)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_6.png: 9.35% (4920/52598)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_27.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_29.png: 0.00% (69/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_dust_3.png: 0.01% (145/1635745)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_dust_4.png: 0.00% (7/181476)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_05.png: 0.08% (971/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_03.png: 16.35% (125376/766853)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/desert_p.png: 82.05% (8256383/10062720)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_14.png: 0.06% (679/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_3.png: 0.00% (0/32274)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/desert_landscape.png: 43.87% (338897/772524)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_18.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof.png: 26.37% (37313/141522)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_43.png: 0.01% (105/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_8.png: 0.00% (0/330691)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_08.png: 0.00% (31/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_01.png: 19.20% (205716/1071340)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_44.png: 0.01% (99/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/clouds_r_landscape.png: 23.95% (737347/3078559)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_36.png: 0.00% (62/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_06.png: 0.00% (27/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_11.png: 0.09% (1081/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png: 0.00% (0/2304)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_13.png: 0.00% (48/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_18.png: 0.00% (0/325512)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/godray.png: 0.00% (0/190500)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_8.png: 4.41% (1735/39380)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_46.png: 0.01% (92/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_34.png: 0.01% (105/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_04.png: 0.00% (28/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_7.png: 12.30% (7629/62048)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_5.png: 21.91% (22427/102362)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_3.png: 20.30% (41956/206700)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_3.png: 0.01% (145/1021815)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_00.png: 0.04% (462/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_12.png: 0.00% (33/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_23.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png: 0.00% (0/8010)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_07.png: 0.00% (28/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_20.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_33.png: 0.01% (114/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/bird/body.png: 46.91% (456/972)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_04.png: 0.04% (430/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_2.png: 0.00% (0/280800)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_03.png: 0.00% (48/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_07.png: 0.06% (685/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_08.png: 0.04% (436/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_49.png: 0.00% (64/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_09.png: 0.00% (23/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_sdw_0.png: 0.00% (0/425908)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_1.png: 0.00% (0/491898)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_24.png: 0.00% (0/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_dust_2.png: 0.00% (0/280800)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_2.png: 7.50% (16755/223260)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_29.png: 0.00% (0/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/particles/particles_12.png: 0.10% (1092/1148480)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/guaranteed_win_01/guaranteed_win_31.png: 0.01% (98/1470752)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_p_stones_front_r.png: 18.64% (89736/481368)
+Opacity for /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_4.png: 2.33% (9439/405769)
+Wrote result: /Users/milos/Downloads/spine_temp_1770418501_0/opaque_ambient.txt
+Folder ownership analysis: 4 folders tracked.
+  Folder 'bush' owned by: default
+  Folder 'guaranteed_win_01' owned by: default
+  Folder 'particles' owned by: default
+  Folder 'bird' owned by: default
+JSON Analysis: 116 bones, 157 slots found.
+Running pre-scan to unify image destinations...
+find_source_image: looking for ref 'ambient/png/bush/bush_4'
+find_source_image: base='bush_4' core='bush_4'
+Exact match found for 'ambient/png/bush/bush_4': /Users/milos/Downloads/Spine/images/ambient/png/bush/bush_4.png
+find_source_image: looking for ref 'ambient/png/guaranteed_win_01/guaranteed_win_'
+find_source_image: base='guaranteed_win_' core='guaranteed_win'
+Sequence detected for 'ambient/png/guaranteed_win_01/guaranteed_win_': 50 frames
+find_source_image: looking for ref 'ambient/png/guaranteed_win_01/guaranteed_win_'
+find_source_image: base='guaranteed_win_' core='guaranteed_win'
+Sequence detected for 'ambient/png/guaranteed_win_01/guaranteed_win_': 50 frames
+find_source_image: looking for ref 'ambient/png/particles/particles_'
+find_source_image: base='particles_' core='particles'
+Sequence detected for 'ambient/png/particles/particles_': 31 frames
+find_source_image: looking for ref 'ambient/png/particles/particles_'
+find_source_image: base='particles_' core='particles'
+Sequence detected for 'ambient/png/particles/particles_': 31 frames
+find_source_image: looking for ref 'ambient/png/bird/body'
+find_source_image: base='body' core='body'
+Exact match found for 'ambient/png/bird/body': /Users/milos/Downloads/Spine/images/ambient/png/bird/body.png
+find_source_image: looking for ref 'ambient/png/bird/body'
+find_source_image: base='body' core='body'
+Exact match found for 'ambient/png/bird/body': /Users/milos/Downloads/Spine/images/ambient/png/bird/body.png
+find_source_image: looking for ref 'ambient/png/bird/body'
+find_source_image: base='body' core='body'
+Exact match found for 'ambient/png/bird/body': /Users/milos/Downloads/Spine/images/ambient/png/bird/body.png
+find_source_image: looking for ref 'ambient/png/clouds2_l'
+find_source_image: base='clouds2_l' core='clouds2_l'
+Exact match found for 'ambient/png/clouds2_l': /Users/milos/Downloads/Spine/images/ambient/png/clouds2_l.png
+find_source_image: looking for ref 'ambient/png/clouds2_l'
+find_source_image: base='clouds2_l' core='clouds2_l'
+Exact match found for 'ambient/png/clouds2_l': /Users/milos/Downloads/Spine/images/ambient/png/clouds2_l.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_01'
+find_source_image: base='clouds_l_landscape_01' core='clouds_l_landscape_01'
+Exact match found for 'ambient/png/clouds_l_landscape_01': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_01.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_02'
+find_source_image: base='clouds_l_landscape_02' core='clouds_l_landscape_02'
+Exact match found for 'ambient/png/clouds_l_landscape_02': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_02.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_03'
+find_source_image: base='clouds_l_landscape_03' core='clouds_l_landscape_03'
+Exact match found for 'ambient/png/clouds_l_landscape_03': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_03.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_03'
+find_source_image: base='clouds_l_landscape_03' core='clouds_l_landscape_03'
+Exact match found for 'ambient/png/clouds_l_landscape_03': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_03.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_02'
+find_source_image: base='clouds_l_landscape_02' core='clouds_l_landscape_02'
+Exact match found for 'ambient/png/clouds_l_landscape_02': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_02.png
+find_source_image: looking for ref 'ambient/png/clouds_l_landscape_01'
+find_source_image: base='clouds_l_landscape_01' core='clouds_l_landscape_01'
+Exact match found for 'ambient/png/clouds_l_landscape_01': /Users/milos/Downloads/Spine/images/ambient/png/clouds_l_landscape_01.png
+find_source_image: looking for ref 'ambient/png/clouds_r_landscape'
+find_source_image: base='clouds_r_landscape' core='clouds_r_landscape'
+Exact match found for 'ambient/png/clouds_r_landscape': /Users/milos/Downloads/Spine/images/ambient/png/clouds_r_landscape.png
+find_source_image: looking for ref 'ambient/png/clouds_r_landscape'
+find_source_image: base='clouds_r_landscape' core='clouds_r_landscape'
+Exact match found for 'ambient/png/clouds_r_landscape': /Users/milos/Downloads/Spine/images/ambient/png/clouds_r_landscape.png
+find_source_image: looking for ref 'ambient/png/desert_l'
+find_source_image: base='desert_l' core='desert_l'
+Exact match found for 'ambient/png/desert_l': /Users/milos/Downloads/Spine/images/ambient/png/desert_l.png
+find_source_image: looking for ref 'ambient/png/desert_l'
+find_source_image: base='desert_l' core='desert_l'
+Exact match found for 'ambient/png/desert_l': /Users/milos/Downloads/Spine/images/ambient/png/desert_l.png
+find_source_image: looking for ref 'ambient/png/desert_p'
+find_source_image: base='desert_p' core='desert_p'
+Exact match found for 'ambient/png/desert_p': /Users/milos/Downloads/Spine/images/ambient/png/desert_p.png
+find_source_image: looking for ref 'ambient/png/desert_landscape'
+find_source_image: base='desert_landscape' core='desert_landscape'
+Exact match found for 'ambient/png/desert_landscape': /Users/milos/Downloads/Spine/images/ambient/png/desert_landscape.png
+find_source_image: looking for ref 'ambient/png/dust'
+find_source_image: base='dust' core='dust'
+Exact match found for 'ambient/png/dust': /Users/milos/Downloads/Spine/images/ambient/png/dust.png
+find_source_image: looking for ref 'ambient/png/dust2'
+find_source_image: base='dust2' core='dust2'
+Exact match found for 'ambient/png/dust2': /Users/milos/Downloads/Spine/images/ambient/png/dust2.png
+find_source_image: looking for ref 'ambient/png/dust'
+find_source_image: base='dust' core='dust'
+Exact match found for 'ambient/png/dust': /Users/milos/Downloads/Spine/images/ambient/png/dust.png
+find_source_image: looking for ref 'ambient/png/dust2'
+find_source_image: base='dust2' core='dust2'
+Exact match found for 'ambient/png/dust2': /Users/milos/Downloads/Spine/images/ambient/png/dust2.png
+find_source_image: looking for ref 'ambient/png/dust3'
+find_source_image: base='dust3' core='dust3'
+Exact match found for 'ambient/png/dust3': /Users/milos/Downloads/Spine/images/ambient/png/dust3.png
+find_source_image: looking for ref 'ambient/png/dust3'
+find_source_image: base='dust3' core='dust3'
+Exact match found for 'ambient/png/dust3': /Users/milos/Downloads/Spine/images/ambient/png/dust3.png
+find_source_image: looking for ref 'ambient/png/flare_spell_magic'
+find_source_image: base='flare_spell_magic' core='flare_spell_magic'
+Exact match found for 'ambient/png/flare_spell_magic': /Users/milos/Downloads/Spine/images/ambient/png/flare_spell_magic.png
+find_source_image: looking for ref 'ambient/png/flare_spell_magic'
+find_source_image: base='flare_spell_magic' core='flare_spell_magic'
+Exact match found for 'ambient/png/flare_spell_magic': /Users/milos/Downloads/Spine/images/ambient/png/flare_spell_magic.png
+find_source_image: looking for ref 'ambient/png/free_cloud_1'
+find_source_image: base='free_cloud_1' core='free_cloud_1'
+Exact match found for 'ambient/png/free_cloud_1': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_1.png
+find_source_image: looking for ref 'ambient/png/free_cloud_2'
+find_source_image: base='free_cloud_2' core='free_cloud_2'
+Exact match found for 'ambient/png/free_cloud_2': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_2.png
+find_source_image: looking for ref 'ambient/png/free_cloud_3'
+find_source_image: base='free_cloud_3' core='free_cloud_3'
+Exact match found for 'ambient/png/free_cloud_3': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_3.png
+find_source_image: looking for ref 'ambient/png/free_cloud_4'
+find_source_image: base='free_cloud_4' core='free_cloud_4'
+Exact match found for 'ambient/png/free_cloud_4': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_4.png
+find_source_image: looking for ref 'ambient/png/free_cloud_5'
+find_source_image: base='free_cloud_5' core='free_cloud_5'
+Exact match found for 'ambient/png/free_cloud_5': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_5.png
+find_source_image: looking for ref 'ambient/png/free_cloud_6'
+find_source_image: base='free_cloud_6' core='free_cloud_6'
+Exact match found for 'ambient/png/free_cloud_6': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_6.png
+find_source_image: looking for ref 'ambient/png/free_cloud_7'
+find_source_image: base='free_cloud_7' core='free_cloud_7'
+Exact match found for 'ambient/png/free_cloud_7': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_7.png
+find_source_image: looking for ref 'ambient/png/free_cloud_8'
+find_source_image: base='free_cloud_8' core='free_cloud_8'
+Exact match found for 'ambient/png/free_cloud_8': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_8.png
+find_source_image: looking for ref 'ambient/png/free_cloud_9'
+find_source_image: base='free_cloud_9' core='free_cloud_9'
+Exact match found for 'ambient/png/free_cloud_9': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_9.png
+find_source_image: looking for ref 'ambient/png/free_cloud_3'
+find_source_image: base='free_cloud_3' core='free_cloud_3'
+Exact match found for 'ambient/png/free_cloud_3': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_3.png
+find_source_image: looking for ref 'ambient/png/free_cloud_4'
+find_source_image: base='free_cloud_4' core='free_cloud_4'
+Exact match found for 'ambient/png/free_cloud_4': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_4.png
+find_source_image: looking for ref 'ambient/png/free_cloud_9'
+find_source_image: base='free_cloud_9' core='free_cloud_9'
+Exact match found for 'ambient/png/free_cloud_9': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_9.png
+find_source_image: looking for ref 'ambient/png/free_cloud_8'
+find_source_image: base='free_cloud_8' core='free_cloud_8'
+Exact match found for 'ambient/png/free_cloud_8': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_8.png
+find_source_image: looking for ref 'ambient/png/free_cloud_5'
+find_source_image: base='free_cloud_5' core='free_cloud_5'
+Exact match found for 'ambient/png/free_cloud_5': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_5.png
+find_source_image: looking for ref 'ambient/png/free_cloud_6'
+find_source_image: base='free_cloud_6' core='free_cloud_6'
+Exact match found for 'ambient/png/free_cloud_6': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_6.png
+find_source_image: looking for ref 'ambient/png/free_cloud_1'
+find_source_image: base='free_cloud_1' core='free_cloud_1'
+Exact match found for 'ambient/png/free_cloud_1': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_1.png
+find_source_image: looking for ref 'ambient/png/free_cloud_7'
+find_source_image: base='free_cloud_7' core='free_cloud_7'
+Exact match found for 'ambient/png/free_cloud_7': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_7.png
+find_source_image: looking for ref 'ambient/png/free_cloud_2'
+find_source_image: base='free_cloud_2' core='free_cloud_2'
+Exact match found for 'ambient/png/free_cloud_2': /Users/milos/Downloads/Spine/images/ambient/png/free_cloud_2.png
+find_source_image: looking for ref 'ambient/png/free_dust_1'
+find_source_image: base='free_dust_1' core='free_dust_1'
+Exact match found for 'ambient/png/free_dust_1': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_1.png
+find_source_image: looking for ref 'ambient/png/free_dust_2'
+find_source_image: base='free_dust_2' core='free_dust_2'
+Exact match found for 'ambient/png/free_dust_2': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_2.png
+find_source_image: looking for ref 'ambient/png/free_dust_3'
+find_source_image: base='free_dust_3' core='free_dust_3'
+Exact match found for 'ambient/png/free_dust_3': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_3.png
+find_source_image: looking for ref 'ambient/png/free_dust_4'
+find_source_image: base='free_dust_4' core='free_dust_4'
+Exact match found for 'ambient/png/free_dust_4': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_4.png
+find_source_image: looking for ref 'ambient/png/free_dust_2'
+find_source_image: base='free_dust_2' core='free_dust_2'
+Exact match found for 'ambient/png/free_dust_2': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_2.png
+find_source_image: looking for ref 'ambient/png/free_dust_3'
+find_source_image: base='free_dust_3' core='free_dust_3'
+Exact match found for 'ambient/png/free_dust_3': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_3.png
+find_source_image: looking for ref 'ambient/png/free_dust_1'
+find_source_image: base='free_dust_1' core='free_dust_1'
+Exact match found for 'ambient/png/free_dust_1': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_1.png
+find_source_image: looking for ref 'ambient/png/free_dust_4'
+find_source_image: base='free_dust_4' core='free_dust_4'
+Exact match found for 'ambient/png/free_dust_4': /Users/milos/Downloads/Spine/images/ambient/png/free_dust_4.png
+find_source_image: looking for ref 'ambient/png/free_grass_15'
+find_source_image: base='free_grass_15' core='free_grass_15'
+Exact match found for 'ambient/png/free_grass_15': /Users/milos/Downloads/Spine/images/ambient/png/free_grass_15.png
+find_source_image: looking for ref 'ambient/png/free_grass_16'
+find_source_image: base='free_grass_16' core='free_grass_16'
+Exact match found for 'ambient/png/free_grass_16': /Users/milos/Downloads/Spine/images/ambient/png/free_grass_16.png
+find_source_image: looking for ref 'ambient/png/free_ground_01'
+find_source_image: base='free_ground_01' core='free_ground_01'
+Exact match found for 'ambient/png/free_ground_01': /Users/milos/Downloads/Spine/images/ambient/png/free_ground_01.png
+find_source_image: looking for ref 'ambient/png/free_hoof_1'
+find_source_image: base='free_hoof_1' core='free_hoof_1'
+Exact match found for 'ambient/png/free_hoof_1': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_1.png
+find_source_image: looking for ref 'ambient/png/free_hoof_2'
+find_source_image: base='free_hoof_2' core='free_hoof_2'
+Exact match found for 'ambient/png/free_hoof_2': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_2.png
+find_source_image: looking for ref 'ambient/png/free_hoof_3'
+find_source_image: base='free_hoof_3' core='free_hoof_3'
+Exact match found for 'ambient/png/free_hoof_3': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_3.png
+find_source_image: looking for ref 'ambient/png/free_hoof_4'
+find_source_image: base='free_hoof_4' core='free_hoof_4'
+Exact match found for 'ambient/png/free_hoof_4': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_4.png
+find_source_image: looking for ref 'ambient/png/free_hoof_5'
+find_source_image: base='free_hoof_5' core='free_hoof_5'
+Exact match found for 'ambient/png/free_hoof_5': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_5.png
+find_source_image: looking for ref 'ambient/png/free_hoof_6'
+find_source_image: base='free_hoof_6' core='free_hoof_6'
+Exact match found for 'ambient/png/free_hoof_6': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_6.png
+find_source_image: looking for ref 'ambient/png/free_hoof_7'
+find_source_image: base='free_hoof_7' core='free_hoof_7'
+Exact match found for 'ambient/png/free_hoof_7': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_7.png
+find_source_image: looking for ref 'ambient/png/free_hoof_8'
+find_source_image: base='free_hoof_8' core='free_hoof_8'
+Exact match found for 'ambient/png/free_hoof_8': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_8.png
+find_source_image: looking for ref 'ambient/png/free_hoof_9'
+find_source_image: base='free_hoof_9' core='free_hoof_9'
+Exact match found for 'ambient/png/free_hoof_9': /Users/milos/Downloads/Spine/images/ambient/png/free_hoof_9.png
+find_source_image: looking for ref 'ambient/png/free_p_cloud_7'
+find_source_image: base='free_p_cloud_7' core='free_p_cloud_7'
+Exact match found for 'ambient/png/free_p_cloud_7': /Users/milos/Downloads/Spine/images/ambient/png/free_p_cloud_7.png
+find_source_image: looking for ref 'ambient/png/free_p_dust_1'
+find_source_image: base='free_p_dust_1' core='free_p_dust_1'
+Exact match found for 'ambient/png/free_p_dust_1': /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_1.png
+find_source_image: looking for ref 'ambient/png/free_p_dust_2'
+find_source_image: base='free_p_dust_2' core='free_p_dust_2'
+Exact match found for 'ambient/png/free_p_dust_2': /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_2.png
+find_source_image: looking for ref 'ambient/png/free_p_dust_3'
+find_source_image: base='free_p_dust_3' core='free_p_dust_3'
+Exact match found for 'ambient/png/free_p_dust_3': /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_3.png
+find_source_image: looking for ref 'ambient/png/free_p_dust_4'
+find_source_image: base='free_p_dust_4' core='free_p_dust_4'
+Exact match found for 'ambient/png/free_p_dust_4': /Users/milos/Downloads/Spine/images/ambient/png/free_p_dust_4.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_2'
+find_source_image: base='free_p_grass_2' core='free_p_grass_2'
+Exact match found for 'ambient/png/free_p_grass_2': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_2.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_4'
+find_source_image: base='free_p_grass_4' core='free_p_grass_4'
+Exact match found for 'ambient/png/free_p_grass_4': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_4.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_5'
+find_source_image: base='free_p_grass_5' core='free_p_grass_5'
+Exact match found for 'ambient/png/free_p_grass_5': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_5.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_14_2'
+find_source_image: base='free_p_grass_14_2' core='free_p_grass_14_2'
+Exact match found for 'ambient/png/free_p_grass_14_2': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_14_2.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_15'
+find_source_image: base='free_p_grass_15' core='free_p_grass_15'
+Exact match found for 'ambient/png/free_p_grass_15': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_15.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_16'
+find_source_image: base='free_p_grass_16' core='free_p_grass_16'
+Exact match found for 'ambient/png/free_p_grass_16': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_16.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_17_2'
+find_source_image: base='free_p_grass_17_2' core='free_p_grass_17_2'
+Exact match found for 'ambient/png/free_p_grass_17_2': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_17_2.png
+find_source_image: looking for ref 'ambient/png/free_p_grass_18'
+find_source_image: base='free_p_grass_18' core='free_p_grass_18'
+Exact match found for 'ambient/png/free_p_grass_18': /Users/milos/Downloads/Spine/images/ambient/png/free_p_grass_18.png
+find_source_image: looking for ref 'ambient/png/free_p_ground'
+find_source_image: base='free_p_ground' core='free_p_ground'
+Exact match found for 'ambient/png/free_p_ground': /Users/milos/Downloads/Spine/images/ambient/png/free_p_ground.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof'
+find_source_image: base='free_p_hoof' core='free_p_hoof'
+Exact match found for 'ambient/png/free_p_hoof': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_2'
+find_source_image: base='free_p_hoof_2' core='free_p_hoof_2'
+Exact match found for 'ambient/png/free_p_hoof_2': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_2.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_3'
+find_source_image: base='free_p_hoof_3' core='free_p_hoof_3'
+Exact match found for 'ambient/png/free_p_hoof_3': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_3.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_4'
+find_source_image: base='free_p_hoof_4' core='free_p_hoof_4'
+Exact match found for 'ambient/png/free_p_hoof_4': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_4.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_5'
+find_source_image: base='free_p_hoof_5' core='free_p_hoof_5'
+Exact match found for 'ambient/png/free_p_hoof_5': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_5.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_6'
+find_source_image: base='free_p_hoof_6' core='free_p_hoof_6'
+Exact match found for 'ambient/png/free_p_hoof_6': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_6.png
+find_source_image: looking for ref 'ambient/png/free_p_hoof_7'
+find_source_image: base='free_p_hoof_7' core='free_p_hoof_7'
+Exact match found for 'ambient/png/free_p_hoof_7': /Users/milos/Downloads/Spine/images/ambient/png/free_p_hoof_7.png
+find_source_image: looking for ref 'ambient/png/free_p_sdw_0'
+find_source_image: base='free_p_sdw_0' core='free_p_sdw_0'
+Exact match found for 'ambient/png/free_p_sdw_0': /Users/milos/Downloads/Spine/images/ambient/png/free_p_sdw_0.png
+find_source_image: looking for ref 'ambient/png/free_p_sky'
+find_source_image: base='free_p_sky' core='free_p_sky'
+Exact match found for 'ambient/png/free_p_sky': /Users/milos/Downloads/Spine/images/ambient/png/free_p_sky.png
+find_source_image: looking for ref 'ambient/png/free_p_stones_front_r'
+find_source_image: base='free_p_stones_front_r' core='free_p_stones_front_r'
+Exact match found for 'ambient/png/free_p_stones_front_r': /Users/milos/Downloads/Spine/images/ambient/png/free_p_stones_front_r.png
+find_source_image: looking for ref 'ambient/png/free_sdw_4'
+find_source_image: base='free_sdw_4' core='free_sdw_4'
+Exact match found for 'ambient/png/free_sdw_4': /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_4.png
+find_source_image: looking for ref 'ambient/png/free_sdw_5'
+find_source_image: base='free_sdw_5' core='free_sdw_5'
+Exact match found for 'ambient/png/free_sdw_5': /Users/milos/Downloads/Spine/images/ambient/png/free_sdw_5.png
+find_source_image: looking for ref 'ambient/png/free_sky'
+find_source_image: base='free_sky' core='free_sky'
+Exact match found for 'ambient/png/free_sky': /Users/milos/Downloads/Spine/images/ambient/png/free_sky.png
+find_source_image: looking for ref 'ambient/png/free_sky'
+find_source_image: base='free_sky' core='free_sky'
+Exact match found for 'ambient/png/free_sky': /Users/milos/Downloads/Spine/images/ambient/png/free_sky.png
+find_source_image: looking for ref 'ambient/jpeg/godray'
+find_source_image: base='godray' core='godray'
+Exact match found for 'ambient/jpeg/godray': /Users/milos/Downloads/Spine/images/ambient/jpeg/godray.png
+find_source_image: looking for ref 'ambient/jpeg/godray'
+find_source_image: base='godray' core='godray'
+Exact match found for 'ambient/jpeg/godray': /Users/milos/Downloads/Spine/images/ambient/jpeg/godray.png
+find_source_image: looking for ref 'ambient/png/sky_l'
+find_source_image: base='sky_l' core='sky_l'
+Exact match found for 'ambient/png/sky_l': /Users/milos/Downloads/Spine/images/ambient/png/sky_l.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_01'
+find_source_image: base='free_stars_01' core='free_stars_01'
+Exact match found for 'ambient/jpeg/free_stars_01': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_01.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/jpeg/free_stars_02'
+find_source_image: base='free_stars_02' core='free_stars_02'
+Exact match found for 'ambient/jpeg/free_stars_02': /Users/milos/Downloads/Spine/images/ambient/jpeg/free_stars_02.png
+find_source_image: looking for ref 'ambient/png/bird/tail'
+find_source_image: base='tail' core='tail'
+Exact match found for 'ambient/png/bird/tail': /Users/milos/Downloads/Spine/images/ambient/png/bird/tail.png
+find_source_image: looking for ref 'ambient/png/bird/tail'
+find_source_image: base='tail' core='tail'
+Exact match found for 'ambient/png/bird/tail': /Users/milos/Downloads/Spine/images/ambient/png/bird/tail.png
+find_source_image: looking for ref 'ambient/png/bird/tail'
+find_source_image: base='tail' core='tail'
+Exact match found for 'ambient/png/bird/tail': /Users/milos/Downloads/Spine/images/ambient/png/bird/tail.png
+find_source_image: looking for ref 'tumble_weed_path'
+find_source_image: base='tumble_weed_path' core='tumble_weed_path'
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_1'
+find_source_image: base='wing_1' core='wing_1'
+Exact match found for 'ambient/png/bird/wing_1': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_1.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+find_source_image: looking for ref 'ambient/png/bird/wing_2'
+find_source_image: base='wing_2' core='wing_2'
+Exact match found for 'ambient/png/bird/wing_2': /Users/milos/Downloads/Spine/images/ambient/png/bird/wing_2.png
+Sorting step failed: [Errno 30] Read-only file system: 'debug_anims.txt'
+--- Processing Statistics ---
+
+
+WARNING: 5 skeletons are checked off for export:
+- ambient] to: ambient-png-bush-Layer_3
+- ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_00
+- ambient] to: ambient-png-guaranteed_win_01-guaranteed_win_01
+- ambient] to: ambient-png-particles-particles_00
+- ambient] to: ambient-png-particles-particles_01
+Detected Animations: 0 (Exported: 0)
+
+
+WARNING: 1 slots have active attachments in Setup Pose:
+- Slot 'tumble_weed_path' has active attachment 'tumble_weed_path'
+
+
+Export Consistency Check: Skipped (No Info/Atlas file found to compare)
