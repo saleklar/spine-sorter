@@ -3204,6 +3204,12 @@ class MainWindow(QMainWindow):
 						
 						# Retrieve source animations from stats since cli_source_anims is not in scope local to this function
 						source_anims_check = all_file_stats[-1].get('source_anims_defined', set()) if all_file_stats else set()
+						# If stored as per-skeleton mapping, union them for this verification step
+						if isinstance(source_anims_check, dict):
+							try:
+								source_anims_check = set().union(*[v for v in source_anims_check.values() if v])
+							except Exception:
+								source_anims_check = set()
 						
 						if source_anims_check:
 							missing = source_anims_check - set(verify_keys)
@@ -3478,6 +3484,9 @@ class MainWindow(QMainWindow):
 			# This is crucial for verifying unchecked animations that won't appear in JSON
 			cli_source_anims = set()
 			cli_source_skeletons = set()
+			# Per-skeleton mapping of animations (to avoid attributing animations to wrong skeleton)
+			cli_source_anims_by_skel = {}
+			current_skel = None
 			try:
 				# Spine 4.0+ uses just -i <path> for info. Old --info flag is deprecated/removed in some versions.
 				# We try without --info first as it is cleaner for newer versions found in testing.
@@ -3534,6 +3543,7 @@ class MainWindow(QMainWindow):
 							s_name = m_skel.group(1).strip()
 							if s_name and '<' not in s_name:
 								cli_source_skeletons.add(s_name)
+								current_skel = s_name
 
 						# Iterative header check
 						m = None
@@ -3553,6 +3563,10 @@ class MainWindow(QMainWindow):
 								if inline_content:
 									parts = [x.strip() for x in inline_content.split(',') if x.strip()]
 									cli_source_anims.update(parts)
+									if current_skel:
+										cli_source_anims_by_skel.setdefault(current_skel, set()).update(parts)
+									else:
+										cli_source_anims_by_skel.setdefault(None, set()).update(parts)
 							
 							# Check for indented subsequent lines OR lines that look like animation names
 							# Spine info usually indents. But if indentation is lost, we look for non-header lines.
@@ -3581,13 +3595,26 @@ class MainWindow(QMainWindow):
 									if ',' in raw_c:
 										parts = [x.strip() for x in raw_c.split(',') if x.strip()]
 										cli_source_anims.update(parts)
+										if current_skel:
+											cli_source_anims_by_skel.setdefault(current_skel, set()).update(parts)
+										else:
+											cli_source_anims_by_skel.setdefault(None, set()).update(parts)
 									else:
 										cli_source_anims.add(raw_c)
+										if current_skel:
+											cli_source_anims_by_skel.setdefault(current_skel, set()).add(raw_c)
+										else:
+											cli_source_anims_by_skel.setdefault(None, set()).add(raw_c)
 								
 								j_idx += 1
 					
 					if cli_source_anims:
-						self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(cli_source_anims)} animations: {', '.join(sorted(cli_source_anims))}")
+						# If we collected per-skeleton animations, show combined and keep mapping
+						if cli_source_anims_by_skel:
+							combined = set().union(*cli_source_anims_by_skel.values()) if any(cli_source_anims_by_skel.values()) else set()
+							self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(combined)} animations (per-skeleton mapping available)")
+						else:
+							self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(cli_source_anims)} animations: {', '.join(sorted(cli_source_anims))}")
 					else:
 						if header_found:
 							self.info_panel.append("CLI Analysis: 'Animations:' section found but no animations detected inside.")
@@ -3717,7 +3744,11 @@ class MainWindow(QMainWindow):
 										pass
 					
 					# Method B: CLI Analysis (Augment with data found previously)
-					if cli_source_anims:
+					# If CLI produced a per-skeleton mapping, prefer that; otherwise merge CLI results into detected_source_anims
+					if cli_source_anims_by_skel and any(cli_source_anims_by_skel.values()):
+						# store the per-skeleton mapping in a separate variable for later assignment
+						cli_mapping = cli_source_anims_by_skel
+					else:
 						detected_source_anims.update(cli_source_anims)
 					
 					# Method C: Direct JSON Analysis (Fallback)
@@ -3768,13 +3799,12 @@ class MainWindow(QMainWindow):
 						except Exception as e:
 							self.info_panel.append(f"Fallback Analysis Failed: {e}")
 					
-					if detected_source_anims:
-						# self.info_panel.append(f"Source Analysis: Found {len(detected_source_anims)} animations in source .spine file.")
-						# We will compare this set against the EXPORTED animations later in this function
-						# Store it in all_file_stats specifically for this run
-						# BUT: We are currently in the pre-skeleton phase (using 'file_stats' container)
-						# which is currently at all_file_stats[-1]
-						all_file_stats[-1]['source_anims_defined'] = detected_source_anims
+					if detected_source_anims or ('cli_mapping' in locals()):
+						# Prefer per-skeleton mapping when available (cli_mapping), otherwise use flat detected_source_anims set
+						if 'cli_mapping' in locals():
+							all_file_stats[-1]['source_anims_defined'] = cli_mapping
+						else:
+							all_file_stats[-1]['source_anims_defined'] = detected_source_anims
 				except Exception as e:
 					self.info_panel.append(f"Source Analysis Failed: {e}")
 
@@ -3837,11 +3867,18 @@ class MainWindow(QMainWindow):
 				
 				# Create a specific statistics object for this skeleton
 				skel_base_name = os.path.splitext(os.path.basename(f_json))[0]
+				# Determine per-skeleton source animations (if a per-skeleton mapping was found)
+				file_source_anims = file_stats.get('source_anims_defined', set())
+				if isinstance(file_source_anims, dict):
+					per_skel_anims = file_source_anims.get(skel_base_name) or file_source_anims.get(None) or set()
+				else:
+					per_skel_anims = file_source_anims
+
 				skeleton_stats = {
 					'name': f"{skel_base_name} ({name})", 
 					'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0,
-					# Copy shared file-level analysis data so checks work
-					'source_anims_defined': file_stats.get('source_anims_defined', set()),
+					# Per-skeleton animations (set) for accurate comparisons
+					'source_anims_defined': per_skel_anims,
 					'unchecked_skeletons': file_stats.get('unchecked_skeletons', [])
 				}
 				
