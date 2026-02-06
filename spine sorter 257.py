@@ -1939,12 +1939,14 @@ class MainWindow(QMainWindow):
 
 			duplicate_groups = [g for g in hash_map.values() if len(g) > 1]
 			if duplicate_groups:
-				self.info_panel.append(f"Duplicate images detected: {len(duplicate_groups)} group(s)")
+				self.info_panel.append(f"Detected identical images: {len(duplicate_groups)} group(s)")
 				for g in duplicate_groups:
 					self.info_panel.append(" - " + " | ".join(g))
-				# Persist to stats
-				if all_file_stats:
-					all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups
+			else:
+				self.info_panel.append("Detected identical images: none")
+			# Persist to stats (empty list if none)
+			if all_file_stats:
+				all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups
 		except Exception as e:
 			self.info_panel.append(f"Duplicate check failed: {e}")
 
