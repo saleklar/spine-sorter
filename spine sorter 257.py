@@ -660,6 +660,10 @@ class MainWindow(QMainWindow):
 		self.config = {}
 		self.config_path = self._make_config_path()
 		self._load_config()
+		# Ensure the "Check for Errors Only" option is OFF by default
+		# Do NOT persist to disk here to avoid slow startup on some filesystems.
+		if "validate_only" not in self.config:
+			self.config["validate_only"] = False
 		
 		self.image_cache = ImageCache(self._make_cache_path())
 
@@ -3937,6 +3941,21 @@ class MainWindow(QMainWindow):
 					spine_export_unchecked=spine_export_unchecked,
 					spine_export_unchecked_anims=spine_export_unchecked_anims
 				)
+
+
+
+		# After processing all skeletons for this file, optionally remove temp folder
+		# when in Validate-Only mode and the user didn't request keeping temps.
+		try:
+			if self.config.get("validate_only", False) and not self.keep_temp_cb.isChecked():
+				if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
+					import shutil
+					# small pause to avoid Windows file-lock races
+					time.sleep(0.05)
+					shutil.rmtree(result_dir, ignore_errors=True)
+					self.info_panel.append(f"Cleaned up temp folder (validate-only): {result_dir}")
+		except Exception as e:
+			self.info_panel.append(f"<font color='yellow'>Validation cleanup warning: {e}</font>")
 
 		# Cleanup and Finish
 		self.progress_bar.setValue(len(to_process) * 100)
