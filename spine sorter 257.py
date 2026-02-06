@@ -1914,6 +1914,69 @@ class MainWindow(QMainWindow):
 				self.info_panel.append("Resolved image files: " + ", ".join(resolved))
 		except Exception:
 			pass
+
+		# --- Additional Checks: Duplicate content and naming conventions ---
+		try:
+			# Duplicate image content detection (SHA1)
+			import hashlib
+			def _sha1_for_file(p):
+				h = hashlib.sha1()
+				with open(p, 'rb') as fh:
+					while True:
+						chunk = fh.read(65536)
+						if not chunk:
+							break
+						h.update(chunk)
+				return h.hexdigest()
+
+			hash_map = {}
+			for rp in resolved:
+				try:
+					h = _sha1_for_file(rp)
+					hash_map.setdefault(h, []).append(rp)
+				except Exception as e:
+					self.info_panel.append(f"Could not hash file {rp}: {e}")
+
+			duplicate_groups = [g for g in hash_map.values() if len(g) > 1]
+			if duplicate_groups:
+				self.info_panel.append(f"Duplicate images detected: {len(duplicate_groups)} group(s)")
+				for g in duplicate_groups:
+					self.info_panel.append(" - " + " | ".join(g))
+				# Persist to stats
+				if all_file_stats:
+					all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups
+		except Exception as e:
+			self.info_panel.append(f"Duplicate check failed: {e}")
+
+		try:
+			# Naming conventions: lowercase, no spaces, only a-z0-9._- allowed
+			naming_violations = []
+			for rp in resolved:
+				bn = os.path.basename(rp)
+				reasons = []
+				if bn != bn.lower():
+					reasons.append('uppercase letters')
+				if ' ' in bn:
+					reasons.append('spaces')
+				# disallow path separators inside basename (safety)
+				if '/' in bn or '\\' in bn:
+					reasons.append('path-separator in name')
+				# allowed chars
+				if not re.match(r'^[a-z0-9._-]+$', bn):
+					# avoid double-reporting simple uppercase/spaces
+					if 'uppercase letters' not in reasons and 'spaces' not in reasons:
+						reasons.append('non-standard characters')
+				if reasons:
+					naming_violations.append({'file': rp, 'basename': bn, 'reasons': reasons})
+
+			if naming_violations:
+				self.info_panel.append(f"Naming violations: {len(naming_violations)} file(s)")
+				for v in naming_violations[:20]:
+					self.info_panel.append(f" - {v['basename']}: {', '.join(v['reasons'])}")
+				if all_file_stats:
+					all_file_stats[-1]['naming_violations'] = naming_violations
+		except Exception as e:
+			self.info_panel.append(f"Naming check failed: {e}")
 		
 		# Progress update: Resolution done
 		self.progress_bar.setValue(base_progress + 20)
