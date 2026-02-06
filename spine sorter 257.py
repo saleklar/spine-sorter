@@ -1247,32 +1247,48 @@ class MainWindow(QMainWindow):
 		self.info_panel.append(f"Failed to remove temp folder after retries: {path}")
 		# If on macOS and verbose logging is enabled, collect diagnostics (lsof, dir stats)
 		try:
-			if sys.platform == 'darwin' and self.config.get('verbose_cleanup_logging', False):
+			if self.config.get('verbose_cleanup_logging', False):
+				# Try to write diagnostics next to the temp folder first (most convenient),
+				# but also write a fallback copy into the app config folder so the user
+				# can still retrieve diagnostics if the temp parent isn't writable.
 				parent = os.path.dirname(path) or '.'
 				diag_path = os.path.join(parent, f"cleanup_diag_{os.path.basename(path)}.txt")
-				with open(diag_path, 'w', encoding='utf-8') as df:
-					df.write(f"Cleanup diagnostics for: {path}\nGenerated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-					# directory listing and basic stats
+				fallback_dir = os.path.dirname(self.config_path) or os.path.expanduser('~')
+				fallback_path = os.path.join(fallback_dir, f"cleanup_diag_{os.path.basename(path)}_fallback.txt")
+				def _write_diag(fp):
+					with open(fp, 'w', encoding='utf-8') as df:
+						df.write(f"Cleanup diagnostics for: {path}\nGenerated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+						# directory listing and basic stats
+						try:
+							for fn in sorted(os.listdir(path)):
+								fp2 = os.path.join(path, fn)
+								try:
+									st = os.stat(fp2)
+									df.write(f"{fn}\t{st.st_size}\t{st.st_mtime}\n")
+								except Exception as e:
+									df.write(f"{fn}\tERROR_STAT: {e}\n")
+						except Exception as e:
+							df.write(f"Could not list dir: {e}\n")
+						# capture lsof +D output (may require sudo); keep timeout short
+						try:
+							proc = subprocess.run(["lsof", "+D", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+							df.write("\n--- LSOF STDOUT ---\n")
+							df.write(proc.stdout or "(no output)")
+							df.write("\n--- LSOF STDERR ---\n")
+							df.write(proc.stderr or "(no stderr)")
+						except Exception as e:
+							df.write(f"lsof capture failed: {e}\n")
+				# Attempt write to parent, then fallback to config path if that fails
+				try:
+					_write_diag(diag_path)
+					self.info_panel.append(f"Wrote cleanup diagnostics: {diag_path}")
+				except Exception as e:
+					# try fallback
 					try:
-						for fn in sorted(os.listdir(path)):
-							fp = os.path.join(path, fn)
-							try:
-								st = os.stat(fp)
-								df.write(f"{fn}\t{st.st_size}\t{st.st_mtime}\n")
-							except Exception as e:
-								df.write(f"{fn}\tERROR_STAT: {e}\n")
-					except Exception as e:
-						df.write(f"Could not list dir: {e}\n")
-					# capture lsof +D output (may require sudo); keep timeout short
-					try:
-						proc = subprocess.run(["lsof", "+D", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
-						df.write("\n--- LSOF STDOUT ---\n")
-						df.write(proc.stdout or "(no output)")
-						df.write("\n--- LSOF STDERR ---\n")
-						df.write(proc.stderr or "(no stderr)")
-					except Exception as e:
-						df.write(f"lsof capture failed: {e}\n")
-				self.info_panel.append(f"Wrote cleanup diagnostics: {diag_path}")
+						_write_diag(fallback_path)
+						self.info_panel.append(f"Wrote cleanup diagnostics (fallback): {fallback_path}")
+					except Exception as e2:
+						self.info_panel.append(f"Could not write cleanup diagnostics to either location: {e}; {e2}")
 		except Exception as e:
 			self.info_panel.append(f"Could not write cleanup diagnostics: {e}")
 		return False
