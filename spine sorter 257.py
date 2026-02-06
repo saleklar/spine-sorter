@@ -1195,6 +1195,44 @@ class MainWindow(QMainWindow):
 		except Exception as e:
 			QMessageBox.warning(self, "Save Error", f"Could not save config: {e}")
 
+	def _remove_temp_dir(self, path, reason=None):
+		"""
+		Try to remove a temporary directory with retries and log any failures to the info panel.
+		Returns True on success, False on failure.
+		"""
+		if not path:
+			return False
+		try:
+			import shutil
+		except Exception:
+			# shutil should always be available, but guard anyway
+			return False
+		# Normalize path
+		try:
+			path = os.path.abspath(path)
+		except Exception:
+			pass
+		# Only remove directories that look like our temp exports
+		if 'spine_temp_' not in os.path.basename(path):
+			self.info_panel.append(f"Skipped cleanup (not a temp folder): {path}")
+			return False
+		# Retry loop
+		for attempt in range(3):
+			try:
+				# brief backoff on attempts > 0
+				if attempt:
+					time.sleep(0.1 * attempt)
+					# attempt removal
+					shutil.rmtree(path)
+					self.info_panel.append(f"Cleaned up temp folder ({'reason: '+reason if reason else 'automatic'}): {path}")
+					return True
+			except Exception as e:
+				# log and retry
+				self.info_panel.append(f"Attempt {attempt+1}: Failed to remove {path}: {e}")
+		# Final failure
+		self.info_panel.append(f"Failed to remove temp folder after retries: {path}")
+		return False
+
 	def browse_folder(self):
 		start = self.folder_display.text() or os.path.expanduser("~")
 		folder = QFileDialog.getExistingDirectory(self, "Select Spine files folder", start)
@@ -3300,11 +3338,8 @@ class MainWindow(QMainWindow):
 						try:
 							# Remove the temporary export folder (spine_temp_...)
 							if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
-								import shutil
-								# Ensure no files are locked
-								time.sleep(0.1) 
-								shutil.rmtree(result_dir, ignore_errors=True)
-								self.info_panel.append(f"Cleaned up temp folder: {result_dir}")
+								# Use robust removal helper (retries + logging)
+								self._remove_temp_dir(result_dir, reason='export-cleanup')
 						except Exception as e:
 							self.info_panel.append(f"<font color='yellow'>Cleanup warning: {e}</font>")
 
@@ -3949,11 +3984,8 @@ class MainWindow(QMainWindow):
 		try:
 			if self.config.get("validate_only", False) and not self.keep_temp_cb.isChecked():
 				if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
-					import shutil
-					# small pause to avoid Windows file-lock races
-					time.sleep(0.05)
-					shutil.rmtree(result_dir, ignore_errors=True)
-					self.info_panel.append(f"Cleaned up temp folder (validate-only): {result_dir}")
+					# Use robust removal helper (retries + logging)
+					self._remove_temp_dir(result_dir, reason='validate-only')
 		except Exception as e:
 			self.info_panel.append(f"<font color='yellow'>Validation cleanup warning: {e}</font>")
 
