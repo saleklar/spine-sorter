@@ -3124,17 +3124,26 @@ class MainWindow(QMainWindow):
 				except Exception as e:
 					self.info_panel.append(f"Pre-scan failed: {e}")
 
-				# Ensure 'animations' are preserved and logged
-				with open("debug_anims.txt", "a") as f_dbg:
-					if 'animations' in j:
-						anim_count = len(j['animations'])
-						log_msg = f"Trace: 'animations' key present with {anim_count} animations before logic.\n"
-						self.info_panel.append(log_msg.strip())
-						f_dbg.write(log_msg)
-					else:
-						log_msg = "Trace: 'animations' key MISSING before logic.\n"
-						self.info_panel.append(log_msg.strip())
-						f_dbg.write(log_msg)
+				# Ensure 'animations' are preserved and logged (write debug file into result_dir)
+				try:
+					dbg_dir = result_dir or os.path.dirname(self.config_path) or os.getcwd()
+					os.makedirs(dbg_dir, exist_ok=True)
+					dbg_path = os.path.join(dbg_dir, "debug_anims.txt")
+				except Exception:
+					dbg_path = os.path.join(os.path.dirname(self.config_path) or '.', "debug_anims.txt")
+				try:
+					with open(dbg_path, "a", encoding='utf-8') as f_dbg:
+						if 'animations' in j:
+							anim_count = len(j['animations'])
+							log_msg = f"Trace: 'animations' key present with {anim_count} animations before logic.\n"
+							self.info_panel.append(log_msg.strip())
+							f_dbg.write(log_msg)
+						else:
+							log_msg = "Trace: 'animations' key MISSING before logic.\n"
+							self.info_panel.append(log_msg.strip())
+							f_dbg.write(log_msg)
+				except Exception as e:
+					self.info_panel.append(f"Could not write debug_anims before logic: {e}")
 
 				if isinstance(skins, dict):
 					for skin_name, skin in list(skins.items()):
@@ -3174,15 +3183,24 @@ class MainWindow(QMainWindow):
 				self.progress_bar.setValue(base_progress + 80)
 				QApplication.processEvents()
 
-				with open("debug_anims.txt", "a") as f_dbg:
-					if 'animations' in j:
-						log_msg = f"Trace: 'animations' key present with {len(j['animations'])} animations AFTER logic.\n"
-						self.info_panel.append(log_msg.strip())
-						f_dbg.write(log_msg)
-					else:
-						log_msg = "Trace: 'animations' key MISSING AFTER logic.\n"
-						self.info_panel.append(log_msg.strip())
-						f_dbg.write(log_msg)
+				try:
+					dbg_dir = result_dir or os.path.dirname(self.config_path) or os.getcwd()
+					os.makedirs(dbg_dir, exist_ok=True)
+					dbg_path = os.path.join(dbg_dir, "debug_anims.txt")
+				except Exception:
+					dbg_path = os.path.join(os.path.dirname(self.config_path) or '.', "debug_anims.txt")
+				try:
+					with open(dbg_path, "a", encoding='utf-8') as f_dbg:
+						if 'animations' in j:
+							log_msg = f"Trace: 'animations' key present with {len(j['animations'])} animations AFTER logic.\n"
+							self.info_panel.append(log_msg.strip())
+							f_dbg.write(log_msg)
+						else:
+							log_msg = "Trace: 'animations' key MISSING AFTER logic.\n"
+							self.info_panel.append(log_msg.strip())
+							f_dbg.write(log_msg)
+				except Exception as e:
+					self.info_panel.append(f"Could not write debug_anims after logic: {e}")
 
 				# Update total stats to match User Expectation
 				if all_file_stats:
@@ -3647,7 +3665,15 @@ class MainWindow(QMainWindow):
 						# Check for Skeleton
 						m_skel = skel_re.search(line)
 						if m_skel:
+							# Clean skeleton capture to avoid trailing warning text like "] to: ..."
 							s_name = m_skel.group(1).strip()
+							# Split on ']' or ', ' or ' to:' to remove appended warning fragments
+							try:
+								s_name = re.split(r"\]|,|\sto:\s", s_name)[0].strip()
+							except Exception:
+								s_name = s_name.split(']')[0].split(',')[0].split(' to:')[0].strip()
+							# Strip surrounding quotes/brackets
+							s_name = s_name.strip('"\'')
 							if s_name and '<' not in s_name:
 								cli_source_skeletons.add(s_name)
 								current_skel = s_name
