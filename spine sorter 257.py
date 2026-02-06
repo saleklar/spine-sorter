@@ -3722,6 +3722,14 @@ class MainWindow(QMainWindow):
 							self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(combined)} animations (per-skeleton mapping available)")
 						else:
 							self.info_panel.append(f"CLI Analysis (SOURCE): Found {len(cli_source_anims)} animations: {', '.join(sorted(cli_source_anims))}")
+					# Also log any skeletons detected by the CLI parsing so we can debug mac vs win differences
+					try:
+						if cli_source_skeletons:
+							self.info_panel.append(f"CLI Analysis (SOURCE): Detected skeleton(s): {', '.join(sorted(cli_source_skeletons))}")
+						else:
+							self.info_panel.append("CLI Analysis (SOURCE): No 'Skeleton:' lines detected in Spine info output.")
+					except Exception:
+						pass
 					else:
 						if header_found:
 							self.info_panel.append("CLI Analysis: 'Animations:' section found but no animations detected inside.")
