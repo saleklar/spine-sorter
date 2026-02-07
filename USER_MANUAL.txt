@@ -155,6 +155,14 @@ v5.53 (Current)
 *   NEW: Reports now open in a Popup Dialog with a "Save As" option (no longer auto-saves .txt files).
 *   FIX: Improved CLI parsing to ignore "Skeleton" and "Size" headers in Spine logs.
 
+v5.54 (Unreleased)
+*   NEW: Added duplicate-image detection (SHA1 grouping) and reporting as RECOMMENDATIONS.
+*   NEW: Added naming-convention checks with fuzzy spell-check for common animation/skeleton tokens (flags probable misspellings like "anticipation").
+*   CHANGE: Skeleton and Animation name problems are now shown as WARNINGS (red) in the UI and included in the Warnings section of the plain-text report.
+*   CHANGE: "Check for Errors Only" defaults to OFF in-memory; validate-only runs now delete temporary export folders unless "Keep temporary files" is checked.
+*   FIX: Prevented output package name being overwritten by local slot/attachment variable (renamed local variable to `slot_name`).
+*   NOTE: Temporary JSON is now scanned for naming issues before deletion so binary `.spine` inputs also get naming/warning coverage when the JSON is produced.
+
 v5.52
 *   NEW: Added "Unchecked Animations" detection.
 *   NEW: Added support for checking multiple skeletons in one project.

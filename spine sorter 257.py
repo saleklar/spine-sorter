@@ -42,17 +42,17 @@ try:
 	import PIL.Image
 	import PIL.ImageFile
 	import PIL.PngImagePlugin # Ensure direct access to the plugin module
-	
+    
 	# Allow loading truncated images for robustness
 	PIL.ImageFile.LOAD_TRUNCATED_IMAGES = True
 	# Increase limit for text chunks (metadata) significantly (2GB)
 	PIL.ImageFile.MAX_TEXT_MEMORY = 2048 * 1024 * 1024
 	# Fix: PngImagePlugin copies MAX_TEXT_MEMORY at import time, so we must update it there too
 	PIL.PngImagePlugin.MAX_TEXT_MEMORY = 2048 * 1024 * 1024
-	
+    
 	# Disable DecompressionBomb prevention (allow large images)
 	PIL.Image.MAX_IMAGE_PIXELS = None
-	
+    
 	Image = PIL.Image
 	ImageFile = PIL.ImageFile
 except Exception:
@@ -61,8 +61,8 @@ except Exception:
 # --- GUI Dependencies ---
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
-	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer, QUrl
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QDesktopServices
+	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -90,12 +90,14 @@ except ModuleNotFoundError:
 
 
 class SpineScannerThread(QThread):
+
 	"""
 	Background thread to scan the system for installed Spine executables.
 	
 	This prevents the UI from freezing while searching file system roots
 	and querying executables for their version strings.
 	"""
+
 	versions_found = Signal(list)
 
 	def __init__(self, config, default_spine_exe, parent=None):
@@ -104,15 +106,6 @@ class SpineScannerThread(QThread):
 		self.default_spine_exe = default_spine_exe
 
 	def _get_file_version_windows(self, path):
-		"""
-		Extracts the file version from a Windows executable using the Win32 API.
-		
-		Args:
-			path (str): Path to the executable.
-			
-		Returns:
-			str: Version string in 'Major.Minor.Patch' format, or None if failed.
-		"""
 		if os.name != 'nt':
 			return None
 		try:
@@ -123,17 +116,12 @@ class SpineScannerThread(QThread):
 			filename = str(path)
 			size = GetFileVersionInfoSize(filename, None)
 			if not size: return None
-				
 			res = ctypes.create_string_buffer(size)
 			if not GetFileVersionInfo(filename, 0, size, res): return None
-				
 			r = ctypes.c_void_p()
 			l = ctypes.c_uint()
-			
 			if not VerQueryValue(res, "\\", ctypes.byref(r), ctypes.byref(l)): return None
-				
 			class VS_FIXEDFILEINFO(ctypes.Structure):
-				"""Structure representing the fixed file info block."""
 				_fields_ = [
 					("dwSignature", ctypes.c_uint32), ("dwStrucVersion", ctypes.c_uint32),
 					("dwFileVersionMS", ctypes.c_uint32), ("dwFileVersionLS", ctypes.c_uint32),
@@ -143,7 +131,7 @@ class SpineScannerThread(QThread):
 					("dwFileSubtype", ctypes.c_uint32), ("dwFileDateMS", ctypes.c_uint32),
 					("dwFileDateLS", ctypes.c_uint32),
 				]
-				
+			
 			ffi = ctypes.cast(r, ctypes.POINTER(VS_FIXEDFILEINFO)).contents
 			major = ffi.dwFileVersionMS >> 16
 			minor = ffi.dwFileVersionMS & 0xFFFF
@@ -153,37 +141,16 @@ class SpineScannerThread(QThread):
 			return None
 
 	def detect_spine_version(self, spine_exe, timeout=1.0):
-		"""
-		Attempts to determine the version of a Spine executable.
-		
-		Strategy:
-		1. Check for 'version.txt' in standard installation directories.
-		2. On Windows, use the file metadata (Win32 API).
-		3. Run the executable with '--version' argument.
-		
-		Args:
-			spine_exe (str): Path to the Spine executable.
-			timeout (float): Timeout for the subprocess call.
-			
-		Returns:
-			str: The detected version string, or None.
-		"""
 		exe = str(spine_exe)
-		
-		# Optimization: Check for version.txt in user home (standard Spine behavior)
-		# This avoids launching the process if possible.
 		home = os.path.expanduser("~")
 		candidates_txt = [
-			os.path.join(os.path.dirname(exe), "version.txt"), # Local to exe
-			os.path.join(home, "Spine", "version.txt"),        # Windows standard
-			os.path.join(home, ".spine", "version.txt"),       # Linux standard
-			os.path.join(home, "Library", "Application Support", "Spine", "version.txt"), # Mac standard
+			os.path.join(os.path.dirname(exe), "version.txt"),
+			os.path.join(home, "Spine", "version.txt"),
+			os.path.join(home, ".spine", "version.txt"),
+			os.path.join(home, "Library", "Application Support", "Spine", "version.txt"),
 		]
-		
-		# On macOS, if pointing to Spine.app, look inside Resources
 		if sys.platform == 'darwin' and exe.endswith('.app'):
 			candidates_txt.append(os.path.join(exe, "Contents", "Resources", "version.txt"))
-		
 		for txt_path in candidates_txt:
 			if os.path.isfile(txt_path):
 				try:
@@ -193,18 +160,14 @@ class SpineScannerThread(QThread):
 							return content
 				except Exception:
 					pass
-		
 		if os.name == 'nt':
 			ver = self._get_file_version_windows(exe)
 			if ver and ver != "0.0.0": return ver
-
 		candidates = [[exe, '--version']]
-		# On macOS, if it's an .app, we need to run the binary inside
 		if sys.platform == 'darwin' and exe.endswith('.app'):
 			binary = os.path.join(exe, "Contents", "MacOS", "Spine")
 			if os.path.exists(binary):
 				candidates = [[binary, '--version']]
-
 		ver_re = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
 		for cmd in candidates:
 			try:
@@ -222,7 +185,6 @@ class SpineScannerThread(QThread):
 		candidates = []
 		cfg = self.config.get('spine_exe', self.default_spine_exe)
 		cfg_dir = os.path.dirname(cfg)
-		
 		roots = []
 		if os.name == 'nt':
 			roots = [cfg_dir, r"C:\Program Files", r"C:\Program Files (x86)"]
@@ -230,10 +192,7 @@ class SpineScannerThread(QThread):
 			roots = [cfg_dir, "/Applications", os.path.expanduser("~/Applications")]
 		else:
 			roots = [cfg_dir, "/usr/bin", "/usr/local/bin"]
-
 		seen = set()
-		
-		# Find candidates
 		for root in roots:
 			if not root or not os.path.isdir(root):
 				continue
@@ -250,8 +209,6 @@ class SpineScannerThread(QThread):
 								candidates.append(exe); seen.add(exe)
 			except Exception:
 				pass
-		
-		# Also check root dirs
 		for root in roots:
 			try:
 				if sys.platform == 'darwin':
@@ -264,8 +221,6 @@ class SpineScannerThread(QThread):
 						candidates.append(exe); seen.add(exe)
 			except Exception:
 				pass
-
-		# Process candidates
 		results = []
 		for exe in candidates:
 			label = os.path.basename(os.path.dirname(exe)) or os.path.basename(exe)
@@ -273,17 +228,13 @@ class SpineScannerThread(QThread):
 				ver = self.detect_spine_version(exe)
 			except Exception:
 				ver = None
-			
 			if ver:
 				disp = f"{label} ({ver}) - {os.path.basename(exe)}"
 			else:
 				disp = f"{label} - {os.path.basename(exe)}"
 			results.append((disp, exe))
-			
-		# Ensure default is present if nothing found
 		if not results and cfg:
 			results.append((os.path.basename(cfg), cfg))
-			
 		self.versions_found.emit(results)
 
 
@@ -942,10 +893,7 @@ class MainWindow(QMainWindow):
 		self.progress_bar.setRange(0, 100)
 		self.progress_bar.setValue(0)
 		# Make it "big and prominent"
-		self.progress_bar.setStyleSheet("""
-			QProgressBar { height: 30px; font-size: 14px; font-weight: bold; text-align: center; }
-			QProgressBar::chunk { background-color: #4CAF50; }
-		""")
+		self.progress_bar.setStyleSheet("QProgressBar { height: 30px; font-size: 14px; font-weight: bold; text-align: center; } QProgressBar::chunk { background-color: #4CAF50; }")
 		layout.addWidget(self.progress_bar)
 
 		layout.addWidget(QLabel("Spine files in folder:"))
@@ -1938,45 +1886,117 @@ class MainWindow(QMainWindow):
 					self.info_panel.append(f"Could not hash file {rp}: {e}")
 
 			duplicate_groups = [g for g in hash_map.values() if len(g) > 1]
-			if duplicate_groups:
-				self.info_panel.append(f"Detected identical images: {len(duplicate_groups)} group(s)")
-				for g in duplicate_groups:
-					self.info_panel.append(" - " + " | ".join(g))
-			else:
-				self.info_panel.append("Detected identical images: none")
-			# Persist to stats (empty list if none)
+			# Persist to stats (empty list if none); reporting moved to RECOMMENDATIONS
 			if all_file_stats:
 				all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups
 		except Exception as e:
 			self.info_panel.append(f"Duplicate check failed: {e}")
 
 		try:
-			# Naming conventions: lowercase, no spaces, only a-z0-9._- allowed
+			# Naming conventions: lowercase, no spaces, only a-z0-9._- allowed for filenames
 			naming_violations = []
 			for rp in resolved:
 				bn = os.path.basename(rp)
 				reasons = []
+				# leading/trailing whitespace
+				if bn != bn.strip():
+					reasons.append('leading/trailing whitespace')
 				if bn != bn.lower():
 					reasons.append('uppercase letters')
-				if ' ' in bn:
+				if re.search(r'\s', bn):
 					reasons.append('spaces')
 				# disallow path separators inside basename (safety)
 				if '/' in bn or '\\' in bn:
 					reasons.append('path-separator in name')
 				# allowed chars
 				if not re.match(r'^[a-z0-9._-]+$', bn):
-					# avoid double-reporting simple uppercase/spaces
-					if 'uppercase letters' not in reasons and 'spaces' not in reasons:
+					if 'uppercase letters' not in reasons and 'spaces' not in reasons and 'leading/trailing whitespace' not in reasons:
 						reasons.append('non-standard characters')
 				if reasons:
 					naming_violations.append({'file': rp, 'basename': bn, 'reasons': reasons})
 
+			# Check slot names (slots can contain problematic spaces/whitespace)
+			slots = j.get('slots', []) if isinstance(j.get('slots', []), list) else []
+			for s in slots:
+				try:
+					slot_name = s.get('name') if isinstance(s, dict) else None
+					if slot_name:
+						s_reasons = []
+						if slot_name != slot_name.strip():
+							s_reasons.append('leading/trailing whitespace')
+						if re.search(r'\s', slot_name):
+							s_reasons.append('spaces')
+						if slot_name != slot_name.lower():
+							s_reasons.append('uppercase letters')
+						if s_reasons:
+							naming_violations.append({'file': input_path, 'basename': f"slot:{slot_name}", 'reasons': s_reasons})
+				except Exception:
+					pass
+
+			# Check skeleton object fields for whitespace/typos
+			skel = j.get('skeleton') if isinstance(j.get('skeleton'), dict) else None
+			if skel:
+				for key, val in skel.items():
+					if isinstance(val, str):
+						k_reasons = []
+						if val != val.strip():
+							k_reasons.append(f"skeleton.{key}: leading/trailing whitespace")
+						# token-level fuzzy check for common tokens (catch 'anticiation' -> 'anticipation')
+						toks = re.split(r'[_\s]+', val.lower())
+						allowed_tokens = set(['reel','anticipation','tile','win','event','special','spin','feature','screen','logo','pop','up','persistence','transition','frame','side','bet','ambient','buy','bonus','jackpot','loop','intro','back','front','collect'])
+						for t in toks:
+							if not t or t.isdigit():
+								continue
+							if t not in allowed_tokens:
+								m = difflib.get_close_matches(t, list(allowed_tokens), n=1, cutoff=0.72)
+								if m:
+									k_reasons.append(f"skeleton.{key}: possible typo '{t}' -> '{m[0]}'")
+					if k_reasons:
+						naming_violations.append({'file': input_path, 'basename': f"skeleton.{key}", 'reasons': k_reasons})
+
+			# Persist and display filename/slot/skeleton naming violations
 			if naming_violations:
-				self.info_panel.append(f"Naming violations: {len(naming_violations)} file(s)")
-				for v in naming_violations[:20]:
-					self.info_panel.append(f" - {v['basename']}: {', '.join(v['reasons'])}")
+				tc = self.info_panel.textCursor()
+				tc.movePosition(QTextCursor.End)
+				self.info_panel.setTextCursor(tc)
+				self.info_panel.insertHtml(f"<span style='color:#32CD32'>Naming violations: {len(naming_violations)} item(s)</span><br/>")
+				for v in naming_violations[:40]:
+					tc = self.info_panel.textCursor()
+					tc.movePosition(QTextCursor.End)
+					self.info_panel.setTextCursor(tc)
+					self.info_panel.insertHtml(f"<span style='color:#32CD32'> - {v['basename']}: {', '.join(v['reasons'])}</span><br/>")
 				if all_file_stats:
 					all_file_stats[-1]['naming_violations'] = naming_violations
+
+			# Additional checks for animation names (detect spaces, non-standard chars, and probable typos)
+
+			try:
+				allowed_tokens = set(['reel','anticipation','tile','win','event','special','spin','feature','screen','logo','pop','up','persistence','transition','frame','side','bet','ambient','buy','bonus','jackpot','loop','intro','back','front','collect'])
+				anims = list(j.get('animations', {}).keys()) if isinstance(j.get('animations', {}), dict) else []
+				for a in anims:
+					anim_reasons = []
+					# leading/trailing whitespace
+					if a != a.strip():
+						anim_reasons.append('leading/trailing whitespace')
+					if a != a.lower():
+						anim_reasons.append('uppercase letters')
+					if re.search(r'\s', a):
+						anim_reasons.append('spaces')
+					if not re.match(r'^[a-z0-9._-]+$', a.lower()):
+						anim_reasons.append('non-standard characters')
+					# token-level typo detection
+					tokens = re.split(r'[_\s]+', a.lower())
+					for t in tokens:
+						if not t or t.isdigit():
+							continue
+						if t not in allowed_tokens:
+							m = difflib.get_close_matches(t, list(allowed_tokens), n=1, cutoff=0.72)
+							if m:
+								anim_reasons.append(f"possible typo '{t}' -> '{m[0]}'")
+					if anim_reasons:
+						naming_violations.append({'file': input_path, 'basename': a, 'reasons': anim_reasons})
+			except Exception:
+				pass
 		except Exception as e:
 			self.info_panel.append(f"Naming check failed: {e}")
 		
@@ -2479,6 +2499,121 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"JSON Analysis: {bones_count} bones, {slots_count} slots found.")
 				if bones_count == 0:
 					self.info_panel.append("WARNING: No bones found in exported JSON! The output skeleton will be empty.")
+
+				# -----------------------------
+				# Naming convention checks (per-skeleton detailed)
+				# - Report skeleton and animation name problems in detail
+				# - Summarize slots/bones/constraints issues as counts with examples
+				# -----------------------------
+				try:
+					# Prepare container for naming results
+					naming = {
+						'skeleton': [],
+						'animations': [],
+						'slots_summary': {'count': 0, 'examples': []},
+						'bones_summary': {'count': 0, 'examples': []},
+						'constraints_summary': {'count': 0, 'examples': []}
+					}
+
+					# Helper checks
+					def check_name_issues(name):
+						reasons = []
+						if name != name.strip():
+							reasons.append('leading/trailing whitespace')
+						if ' ' in name:
+							reasons.append('contains space')
+						if re.search(r'[A-Z]', name):
+							reasons.append('contains uppercase')
+						# Allow common filename chars, flag anything outside
+						if not re.match(r'^[a-z0-9._\- ]+$', name):
+							reasons.append('non-standard characters')
+
+						# Basic fuzzy spell-check for obvious typos in animation/skeleton tokens
+						try:
+							import difflib
+							# small curated wordlist + workspace-derived words could be added later
+							_common_words = set((
+								'idle','walk','run','jump','attack','hit','death','spawn','intro',
+								'anticipation','anticipate','land','fall','shoot','throw','cast',
+								'open','close','blink','idle','walk','run','slide','push','pull'
+							))
+							# split into alpha tokens
+							for tok in re.split(r'[^a-zA-Z]+', name):
+								if not tok or len(tok) < 4:
+									continue
+								low = tok.lower()
+								if low in _common_words:
+									continue
+								# look for close matches in our small list
+								matches = difflib.get_close_matches(low, _common_words, n=1, cutoff=0.8)
+								if matches:
+									reasons.append(f"possible misspelling: did you mean '{matches[0]}'?")
+						except Exception:
+							# non-fatal: don't block naming checks if difflib unavailable
+							pass
+						return reasons
+
+					# Skeleton name(s)
+					skel_obj = j.get('skeleton') if isinstance(j, dict) else None
+					candidates = []
+					if skel_obj and isinstance(skel_obj, dict):
+						# common skeleton name fields
+						for k in ('name', 'skeleton', 'spine'):
+							v = skel_obj.get(k)
+							if isinstance(v, str) and v:
+								candidates.append((k, v))
+					# also include internal filename as candidate
+					if internal_skeleton_name:
+						candidates.append(('filename', internal_skeleton_name))
+
+					for src, val in candidates:
+						rs = check_name_issues(val)
+						if rs:
+							naming['skeleton'].append({'field': src, 'value': val, 'reasons': rs})
+
+					# Animations (detailed per-skeleton)
+					for anim in sorted(j.get('animations', {}).keys() if isinstance(j.get('animations', {}), dict) else []):
+						ars = check_name_issues(anim)
+						if ars:
+							naming['animations'].append({'name': anim, 'reasons': ars})
+
+					# Slots/Bones/Constraints: aggregate counts and collect first examples
+					for slot in j.get('slots', []):
+						n = slot.get('name', '') if isinstance(slot, dict) else ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['slots_summary']['count'] += 1
+								if len(naming['slots_summary']['examples']) < 5:
+									naming['slots_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					for b in j.get('bones', []):
+						n = b.get('name', '') if isinstance(b, dict) else ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['bones_summary']['count'] += 1
+								if len(naming['bones_summary']['examples']) < 5:
+									naming['bones_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					for c in j.get('constraints', []):
+						# constraints may be simple dicts with 'name'
+						if isinstance(c, dict):
+							n = c.get('name')
+						else:
+							n = ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['constraints_summary']['count'] += 1
+								if len(naming['constraints_summary']['examples']) < 5:
+									naming['constraints_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					# Persist naming results into stats for later reporting
+					all_file_stats[-1].setdefault('naming', naming)
+				except Exception:
+					# Non-fatal: don't break processing on naming check errors
+					pass
 
 				# build a list of all skin dicts (slot->attachments) regardless of skins being dict or list
 				ALL_SKIN_DICTS = []
@@ -3383,6 +3518,125 @@ class MainWindow(QMainWindow):
 					# Double check content on disk
 					with open(new_json_path, 'r', encoding='utf-8') as f_verify:
 						j_verify = json.load(f_verify)
+
+						# Run naming + fuzzy spell-check on the temporary JSON (so we catch typos even
+						# when the source was a binary .spine). Merge results into per-file stats.
+						try:
+							def _check_name_issues_local(name):
+								reasons = []
+								if name != name.strip():
+									reasons.append('leading/trailing whitespace')
+								if ' ' in name:
+									reasons.append('contains space')
+								if re.search(r'[A-Z]', name):
+									reasons.append('contains uppercase')
+								if not re.match(r'^[a-z0-9._\- ]+$', name):
+									reasons.append('non-standard characters')
+								# fuzzy spell-check
+								try:
+									import difflib
+									_common_words = set((
+										'anticipation','anticipate','idle','walk','run','jump','attack','hit','death','spawn','intro',
+										'open','close','blink','slide','push','pull','shoot','throw','cast'
+									))
+									for tok in re.split(r'[^a-zA-Z]+', name):
+										if not tok or len(tok) < 4:
+											continue
+										low = tok.lower()
+										if low in _common_words:
+											continue
+										m = difflib.get_close_matches(low, _common_words, n=1, cutoff=0.8)
+										if m:
+											reasons.append(f"possible misspelling: did you mean '{m[0]}'?")
+								except Exception:
+									pass
+								return reasons
+
+							naming_new = {
+								'skeleton': [],
+								'animations': [],
+								'slots_summary': {'count': 0, 'examples': []},
+								'bones_summary': {'count': 0, 'examples': []},
+								'constraints_summary': {'count': 0, 'examples': []}
+							}
+							# skeleton name fields
+							skel_obj = j_verify.get('skeleton') if isinstance(j_verify, dict) else None
+							cands = []
+							if skel_obj and isinstance(skel_obj, dict):
+								for k in ('name', 'skeleton', 'spine'):
+									v = skel_obj.get(k)
+									if isinstance(v, str) and v:
+										cands.append((k, v))
+							for src, val in cands:
+								rs = _check_name_issues_local(val)
+								if rs:
+									naming_new['skeleton'].append({'field': src, 'value': val, 'reasons': rs})
+
+							# animations
+							for anim in sorted(j_verify.get('animations', {}).keys() if isinstance(j_verify.get('animations', {}), dict) else []):
+								ars = _check_name_issues_local(anim)
+								if ars:
+									naming_new['animations'].append({'name': anim, 'reasons': ars})
+
+							# slots/bones/constraints summaries
+							for slot in j_verify.get('slots', []):
+								n = slot.get('name', '') if isinstance(slot, dict) else ''
+								if n:
+									rs = _check_name_issues_local(n)
+									if rs:
+										naming_new['slots_summary']['count'] += 1
+										if len(naming_new['slots_summary']['examples']) < 5:
+											naming_new['slots_summary']['examples'].append({'name': n, 'reasons': rs})
+							for b in j_verify.get('bones', []):
+								n = b.get('name', '') if isinstance(b, dict) else ''
+								if n:
+									rs = _check_name_issues_local(n)
+									if rs:
+										naming_new['bones_summary']['count'] += 1
+										if len(naming_new['bones_summary']['examples']) < 5:
+											naming_new['bones_summary']['examples'].append({'name': n, 'reasons': rs})
+							for c in j_verify.get('constraints', []):
+								if isinstance(c, dict):
+									n = c.get('name')
+								else:
+									n = ''
+								if n:
+									rs = _check_name_issues_local(n)
+									if rs:
+										naming_new['constraints_summary']['count'] += 1
+										if len(naming_new['constraints_summary']['examples']) < 5:
+											naming_new['constraints_summary']['examples'].append({'name': n, 'reasons': rs})
+
+							# Merge into existing stats naming if present
+							try:
+								if all_file_stats:
+									s = all_file_stats[-1]
+									if not s.get('naming'):
+										s['naming'] = naming_new
+									else:
+										# merge skeleton entries
+										existing = s['naming']
+										for sk in naming_new.get('skeleton', []):
+											if sk not in existing.get('skeleton', []):
+												existing.setdefault('skeleton', []).append(sk)
+										for a in naming_new.get('animations', []):
+											if a not in existing.get('animations', []):
+												existing.setdefault('animations', []).append(a)
+										for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+											cnew = naming_new.get(cat, {})
+											cex = existing.get(cat, {'count':0,'examples':[]})
+											cex['count'] = cex.get('count',0) + cnew.get('count',0)
+											# merge examples by name
+											existing_examples = {e['name'] for e in cex.get('examples',[])}
+											for ex in cnew.get('examples',[]):
+												if ex['name'] not in existing_examples:
+													existing.setdefault(cat, {'count':0,'examples':[]})['examples'].append(ex)
+										s['naming'] = existing
+							except Exception:
+								pass
+						except Exception:
+							# non-fatal
+							pass
 						verify_keys = list(j_verify.get('animations', {}).keys())
 						verify_count = len(verify_keys)
 						self.info_panel.append(f"VERIFICATION (JSON): Found {verify_count} animations: {', '.join(sorted(verify_keys))}")
@@ -4173,14 +4427,8 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
-				# Duplicate images summary
-				dup_groups = stats.get('duplicate_image_groups', [])
-				if dup_groups:
-					self.info_panel.append(f"  Detected identical images: {len(dup_groups)} group(s)")
-					for g in dup_groups[:5]:
-						self.info_panel.append(f"    - " + " | ".join(g))
-				else:
-					self.info_panel.append(f"  Detected identical images: none")
+				# Duplicate images summary moved to RECOMMENDATIONS (appended at report end)
+				# dup_groups = stats.get('duplicate_image_groups', [])
 				# Naming violations summary
 				naming_viol = stats.get('naming_violations', [])
 				if naming_viol:
@@ -4195,14 +4443,8 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']}</font>")
-				# Duplicate images summary (fallback stats format)
-				dup_groups = stats.get('duplicate_image_groups', [])
-				if dup_groups:
-					self.info_panel.append(f"  Detected identical images: {len(dup_groups)} group(s)")
-					for g in dup_groups[:5]:
-						self.info_panel.append(f"    - " + " | ".join(g))
-				else:
-					self.info_panel.append(f"  Detected identical images: none")
+				# Duplicate images summary moved to RECOMMENDATIONS (appended at report end)
+				# dup_groups = stats.get('duplicate_image_groups', [])
 				# Naming violations summary (fallback stats format)
 				naming_viol = stats.get('naming_violations', [])
 				if naming_viol:
@@ -4326,6 +4568,33 @@ class MainWindow(QMainWindow):
 						self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
 						break
 
+			# Naming / Naming-convention Recommendations (detailed per-skeleton, summaries for slots/bones)
+			if 'naming' in stats:
+				n = stats['naming']
+				# Skeleton name fields
+				if n.get('skeleton'):
+					any_warnings = True
+					self.info_panel.append("<br>")
+					self.info_panel.append("<span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>Skeleton name issues detected:</span>")
+					for sk in n.get('skeleton'):
+						self.info_panel.append(f"<font color='orange'>    - [{sk['field']}] '{sk['value']}' -> {', '.join(sk['reasons'])}</font>")
+				# Animation name details
+				if n.get('animations'):
+					any_warnings = True
+					self.info_panel.append("<br>")
+					self.info_panel.append("<span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>Animation name issues:</span>")
+					for a in n.get('animations'):
+						self.info_panel.append(f"<font color='orange'>    - {a['name']} -> {', '.join(a['reasons'])}</font>")
+				# Slots/Bones/Constraints summaries
+				for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+					c = n.get(cat, {})
+					if c and c.get('count', 0) > 0:
+						label = cat.split('_')[0].capitalize()
+						self.info_panel.append("<br>")
+						self.info_panel.append(f"<span style='color:#1E90FF; font-weight:bold;'>RECOMMENDATION:</span> <span style='color:#87CEFA;'>{label}: {c.get('count')} naming issues (examples):</span>")
+						for ex in c.get('examples', []):
+							self.info_panel.append(f"<font color='#87CEFA'>    - {ex['name']} -> {', '.join(ex['reasons'])}</font>")
+
 			# Report Consistency Issues (Atlas vs JSON mismatch)
 			if 'consistency_msg' in stats and stats['consistency_msg']:
 				self.info_panel.append("<br>")
@@ -4387,29 +4656,113 @@ class MainWindow(QMainWindow):
 							report_lines.append(f" - {s}")
 					if stats.get('consistency_msg'):
 						report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
-					# Duplicate image groups
-					dup_groups = stats.get('duplicate_image_groups', [])
-					if dup_groups:
-						report_lines.append(f"Duplicate image groups: {len(dup_groups)}")
-						for g in dup_groups:
-							report_lines.append(" - " + " | ".join(g))
+					# Duplicate image groups are reported in the RECOMMENDATIONS section at the end
+					# Naming recommendations (plain-text)
+					if stats.get('naming'):
+						n = stats.get('naming')
+						# Treat skeleton and animation name issues as WARNINGS
+						if n.get('skeleton') or n.get('animations'):
+							any_warnings = True
+							report_lines.append("Naming warnings:")
+							# Skeleton fields
+							if n.get('skeleton'):
+								for sk in n.get('skeleton'):
+									reasons = ', '.join(sk.get('reasons', []))
+									report_lines.append(f" - [{sk.get('field')}] {sk.get('value')} -> {reasons}")
+							# Animations
+							if n.get('animations'):
+								report_lines.append(' - Animation name issues:')
+								for a in n.get('animations'):
+									reasons = ', '.join(a.get('reasons', []))
+									report_lines.append(f"    - {a.get('name')} -> {reasons}")
+						# Keep slots/bones/constraints as recommendations (not warnings)
+						for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+							c = n.get(cat, {})
+							if c and c.get('count', 0) > 0:
+								report_lines.append(f" - {cat.split('_')[0].capitalize()} issues (recommendation): {c.get('count')}")
+								for ex in c.get('examples', []):
+									reasons = ', '.join(ex.get('reasons', []))
+									report_lines.append(f"    - {ex.get('name')} -> {reasons}")
 					else:
-						report_lines.append("Duplicate image groups: none")
-					# Naming violations
-					naming_viol = stats.get('naming_violations', [])
-					if naming_viol:
-						report_lines.append(f"Naming violations: {len(naming_viol)}")
-						for v in naming_viol:
-							report_lines.append(f" - {v.get('basename')}: {', '.join(v.get('reasons', []))}")
-					else:
-						report_lines.append("Naming violations: none")
+						report_lines.append("Naming: none detected")
 			
 			if jpeg_forced_png_warnings:
 				report_lines.append("\nJPEG forced->PNG warnings:")
 				for w in jpeg_forced_png_warnings:
 					report_lines.append(f" - {w}")
 
+			# Aggregate naming recommendations across files (always reported under RECOMMENDATIONS)
+			naming_by_file = {}
+			for stats in all_file_stats:
+				name = stats.get('name')
+				n = stats.get('naming')
+				if n:
+					naming_by_file[name] = n
+			
+			if naming_by_file:
+				report_lines.append("\nRECOMMENDATIONS (Naming):")
+				for fname, n in naming_by_file.items():
+					report_lines.append(f"File: {fname}")
+					# Skeleton fields
+					if n.get('skeleton'):
+						for sk in n.get('skeleton'):
+							reasons = ', '.join(sk.get('reasons', []))
+							report_lines.append(f" - [{sk.get('field')}] {sk.get('value')} -> {reasons}")
+					# Animations
+					if n.get('animations'):
+						report_lines.append(' - Animation name issues:')
+						for a in n.get('animations'):
+							reasons = ', '.join(a.get('reasons', []))
+							report_lines.append(f"    - {a.get('name')} -> {reasons}")
+					# Summaries for slots/bones/constraints
+					for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+						c = n.get(cat, {})
+						if c and c.get('count', 0) > 0:
+							report_lines.append(f" - {cat.split('_')[0].capitalize()} issues: {c.get('count')}")
+							for ex in c.get('examples', []):
+								reasons = ', '.join(ex.get('reasons', []))
+								report_lines.append(f"    - {ex.get('name')} -> {reasons}")
+
+			# Build RECOMMENDATIONS: aggregate duplicate-image groups across files
+			dup_by_file = {}
+			for stats in all_file_stats:
+				name = stats.get('name')
+				dup_groups = stats.get('duplicate_image_groups', [])
+				if dup_groups:
+					dup_by_file.setdefault(name, []).extend(dup_groups)
+
+			per_file_recs = []
+			for name, groups in dup_by_file.items():
+				per_file_recs.append(f"Identical images detected in file: {name}")
+				for g in groups:
+					per_file_recs.append(" - " + " | ".join(g))
+				per_file_recs.append("")
+
+			if per_file_recs:
+				report_lines.append("\nRECOMMENDATIONS:")
+				report_lines.extend(per_file_recs)
+				# single shared recommendation message
+				report_lines.append("Recommendation: Consider using a single image for all identical attachments to reduce disk usage and improve performance.")
+
 			report_content = "\n".join(report_lines)
+
+			# Also append RECOMMENDATIONS to the info_panel in light blue (single header + content)
+			if per_file_recs:
+				rc_color = '#87CEFA'  # light sky blue
+				tc = self.info_panel.textCursor()
+				tc.movePosition(QTextCursor.End)
+				self.info_panel.setTextCursor(tc)
+				self.info_panel.insertHtml(f"<br/><span style='color:{rc_color}; font-weight:bold'>RECOMMENDATIONS:</span><br/>")
+				for line in per_file_recs:
+					tc = self.info_panel.textCursor()
+					tc.movePosition(QTextCursor.End)
+					self.info_panel.setTextCursor(tc)
+					self.info_panel.insertHtml(f"<span style='color:{rc_color}'>" + line.replace('<','&lt;') + "</span><br/>")
+				# add single shared recommendation line
+				tc = self.info_panel.textCursor()
+				tc.movePosition(QTextCursor.End)
+				self.info_panel.setTextCursor(tc)
+				self.info_panel.insertHtml(f"<span style='color:{rc_color}'>Recommendation: Consider using a single image for all identical attachments to reduce disk usage and improve performance.</span><br/>")
 
 			# Show report dialog
 			dlg = ReportDialog(self, report_content)
