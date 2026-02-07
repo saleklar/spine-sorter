@@ -70,12 +70,13 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.53):</b>",
-                "• <b>Active Attachment Check:</b> Detects active attachments in Setup Mode.",
-                "• <b>Hidden/Invisible Slot Detection:</b> Finds items that will be invisible in-game.",
-                "• <b>Popup Reports:</b> Results now open in a dialog (no more text file spam).",
-                "• <b>Validation Mode:</b> Run a super-fast check without processing images.",
-                "• <b>UI Improvements:</b> Added '?' Help button and detailed tooltips for all controls."
+                "<b>WHAT'S NEW IN THIS EDITION (v5.54):</b>",
+                "• <b>Duplicate-image detection:</b> SHA1-based grouping and RECOMMENDATIONS to dedupe identical attachments.",
+                "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples.",
+                "• <b>Fuzzy spell-check:</b> Flags probable misspellings (e.g. 'anticiation' → 'anticipation').",
+                "• <b>Warnings for skeleton/animation names:</b> These now show as RED warnings in the UI and appear in the warnings report.",
+                "• <b>Validate-only temp cleanup:</b> Validate-only runs now delete temporary JSON/export folders unless 'Keep temporary files' is enabled.",
+                "• <b>Misc fixes:</b> Prevent output filename collisions, restored Spine scanner thread, improved report layout."
             ],
             "is_cover": True
         },
@@ -173,6 +174,36 @@ def create_pdf(filename):
                 "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
                 "<b>v5.0:</b> Smart Image Sorting. Source of Truth verification. JSON Minification."
              ]
+        }
+        ,
+        {
+            "title": "All Features By Version",
+            "body": [
+                "<b>v5.54 (current):</b>",
+                "• Duplicate-image detection and RECOMMENDATIONS (SHA1 grouping)",
+                "• Naming-convention checks (skeleton, animations) with fuzzy spell-check",
+                "• Skeleton & animation name issues shown as WARNINGS in UI and reports",
+                "• Validate-only runs clean up temporary JSON/export folders unless 'Keep temporary files' is checked",
+                "• Misc fixes: filename collision prevention, restored background Spine scanner thread, improved report insertion and HTML formatting",
+                "<br/>",
+                "<b>v5.53:</b>",
+                "• Hidden/Invisible slot checks in Setup Pose",
+                "• Popup report dialog with Save As",
+                "• Validate Only moved to main UI",
+                "<br/>",
+                "<b>v5.52:</b>",
+                "• Unchecked Animations detection",
+                "• Multiple skeletons support",
+                "<br/>",
+                "<b>v5.51:</b>",
+                "• Initial 'Validate Only' dev option",
+                "• Improved JPEG/PNG soft-edge handling",
+                "<br/>",
+                "<b>v5.0:</b>",
+                "• Smart Image Sorting (auto-detect transparency)",
+                "• Source-of-truth verification via Spine CLI",
+                "• JSON minification option for output files"
+            ]
         }
     ]
 
