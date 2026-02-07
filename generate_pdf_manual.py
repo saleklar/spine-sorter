@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v.5.53",
+            "title": "Spine Sorter v.5.54",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -167,7 +167,7 @@ def create_pdf(filename):
         {
              "title": "Changelog",
              "body": [
-                "<b>v5.53:</b> UI improvements (Tooltips, Help Button). Hidden/Invisible slot checks. Popup Reports. 'Validate Only' in main UI.",
+                "<b>v5.54:</b> Added duplicate-image recommendations, fuzzy naming checks, skeleton/animation name warnings, validate-only temp-cleanup, and misc fixes.",
                 "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
                 "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
                 "<b>v5.0:</b> Smart Image Sorting. Source of Truth verification. JSON Minification."
@@ -203,4 +203,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.53_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.54_Artist_Guide.pdf")
