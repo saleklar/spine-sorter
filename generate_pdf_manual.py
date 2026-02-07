@@ -104,6 +104,7 @@ def create_pdf(filename):
                 "The report uses a simple Traffic Light system:",
                 "<br/>",
                 "<font color='#32CD32'><b>GREEN messages</b></font> = All good! Relax.",
+                "<font color='#87CEFA'><b>BLUE messages</b></font> = <b>Recommendation.</b> Non-critical suggestions to improve naming, reduce disk usage, or follow conventions.",
                 "<font color='#FFA500'><b>ORANGE messages</b></font> = <b>Warning.</b> Something might be wrong (check export settings), but it won't crash the game.",
                 "<font color='#FF4500'><b>RED messages</b></font> = <b>CRITICAL.</b> Something is definitely broken (missing file, invisible animations)."
             ]
