@@ -37,6 +37,10 @@ import random
 # These act as fallbacks or common presets.
 DEFAULT_VERSIONS = ["4.2.43", "4.3", "4.2", "4.1", "4.0", "3.8"]
 
+# Control whether the validator reports naming issues for slots and bones.
+# The user requested that slot/bone naming suggestions be suppressed by default
+# because they generate noisy false-positives for attachment/slot names.
+CHECK_SLOT_BONE_NAMING = False
 # --- Optional Dependencies ---
 try:
 	import PIL.Image
@@ -61,8 +65,8 @@ except Exception:
 # --- GUI Dependencies ---
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
-	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor
+	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer, QUrl
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor, QDesktopServices
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -84,6 +88,166 @@ try:
 		QProgressBar,
 		QStyle,
 	)
+
+
+	# Build a naming wordlist for fuzzy spell-checks. Prefer an explicit
+	# `naming_convention.txt` placed next to the script; fallback to scanning
+	# `USER_MANUAL.txt` and the repository for useful tokens. This keeps the
+	# fuzzy suggestions consistent with the project's naming guidance.
+	def _load_naming_wordlist():
+		root = os.path.dirname(os.path.abspath(__file__))
+		candidates = [
+			os.path.join(root, 'naming_convention.txt'),
+			os.path.join(root, 'NAMING.txt'),
+			os.path.join(root, 'USER_MANUAL.txt'),
+			os.path.join(root, 'naming_conventions', 'naming_conventions.txt')
+		]
+		words = set([
+			'idle','walk','run','jump','attack','hit','death','spawn','intro',
+			'anticipation','anticipate','land','fall','shoot','throw','cast',
+			'open','close','blink','slide','push','pull','shoot','throw','cast','ambient',
+			# Project whitelisted tokens to avoid false-positive suggestions
+			'base','game','portrait','landscape'
+		])
+		for p in candidates:
+			try:
+				if os.path.exists(p):
+					with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
+						txt = fh.read()
+					# capture word-like tokens (allow underscore and digits)
+					for w in re.findall(r"[A-Za-z0-9_]{3,}", txt):
+						words.add(w.lower())
+			except Exception:
+				continue
+		return words
+
+	# Cache the wordlist once at import time
+	_PROJECT_NAMING_WORDLIST = _load_naming_wordlist()
+
+	# Helper utilities for robust matching and normalization. These implement
+	# several heuristics: collapse repeated characters anywhere (aambient->ambient),
+	# vowel-insensitive matching, difflib + small Levenshtein fallback and whole-name
+	# matching to better surface likely corrections for unusual misspellings.
+	import difflib as _difflib
+
+	def _collapse_runs(s: str) -> str:
+		return re.sub(r'(.)\1+', r'\1', s)
+
+	def _strip_vowels(s: str) -> str:
+		return re.sub(r'[aeiou]', '', s)
+
+	def _levenshtein(a: str, b: str) -> int:
+		if a == b: return 0
+		a_len = len(a); b_len = len(b)
+		if a_len == 0: return b_len
+		if b_len == 0: return a_len
+		prev = list(range(b_len + 1))
+		for i, ca in enumerate(a, 1):
+			cur = [i] + [0] * b_len
+			for j, cb in enumerate(b, 1):
+				ins = prev[j] + 1
+				del_ = cur[j-1] + 1
+				rep = prev[j-1] + (0 if ca == cb else 1)
+				cur[j] = min(ins, del_, rep)
+			prev = cur
+		return prev[-1]
+
+	def _candidate_suggestions(tok: str, naming_words:set, max_results:int=5, use_hunspell:bool=False):
+		if not naming_words or not tok:
+			return []
+		tok = tok.lower()
+
+		# 1) Try Hunspell first if requested (best-effort; optional dependency)
+		if use_hunspell:
+			try:
+				import hunspell as _hunspell_mod
+				root = os.path.dirname(os.path.abspath(__file__))
+				hs = None
+				for dirpath, _, files in os.walk(root):
+					for f in files:
+						if f.lower().endswith('.dic'):
+							dic = os.path.join(dirpath, f)
+							aff = os.path.join(dirpath, f[:-4] + '.aff')
+							if os.path.exists(aff):
+								try:
+									hs = _hunspell_mod.HunSpell(dic, aff)
+								except Exception:
+									hs = None
+								if hs:
+									break
+					if hs:
+						break
+				if not hs:
+					for p in ['/usr/share/hunspell', '/usr/local/share/hunspell']:
+						if os.path.isdir(p):
+							for f in os.listdir(p):
+								if f.lower().endswith('.dic'):
+									dic = os.path.join(p, f)
+									aff = os.path.join(p, f[:-4] + '.aff')
+									if os.path.exists(aff):
+										try:
+											hs = _hunspell_mod.HunSpell(dic, aff)
+										except Exception:
+											hs = None
+										if hs:
+											break
+							if hs:
+								break
+				if hs:
+					try:
+						hsugg = hs.suggest(tok)
+						if hsugg:
+							# Prefer Hunspell suggestions that are present in the project's
+							# naming wordlist. Raw Hunspell suggestions may be general English
+							# words (e.g. 'based' for 'base') which are not useful for our
+							# project-specific vocabulary.
+							filtered = [s for s in hsugg if s.lower() in naming_words]
+							if filtered:
+								return filtered[:max_results]
+							# If none of the hunspell suggestions are in our naming words,
+							# ignore Hunspell output and continue to other heuristics.
+					except Exception:
+						pass
+			except Exception:
+				pass
+
+		# 2) exact difflib on raw token
+		cands = _difflib.get_close_matches(tok, naming_words, n=max_results, cutoff=0.75)
+		if cands:
+			return cands
+
+		# 3) collapse repeated runs anywhere (aambient -> ambient)
+		collapsed = _collapse_runs(tok)
+		if collapsed != tok:
+			cands = _difflib.get_close_matches(collapsed, naming_words, n=max_results, cutoff=0.7)
+			if cands:
+				return cands
+
+		# 4) vowel-insensitive compare (strip vowels)
+		no_v = _strip_vowels(tok)
+		if len(no_v) >= 2:
+			# build quick map of no-vowel forms to candidates (small cost)
+			matches = []
+			for w in naming_words:
+				if _strip_vowels(w).startswith(no_v) or no_v.startswith(_strip_vowels(w)):
+					matches.append(w)
+			if matches:
+				return matches[:max_results]
+
+		# 5) Collapsed-to-collapsed Levenshtein fallback
+		best = []
+		for w in naming_words:
+			d = _levenshtein(collapsed, w)
+			if d <= 2:
+				best.append((d, w))
+		best.sort()
+		if best:
+			return [w for _, w in best[:max_results]]
+
+		# 6) last resort: difflib with very low cutoff to avoid empty result
+		return _difflib.get_close_matches(tok, naming_words, n=max_results, cutoff=0.45)
+
+
 except ModuleNotFoundError:
 	print("PySide6 is not installed. Install with: pip install PySide6")
 	sys.exit(1)
@@ -389,6 +553,72 @@ class SpinePackageValidator:
 			log_callback("ERROR: File not found.")
 			return
 
+		# If the provided path is a raw Spine JSON export, validate it directly
+		if spine_path.lower().endswith('.json'):
+			try:
+				with open(spine_path, 'r', encoding='utf-8') as jf:
+					data = json.load(jf)
+			except Exception as e:
+				log_callback(f"ERROR: Invalid JSON: {e}")
+				return
+
+			log_callback(f"Analyzing JSON: {os.path.basename(spine_path)}")
+			# Reuse the same naming validation logic used for ZIP-contained JSON
+			try:
+				naming_words = set(_PROJECT_NAMING_WORDLIST)
+			except Exception:
+				naming_words = set()
+
+			def _suggest_token(tok):
+				# Use multi-strategy candidate suggestions (normalization + difflib + Levenshtein)
+				# For skeleton/animation names prefer Hunspell when available
+				return _candidate_suggestions(tok, naming_words, max_results=3, use_hunspell=True)
+
+			# Skeleton check
+			skel = data.get('skeleton')
+			if not skel:
+				log_callback("CRITICAL: JSON missing 'skeleton' object.")
+			else:
+				images_path = skel.get('images')
+				log_callback(f"skeleton.images: '{images_path}'")
+				if images_path not in ['./images/', 'images/']:
+					log_callback(f"WARN: skeleton.images is '{images_path}'. Standard is './images/' or 'images/'.")
+
+			# Validate names in skeleton and animations
+			# skeleton name candidates
+			skel_name_candidates = []
+			if isinstance(skel, dict):
+				for key in ('name', 'title'):
+					v = skel.get(key)
+					if v:
+						skel_name_candidates.append(str(v))
+			base_name = os.path.splitext(os.path.basename(spine_path))[0]
+			skel_name_candidates.append(base_name)
+
+			for sname in skel_name_candidates:
+				if not sname:
+					continue
+				# split compound names (underscores/hyphens) into subtokens before checking
+				for part in re.split(r'[_\-]+', sname.lower()):
+					if not part or len(part) < 5:
+						continue
+					if part not in naming_words:
+						sugs = _suggest_token(part)
+						log_callback(f"Naming: token '{part}' from skeleton name '{sname}' not found in naming conventions. Suggestions: {', '.join(sugs) if sugs else 'none'}")
+
+			anims = data.get('animations', {})
+			if isinstance(anims, dict):
+				for anim_name in anims.keys():
+					# split animation names into subtokens to avoid suggesting on whole compound names
+					for part in re.split(r'[_\-]+', str(anim_name).lower()):
+						if not part or len(part) < 5:
+							continue
+						if part not in naming_words:
+							sugs = _suggest_token(part)
+							log_callback(f"Naming: token '{part}' in animation '{anim_name}' not found in naming conventions. Suggestions: {', '.join(sugs) if sugs else 'none'}")
+
+			return
+
 		if not zipfile.is_zipfile(spine_path):
 			# Check if it might be a binary Spine file
 			try:
@@ -396,7 +626,75 @@ class SpinePackageValidator:
 					header = f.read(8)
 					if len(header) > 0:
 						log_callback("INFO: File is not a ZIP archive. It appears to be a binary .spine file (standard format).")
-						log_callback("Diagnostic checks for ZIP structure skipped.")
+						log_callback("Running limited binary-token diagnostics for naming conventions...")
+						# Perform a lightweight binary token scan and validate tokens against
+						# the project naming wordlist so we can still flag misspellings
+						try:
+							naming_words = set(_PROJECT_NAMING_WORDLIST)
+						except Exception:
+							naming_words = set()
+
+						# Read full file and extract ASCII-like tokens but only check tokens
+						# that appear near 'skeleton' or 'animation' words to avoid noisy output.
+						try:
+							f.seek(0)
+							data = f.read()
+						except Exception:
+							data = header
+
+						# Decode ASCII-like text and attempt to extract only skeleton/animation
+						# names by matching JSON-like fragments. This avoids checking slots,
+						# attachments and bones which commonly appear elsewhere.
+						text = data.decode('ascii', 'ignore')
+
+						# Find skeleton name/title if present: "skeleton": { ... "name": "..." }
+						skel_names = set()
+						for m in re.finditer(r'"skeleton"\s*:\s*\{', text, flags=re.IGNORECASE):
+							# scan ahead a few KB for name or title fields
+							chunk = text[m.end():m.end()+4096]
+							m2 = re.search(r'"name"\s*:\s*"([^"]+)"', chunk)
+							if m2:
+								skel_names.add(m2.group(1))
+							else:
+								m3 = re.search(r'"title"\s*:\s*"([^"]+)"', chunk)
+								if m3:
+									skel_names.add(m3.group(1))
+
+						# Find animation keys under "animations": { "walk": {...}, "run": {...} }
+						anim_names = set()
+						for m in re.finditer(r'"animations"\s*:\s*\{', text, flags=re.IGNORECASE):
+							chunk = text[m.end():m.end()+16384]
+							# match keys like "walk": {
+							for m2 in re.finditer(r'"([A-Za-z0-9_\- ]{2,})"\s*:\s*\{', chunk):
+								anim_names.add(m2.group(1))
+
+						candidates = set()
+						for n in skel_names:
+							# split compound skeleton names into subtokens
+							for part in re.split(r'[_\-]+', n.lower()):
+								if part and len(part) >= 5:
+									candidates.add((part, f"skeleton:{n}"))
+						for a in anim_names:
+							# split compound animation names into subtokens
+							for part in re.split(r'[_\-]+', a.lower()):
+								if part and len(part) >= 5:
+									candidates.add((part, f"animation:{a}"))
+
+						if not candidates:
+							log_callback('INFO: could not extract skeleton/animation names from binary; export JSON for deterministic checks.')
+							return
+
+						reported = 0
+						for tok, label in sorted(candidates):
+							if reported >= 50:
+								break
+							if tok in naming_words:
+								continue
+							sugs = _candidate_suggestions(tok, naming_words, max_results=3, use_hunspell=True)
+							log_callback(f"Naming (binary): token '{tok}' from {label} not found in naming conventions. Suggestions: {', '.join(sugs) if sugs else 'none'}")
+							reported += 1
+
+						# After binary diagnostics we don't proceed with ZIP checks
 						return
 			except Exception:
 				pass
@@ -463,6 +761,52 @@ class SpinePackageValidator:
 					log_callback(f"skeleton.images: '{images_path}'")
 					if images_path not in ['./images/', 'images/']:
 						warnings.append(f"skeleton.images is '{images_path}'. Standard is './images/' or 'images/'.")
+
+				# 3.b Validate skeleton and animation naming against project conventions
+				try:
+					naming_words = set(_PROJECT_NAMING_WORDLIST)
+				except Exception:
+					naming_words = set()
+
+				def _suggest_token(tok):
+					# For JSON-contained skeleton/animation names prefer Hunspell suggestions
+					return _candidate_suggestions(tok, naming_words, max_results=3, use_hunspell=True)
+
+				# Candidate skeleton names: explicit skeleton fields and the archive base name
+				skel_name_candidates = []
+				if isinstance(skel, dict):
+					for key in ('name', 'title'):
+						v = skel.get(key)
+						if v:
+							skel_name_candidates.append(str(v))
+				# Include filename base as a heuristic
+				base_name = os.path.splitext(os.path.basename(spine_path))[0]
+				skel_name_candidates.append(base_name)
+
+				for sname in skel_name_candidates:
+					if not sname:
+						continue
+					for tok in re.findall(r"[A-Za-z0-9_]+", sname.lower()):
+						if len(tok) < 3:
+							continue
+						if tok not in naming_words:
+							sugs = _suggest_token(tok)
+							warnings.append(
+								f"Naming: token '{tok}' from skeleton name '{sname}' not found in naming conventions. Suggestions: {', '.join(sugs) if sugs else 'none'}"
+						)
+
+				# Validate animation names
+				anims = data.get('animations', {})
+				if isinstance(anims, dict):
+					for anim_name in anims.keys():
+						for tok in re.findall(r"[A-Za-z0-9_]+", str(anim_name).lower()):
+							if len(tok) < 3:
+								continue
+							if tok not in naming_words:
+								sugs = _suggest_token(tok)
+								warnings.append(
+									f"Naming: token '{tok}' in animation '{anim_name}' not found in naming conventions. Suggestions: {', '.join(sugs) if sugs else 'none'}"
+							)
 
 				# 4. Check Attachments
 				# Collect all attachment paths
@@ -875,6 +1219,13 @@ class MainWindow(QMainWindow):
 		actions_layout.addWidget(self.open_after_checkbox)
 		actions_layout.addWidget(self.force_local_cb)
 
+		# Automatic character-fix main toggle (shows detailed options when checked)
+		self.auto_fix_cb = QCheckBox("Automatic character fix")
+		self.auto_fix_cb.setToolTip("Automatically correct uppercase, spaces and strange characters in selected elements")
+		self.auto_fix_cb.setChecked(bool(self.config.get('auto_fix_enabled', False)))
+		self.auto_fix_cb.stateChanged.connect(lambda v: self._save_auto_fix_main(v))
+		actions_layout.addWidget(self.auto_fix_cb)
+
 		# Validate / Analyze Only option (Main Frame)
 		self.validate_only_cb = QCheckBox("Check for Errors Only (No Export)")
 		self.validate_only_cb.setToolTip("If checked, analyzes the Spine file for animation and setup pose warnings but skips sorting/exporting images.")
@@ -885,6 +1236,43 @@ class MainWindow(QMainWindow):
 		actions_layout.addWidget(self.validate_only_cb)
 
 		layout.addLayout(actions_layout)
+
+		# Small side panel for per-element auto-fix options (hidden by default)
+		self.auto_fix_panel = QWidget()
+		auto_fix_panel_layout = QVBoxLayout(self.auto_fix_panel)
+		auto_fix_panel_layout.setContentsMargins(4,4,4,4)
+		self.fix_animations_cb = QCheckBox("Fix animations")
+		self.fix_slots_cb = QCheckBox("Fix slots")
+		self.fix_bones_cb = QCheckBox("Fix bones")
+		self.fix_constraints_cb = QCheckBox("Fix constraints")
+		self.fix_skeleton_cb = QCheckBox("Fix skeleton fields")
+		self.fix_skins_cb = QCheckBox("Fix skin names")
+
+		# Load saved per-option states from config
+		self.fix_animations_cb.setChecked(bool(self.config.get('auto_fix_animations', False)))
+		self.fix_slots_cb.setChecked(bool(self.config.get('auto_fix_slots', False)))
+		self.fix_bones_cb.setChecked(bool(self.config.get('auto_fix_bones', False)))
+		self.fix_constraints_cb.setChecked(bool(self.config.get('auto_fix_constraints', False)))
+		self.fix_skeleton_cb.setChecked(bool(self.config.get('auto_fix_skeleton', False)))
+		self.fix_skins_cb.setChecked(bool(self.config.get('auto_fix_skins', False)))
+
+		# Save state when toggled
+		self.fix_animations_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_animations', v))
+		self.fix_slots_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_slots', v))
+		self.fix_bones_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_bones', v))
+		self.fix_constraints_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_constraints', v))
+		self.fix_skeleton_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_skeleton', v))
+		self.fix_skins_cb.stateChanged.connect(lambda v: self._save_auto_fix_option('auto_fix_skins', v))
+
+		auto_fix_panel_layout.addWidget(QLabel("Auto-fix options:"))
+		auto_fix_panel_layout.addWidget(self.fix_animations_cb)
+		auto_fix_panel_layout.addWidget(self.fix_slots_cb)
+		auto_fix_panel_layout.addWidget(self.fix_bones_cb)
+		auto_fix_panel_layout.addWidget(self.fix_constraints_cb)
+		auto_fix_panel_layout.addWidget(self.fix_skeleton_cb)
+		auto_fix_panel_layout.addWidget(self.fix_skins_cb)
+		self.auto_fix_panel.setVisible(self.auto_fix_cb.isChecked())
+		layout.addWidget(self.auto_fix_panel)
 
 		# Progress bar
 		self.progress_bar = QProgressBar()
@@ -1125,6 +1513,113 @@ class MainWindow(QMainWindow):
 			self._save_config()
 		except Exception:
 			pass
+
+	def _save_auto_fix_main(self, v):
+		try:
+			self.config['auto_fix_enabled'] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+		# show/hide detailed options panel
+		if hasattr(self, 'auto_fix_panel'):
+			self.auto_fix_panel.setVisible(bool(v))
+
+	def _save_auto_fix_option(self, key, v):
+		try:
+			self.config[key] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _sanitize_name(self, name: str) -> str:
+		"""Normalize a name: lowercase, replace spaces/strange chars with '_', collapse underscores."""
+		if not isinstance(name, str):
+			return name
+		s = name.strip().lower()
+		# replace any sequence of chars not in allowed set with underscore
+		s = re.sub(r'[^a-z0-9._\-]+', '_', s)
+		# collapse multiple underscores or dashes
+		s = re.sub(r'[_\-]{2,}', '_', s)
+		# trim leading/trailing underscores/dashes
+		s = s.strip('_-')
+		if not s:
+			return 'unnamed'
+		return s
+
+	def _apply_auto_fixes_to_json(self, j: dict) -> bool:
+		"""Apply auto-fix transformations to JSON in-place. Returns True if modified."""
+		modified = False
+		# Skeleton fields
+		if self.fix_skeleton_cb.isChecked() and isinstance(j.get('skeleton'), dict):
+			skel = j['skeleton']
+			for key in ('name', 'title', 'skeleton', 'spine'):
+				if key in skel and isinstance(skel[key], str):
+					new = self._sanitize_name(skel[key])
+					if new != skel[key]:
+						skel[key] = new
+						modified = True
+
+		# Animations (keys)
+		if self.fix_animations_cb.isChecked() and isinstance(j.get('animations'), dict):
+			anims = j['animations']
+			new_anims = {}
+			for k, v in anims.items():
+				if isinstance(k, str):
+					nk = self._sanitize_name(k)
+				else:
+					nk = k
+				# avoid clobbering existing keys
+				if nk in new_anims and nk != k:
+					nk = nk + '_fixed'
+				new_anims[nk] = v
+				if nk != k:
+					modified = True
+			j['animations'] = new_anims
+
+		# Slots
+		if self.fix_slots_cb.isChecked() and isinstance(j.get('slots'), list):
+			for s in j['slots']:
+				if isinstance(s, dict) and 'name' in s and isinstance(s['name'], str):
+					new = self._sanitize_name(s['name'])
+					if new != s['name']:
+						s['name'] = new
+						modified = True
+
+		# Bones
+		if self.fix_bones_cb.isChecked() and isinstance(j.get('bones'), list):
+			for b in j['bones']:
+				if isinstance(b, dict) and 'name' in b and isinstance(b['name'], str):
+					new = self._sanitize_name(b['name'])
+					if new != b['name']:
+						b['name'] = new
+						modified = True
+
+		# Constraints
+		if self.fix_constraints_cb.isChecked() and isinstance(j.get('constraints'), list):
+			for c in j['constraints']:
+				if isinstance(c, dict) and 'name' in c and isinstance(c['name'], str):
+					new = self._sanitize_name(c['name'])
+					if new != c['name']:
+						c['name'] = new
+						modified = True
+
+		# Skins (rename keys)
+		if self.fix_skins_cb.isChecked() and isinstance(j.get('skins'), dict):
+			skins = j['skins']
+			new_skins = {}
+			for k, v in skins.items():
+				if isinstance(k, str):
+					nk = self._sanitize_name(k)
+				else:
+					nk = k
+				if nk in new_skins and nk != k:
+					nk = nk + '_fixed'
+				new_skins[nk] = v
+				if nk != k:
+					modified = True
+			j['skins'] = new_skins
+
+		return modified
 
 	# export settings UI removed — using default export settings (no export JSON)
 
@@ -1915,23 +2410,25 @@ class MainWindow(QMainWindow):
 				if reasons:
 					naming_violations.append({'file': rp, 'basename': bn, 'reasons': reasons})
 
-			# Check slot names (slots can contain problematic spaces/whitespace)
-			slots = j.get('slots', []) if isinstance(j.get('slots', []), list) else []
-			for s in slots:
-				try:
-					slot_name = s.get('name') if isinstance(s, dict) else None
-					if slot_name:
-						s_reasons = []
-						if slot_name != slot_name.strip():
-							s_reasons.append('leading/trailing whitespace')
-						if re.search(r'\s', slot_name):
-							s_reasons.append('spaces')
-						if slot_name != slot_name.lower():
-							s_reasons.append('uppercase letters')
-						if s_reasons:
-							naming_violations.append({'file': input_path, 'basename': f"slot:{slot_name}", 'reasons': s_reasons})
-				except Exception:
-					pass
+			# Optionally skip slot-name fuzzy checks (slots often produce noisy results)
+			if CHECK_SLOT_BONE_NAMING:
+				# Check slot names (slots can contain problematic spaces/whitespace)
+				slots = j.get('slots', []) if isinstance(j.get('slots', []), list) else []
+				for s in slots:
+					try:
+						slot_name = s.get('name') if isinstance(s, dict) else None
+						if slot_name:
+							s_reasons = []
+							if slot_name != slot_name.strip():
+								s_reasons.append('leading/trailing whitespace')
+							if re.search(r'\s', slot_name):
+								s_reasons.append('spaces')
+							if slot_name != slot_name.lower():
+								s_reasons.append('uppercase letters')
+							if s_reasons:
+								naming_violations.append({'file': input_path, 'basename': f"slot:{slot_name}", 'reasons': s_reasons})
+					except Exception:
+						pass
 
 			# Check skeleton object fields for whitespace/typos
 			skel = j.get('skeleton') if isinstance(j.get('skeleton'), dict) else None
@@ -2118,6 +2615,15 @@ class MainWindow(QMainWindow):
 				# load json
 				with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
 					j = json.load(fh)
+
+					# Apply automatic character fixes if enabled and options selected
+					try:
+						if getattr(self, 'auto_fix_cb', None) and self.auto_fix_cb.isChecked():
+							modified = self._apply_auto_fixes_to_json(j)
+							if modified:
+								self.info_panel.append("Auto-fix: applied character fixes to JSON fields")
+					except Exception as e:
+						self.info_panel.append(f"Auto-fix failed: {e}")
 
 				# Extract all skin names for exclusion logic
 				all_skin_names = set()
@@ -2531,12 +3037,8 @@ class MainWindow(QMainWindow):
 						# Basic fuzzy spell-check for obvious typos in animation/skeleton tokens
 						try:
 							import difflib
-							# small curated wordlist + workspace-derived words could be added later
-							_common_words = set((
-								'idle','walk','run','jump','attack','hit','death','spawn','intro',
-								'anticipation','anticipate','land','fall','shoot','throw','cast',
-								'open','close','blink','idle','walk','run','slide','push','pull'
-							))
+							# Use project-wide naming wordlist built at import time
+							_common_words = _PROJECT_NAMING_WORDLIST
 							# split into alpha tokens
 							for tok in re.split(r'[^a-zA-Z]+', name):
 								if not tok or len(tok) < 4:
@@ -2577,24 +3079,27 @@ class MainWindow(QMainWindow):
 						if ars:
 							naming['animations'].append({'name': anim, 'reasons': ars})
 
-					# Slots/Bones/Constraints: aggregate counts and collect first examples
-					for slot in j.get('slots', []):
-						n = slot.get('name', '') if isinstance(slot, dict) else ''
-						if n:
-							rs = check_name_issues(n)
-							if rs:
-								naming['slots_summary']['count'] += 1
-								if len(naming['slots_summary']['examples']) < 5:
-									naming['slots_summary']['examples'].append({'name': n, 'reasons': rs})
+					# Slots and bones naming summaries are optional; guard them to avoid
+					# noisy recommendations about slot/bone naming (user requested suppression).
+					if CHECK_SLOT_BONE_NAMING:
+						# Slots/Bones/Constraints: aggregate counts and collect first examples
+						for slot in j.get('slots', []):
+							n = slot.get('name', '') if isinstance(slot, dict) else ''
+							if n:
+								rs = check_name_issues(n)
+								if rs:
+									naming['slots_summary']['count'] += 1
+									if len(naming['slots_summary']['examples']) < 5:
+										naming['slots_summary']['examples'].append({'name': n, 'reasons': rs})
 
-					for b in j.get('bones', []):
-						n = b.get('name', '') if isinstance(b, dict) else ''
-						if n:
-							rs = check_name_issues(n)
-							if rs:
-								naming['bones_summary']['count'] += 1
-								if len(naming['bones_summary']['examples']) < 5:
-									naming['bones_summary']['examples'].append({'name': n, 'reasons': rs})
+						for b in j.get('bones', []):
+							n = b.get('name', '') if isinstance(b, dict) else ''
+							if n:
+								rs = check_name_issues(n)
+								if rs:
+									naming['bones_summary']['count'] += 1
+									if len(naming['bones_summary']['examples']) < 5:
+										naming['bones_summary']['examples'].append({'name': n, 'reasons': rs})
 
 					for c in j.get('constraints', []):
 						# constraints may be simple dicts with 'name'
@@ -3535,10 +4040,7 @@ class MainWindow(QMainWindow):
 								# fuzzy spell-check
 								try:
 									import difflib
-									_common_words = set((
-										'anticipation','anticipate','idle','walk','run','jump','attack','hit','death','spawn','intro',
-										'open','close','blink','slide','push','pull','shoot','throw','cast'
-									))
+									_common_words = _PROJECT_NAMING_WORDLIST
 									for tok in re.split(r'[^a-zA-Z]+', name):
 										if not tok or len(tok) < 4:
 											continue
@@ -3578,34 +4080,35 @@ class MainWindow(QMainWindow):
 								if ars:
 									naming_new['animations'].append({'name': anim, 'reasons': ars})
 
-							# slots/bones/constraints summaries
-							for slot in j_verify.get('slots', []):
-								n = slot.get('name', '') if isinstance(slot, dict) else ''
-								if n:
-									rs = _check_name_issues_local(n)
-									if rs:
-										naming_new['slots_summary']['count'] += 1
-										if len(naming_new['slots_summary']['examples']) < 5:
-											naming_new['slots_summary']['examples'].append({'name': n, 'reasons': rs})
-							for b in j_verify.get('bones', []):
-								n = b.get('name', '') if isinstance(b, dict) else ''
-								if n:
-									rs = _check_name_issues_local(n)
-									if rs:
-										naming_new['bones_summary']['count'] += 1
-										if len(naming_new['bones_summary']['examples']) < 5:
-											naming_new['bones_summary']['examples'].append({'name': n, 'reasons': rs})
-							for c in j_verify.get('constraints', []):
-								if isinstance(c, dict):
-									n = c.get('name')
-								else:
-									n = ''
-								if n:
-									rs = _check_name_issues_local(n)
-									if rs:
-										naming_new['constraints_summary']['count'] += 1
-										if len(naming_new['constraints_summary']['examples']) < 5:
-											naming_new['constraints_summary']['examples'].append({'name': n, 'reasons': rs})
+							# slots/bones/constraints summaries (optional - can be noisy)
+							if CHECK_SLOT_BONE_NAMING:
+								for slot in j_verify.get('slots', []):
+									n = slot.get('name', '') if isinstance(slot, dict) else ''
+									if n:
+										rs = _check_name_issues_local(n)
+										if rs:
+											naming_new['slots_summary']['count'] += 1
+											if len(naming_new['slots_summary']['examples']) < 5:
+												naming_new['slots_summary']['examples'].append({'name': n, 'reasons': rs})
+								for b in j_verify.get('bones', []):
+									n = b.get('name', '') if isinstance(b, dict) else ''
+									if n:
+										rs = _check_name_issues_local(n)
+										if rs:
+											naming_new['bones_summary']['count'] += 1
+											if len(naming_new['bones_summary']['examples']) < 5:
+												naming_new['bones_summary']['examples'].append({'name': n, 'reasons': rs})
+								for c in j_verify.get('constraints', []):
+									if isinstance(c, dict):
+										n = c.get('name')
+									else:
+										n = ''
+									if n:
+										rs = _check_name_issues_local(n)
+										if rs:
+											naming_new['constraints_summary']['count'] += 1
+											if len(naming_new['constraints_summary']['examples']) < 5:
+												naming_new['constraints_summary']['examples'].append({'name': n, 'reasons': rs})
 
 							# Merge into existing stats naming if present
 							try:
@@ -4791,7 +5294,7 @@ def main():
 	if os.name == 'nt':
 		try:
 			# Set AppUserModelID so the taskbar icon displays correctly on Windows
-			myappid = 'spinesorter.v5.53' 
+			myappid = 'spinesorter.v5.54' 
 			ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 		except Exception:
 			pass

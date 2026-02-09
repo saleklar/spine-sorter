@@ -187,3 +187,5 @@ Trace: 'animations' key present with 4 animations before logic.
 Trace: 'animations' key present with 4 animations AFTER logic.
 Trace: 'animations' key present with 4 animations before logic.
 Trace: 'animations' key present with 4 animations AFTER logic.
+Trace: 'animations' key present with 4 animations before logic.
+Trace: 'animations' key present with 4 animations AFTER logic.

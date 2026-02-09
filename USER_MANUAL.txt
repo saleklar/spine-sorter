@@ -1,4 +1,4 @@
-SPINE SORTER v5.53 - ARTIST GUIDE
+SPINE SORTER v5.54 - ARTIST GUIDE
 ========================================
 
 WHAT DOES THIS TOOL DO?
@@ -9,6 +9,7 @@ It ensures your project is optimized without breaking visual quality.
 
 HOW TO USE IT
 ----------------------------------------
+0. Click the "?" help button in the main window to open this manual from inside the app.
 1. Open the tool.
 2. Click "Browse" and select your folder containing .spine files.
 3. Select the file you want to process from the list.
@@ -108,6 +109,11 @@ The main interface has several checkboxes that control how the tool works.
 Tip: If you see a warning, fix it in Spine/Photoshop and run the tool again to verify!
 
 ========================================
+HELP BUTTON
+----------------------------------------
+Click the `?` button next to the Settings button to open this user manual. The application will try to open the `USER_MANUAL.txt` file located next to the main script. If the manual cannot be found, the app will display the expected path so you can place a copy there.
+
+========================================
 NEW FEATURE SPOTLIGHT (SLIDE READY FORMAT)
 Copy the sections below for your presentation
 ========================================
@@ -145,23 +151,23 @@ Body:
 
 
 ========================================
-CHANGELOG (v5.0 - v5.53)
+CHANGELOG (v5.0 - v5.54)
 ========================================
 
-v5.53 (Current)
-*   NEW: Added check for "Hidden" slots (visible: false) in Setup Pose.
-*   NEW: Added check for "Invisible" slots (Alpha=0) in Setup Pose.
-*   NEW: "Check for Errors Only" mode moved to main settings for easier access.
-*   NEW: Reports now open in a Popup Dialog with a "Save As" option (no longer auto-saves .txt files).
-*   FIX: Improved CLI parsing to ignore "Skeleton" and "Size" headers in Spine logs.
-
-v5.54 (Unreleased)
+v5.54 (Released)
 *   NEW: Added duplicate-image detection (SHA1 grouping) and reporting as RECOMMENDATIONS.
 *   NEW: Added naming-convention checks with fuzzy spell-check for common animation/skeleton tokens (flags probable misspellings like "anticipation").
 *   CHANGE: Skeleton and Animation name problems are now shown as WARNINGS (red) in the UI and included in the Warnings section of the plain-text report.
 *   CHANGE: "Check for Errors Only" defaults to OFF in-memory; validate-only runs now delete temporary export folders unless "Keep temporary files" is checked.
 *   FIX: Prevented output package name being overwritten by local slot/attachment variable (renamed local variable to `slot_name`).
 *   NOTE: Temporary JSON is now scanned for naming issues before deletion so binary `.spine` inputs also get naming/warning coverage when the JSON is produced.
+
+v5.53 (Previous)
+*   NEW: Added check for "Hidden" slots (visible: false) in Setup Pose.
+*   NEW: Added check for "Invisible" slots (Alpha=0) in Setup Pose.
+*   NEW: "Check for Errors Only" mode moved to main settings for easier access.
+*   NEW: Reports now open in a Popup Dialog with a "Save As" option (no longer auto-saves .txt files).
+*   FIX: Improved CLI parsing to ignore "Skeleton" and "Size" headers in Spine logs.
 
 v5.52
 *   NEW: Added "Unchecked Animations" detection.

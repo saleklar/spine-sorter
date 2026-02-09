@@ -2288,6 +2288,97 @@ class MainWindow(QMainWindow):
 				if bones_count == 0:
 					self.info_panel.append("WARNING: No bones found in exported JSON! The output skeleton will be empty.")
 
+				# -----------------------------
+				# Naming convention checks (per-skeleton detailed)
+				# - Report skeleton and animation name problems in detail
+				# - Summarize slots/bones/constraints issues as counts with examples
+				# -----------------------------
+				try:
+					# Prepare container for naming results
+					naming = {
+						'skeleton': [],
+						'animations': [],
+						'slots_summary': {'count': 0, 'examples': []},
+						'bones_summary': {'count': 0, 'examples': []},
+						'constraints_summary': {'count': 0, 'examples': []}
+					}
+
+					# Helper checks
+					def check_name_issues(name):
+						reasons = []
+						if name != name.strip():
+							reasons.append('leading/trailing whitespace')
+						if ' ' in name:
+							reasons.append('contains space')
+						if re.search(r'[A-Z]', name):
+							reasons.append('contains uppercase')
+						# Allow common filename chars, flag anything outside
+						if not re.match(r'^[a-z0-9._\- ]+$', name):
+							reasons.append('non-standard characters')
+						return reasons
+
+					# Skeleton name(s)
+					skel_obj = j.get('skeleton') if isinstance(j, dict) else None
+					candidates = []
+					if skel_obj and isinstance(skel_obj, dict):
+						# common skeleton name fields
+						for k in ('name', 'skeleton', 'spine'):
+							v = skel_obj.get(k)
+							if isinstance(v, str) and v:
+								candidates.append((k, v))
+					# also include internal filename as candidate
+					if internal_skeleton_name:
+						candidates.append(('filename', internal_skeleton_name))
+
+					for src, val in candidates:
+						rs = check_name_issues(val)
+						if rs:
+							naming['skeleton'].append({'field': src, 'value': val, 'reasons': rs})
+
+					# Animations (detailed per-skeleton)
+					for anim in sorted(j.get('animations', {}).keys() if isinstance(j.get('animations', {}), dict) else []):
+						ars = check_name_issues(anim)
+						if ars:
+							naming['animations'].append({'name': anim, 'reasons': ars})
+
+					# Slots/Bones/Constraints: aggregate counts and collect first examples
+					for slot in j.get('slots', []):
+						n = slot.get('name', '') if isinstance(slot, dict) else ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['slots_summary']['count'] += 1
+								if len(naming['slots_summary']['examples']) < 5:
+									naming['slots_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					for b in j.get('bones', []):
+						n = b.get('name', '') if isinstance(b, dict) else ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['bones_summary']['count'] += 1
+								if len(naming['bones_summary']['examples']) < 5:
+									naming['bones_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					for c in j.get('constraints', []):
+						# constraints may be simple dicts with 'name'
+						if isinstance(c, dict):
+							n = c.get('name')
+						else:
+							n = ''
+						if n:
+							rs = check_name_issues(n)
+							if rs:
+								naming['constraints_summary']['count'] += 1
+								if len(naming['constraints_summary']['examples']) < 5:
+									naming['constraints_summary']['examples'].append({'name': n, 'reasons': rs})
+
+					# Persist naming results into stats for later reporting
+					all_file_stats[-1].setdefault('naming', naming)
+				except Exception:
+					# Non-fatal: don't break processing on naming check errors
+					pass
+
 				# build a list of all skin dicts (slot->attachments) regardless of skins being dict or list
 				ALL_SKIN_DICTS = []
 				if isinstance(skins, dict):
@@ -4013,6 +4104,31 @@ class MainWindow(QMainWindow):
 						self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
 						break
 
+			# Naming / Naming-convention Recommendations (detailed per-skeleton, summaries for slots/bones)
+			if 'naming' in stats:
+				n = stats['naming']
+				# Skeleton name fields
+				if n.get('skeleton'):
+					self.info_panel.append("<br>")
+					self.info_panel.append("<span style='color:#1E90FF; font-weight:bold;'>RECOMMENDATION:</span> <span style='color:#87CEFA;'>Skeleton name issues detected:</span>")
+					for sk in n.get('skeleton'):
+						self.info_panel.append(f"<font color='#87CEFA'>    - [{sk['field']}] '{sk['value']}' -> {', '.join(sk['reasons'])}</font>")
+				# Animation name details
+				if n.get('animations'):
+					self.info_panel.append("<br>")
+					self.info_panel.append("<span style='color:#1E90FF; font-weight:bold;'>RECOMMENDATION:</span> <span style='color:#87CEFA;'>Animation name issues:</span>")
+					for a in n.get('animations'):
+						self.info_panel.append(f"<font color='#87CEFA'>    - {a['name']} -> {', '.join(a['reasons'])}</font>")
+				# Slots/Bones/Constraints summaries
+				for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+					c = n.get(cat, {})
+					if c and c.get('count', 0) > 0:
+						label = cat.split('_')[0].capitalize()
+						self.info_panel.append("<br>")
+						self.info_panel.append(f"<span style='color:#1E90FF; font-weight:bold;'>RECOMMENDATION:</span> <span style='color:#87CEFA;'>{label}: {c.get('count')} naming issues (examples):</span>")
+						for ex in c.get('examples', []):
+							self.info_panel.append(f"<font color='#87CEFA'>    - {ex['name']} -> {', '.join(ex['reasons'])}</font>")
+
 			# Report Consistency Issues (Atlas vs JSON mismatch)
 			if 'consistency_msg' in stats and stats['consistency_msg']:
 				self.info_panel.append("<br>")
@@ -4071,6 +4187,30 @@ class MainWindow(QMainWindow):
 						report_lines.append(f" - {s}")
 				if stats.get('consistency_msg'):
 					report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
+				# Naming recommendations (plain-text)
+				if stats.get('naming'):
+					n = stats.get('naming')
+					report_lines.append("Naming recommendations:")
+					# Skeleton fields
+					if n.get('skeleton'):
+						for sk in n.get('skeleton'):
+							reasons = ', '.join(sk.get('reasons', []))
+							rec = f" - [{sk.get('field')}] {sk.get('value')} -> {reasons}"
+							report_lines.append(rec)
+					# Animations
+					if n.get('animations'):
+						report_lines.append(' - Animation name issues:')
+						for a in n.get('animations'):
+							reasons = ', '.join(a.get('reasons', []))
+							report_lines.append(f"    - {a.get('name')} -> {reasons}")
+					# Summaries for slots/bones/constraints
+					for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
+						c = n.get(cat, {})
+						if c and c.get('count', 0) > 0:
+							report_lines.append(f" - {cat.split('_')[0].capitalize()} issues: {c.get('count')}")
+							for ex in c.get('examples', []):
+								reasons = ', '.join(ex.get('reasons', []))
+								report_lines.append(f"    - {ex.get('name')} -> {reasons}")
 			
 			if jpeg_forced_png_warnings:
 				report_lines.append("\nJPEG forced->PNG warnings:")
