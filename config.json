@@ -1,0 +1,11 @@
+{
+  "spine_exe": "C:\\Program Files\\Spine\\Spine.exe",
+  "open_after_export": true,
+  "auto_fix_enabled": true,
+  "auto_fix_animations": true,
+  "auto_fix_slots": true,
+  "auto_fix_bones": true,
+  "auto_fix_constraints": true,
+  "auto_fix_skeleton": true,
+  "auto_fix_skins": true
+}
