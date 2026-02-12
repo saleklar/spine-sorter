@@ -1,4 +1,4 @@
-SPINE SORTER v5.54 - ARTIST GUIDE
+SPINE SORTER v5.55 - ARTIST GUIDE
 ========================================
 
 WHAT DOES THIS TOOL DO?
@@ -151,10 +151,25 @@ Body:
 
 
 ========================================
-CHANGELOG (v5.0 - v5.54)
+CHANGELOG (v5.0 - v5.55)
 ========================================
 
-v5.54 (Released)
+v5.55 (Current Release)
+*   NEW: Automatic Spine version detection and switching for Spine Launcher users.
+    - The tool now detects which Spine version your project was created with (e.g., 4.2.42).
+    - Automatically switches the Spine Launcher to the correct version before processing.
+    - Supports multiple Spine versions installed on your system.
+    - Works with Spine Launcher by temporarily modifying launcher settings.
+*   FIX: JSON path updates now work correctly for mesh attachments.
+    - Previously, mesh attachments without explicit "path" properties were not updated.
+    - Now always adds/updates the "path" property to reflect jpeg vs png folder changes.
+*   FIX: Multiple skeletons now pack correctly into a single .spine file.
+    - Previously created separate files (logo.spine, game_intro.spine).
+    - Now correctly creates one combined file (logo_ambient_intro.spine) with all skeletons.
+*   IMPROVEMENT: Better error handling for binary .spine file version detection.
+    - Handles UTF-8 decode errors gracefully with fallback encodings.
+
+v5.54 (Previous)
 *   NEW: Added duplicate-image detection (SHA1 grouping) and reporting as RECOMMENDATIONS.
 *   NEW: Added naming-convention checks with fuzzy spell-check for common animation/skeleton tokens (flags probable misspellings like "anticipation").
 *   CHANGE: Skeleton and Animation name problems are now shown as WARNINGS (red) in the UI and included in the Warnings section of the plain-text report.

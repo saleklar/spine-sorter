@@ -2,12 +2,13 @@ GOOGLE SLIDES COPY-PASTE SCRIPT (PROFESSIONAL EDITION)
 ============================================================
 
 --- SLIDE 1 ---
-TITLE: Spine Sorter v5.51
+TITLE: Spine Sorter v5.55
 SUBTITLE: Automated Asset Optimization & Pipeline Integrity
 BODY:
 *   Technical Artist / Animator Workflow
 *   Runtime Optimization (VRAM/Disk)
 *   Automated QC & Integrity Verification
+*   Automatic Spine Version Management
 
 --- SLIDE 2 ---
 TITLE: Pipeline Objective
@@ -89,3 +90,36 @@ BODY:
 *   **Post-Process Launch:** Auto-load project in Editor for visual verification.
 *   **Aggressive Compression:** Force opaque assets to JPEG (Recommended for Mobile/WebGL optimization).
 *   **Legacy Mode:** Bypass sorting logic for maintenance of older project structures.
+
+--- SLIDE 12 ---
+TITLE: New (v5.55): Automatic Version Detection
+BODY:
+*   **The Challenge: Version Compatibility**
+*   Spine projects contain version-specific binary formats (e.g., 4.1.24 vs 4.2.42).
+*   Wrong version = "Unknown project format" error and processing failure.
+*   Artists manage projects across multiple Spine versions simultaneously.
+
+--- SLIDE 13 ---
+TITLE: Solution: Smart Version Switching
+BODY:
+*   **Automatic Detection:** Reads version metadata from .spine file before processing.
+*   **Dynamic Switching:** Temporarily modifies Spine Launcher settings to match required version.
+*   **Seamless Processing:** Info, export, and import operations use correct Spine version.
+*   **Auto-Restore:** Returns launcher to original version after processing completes.
+
+--- SLIDE 14 ---
+TITLE: Technical Implementation
+BODY:
+*   **Version Registry:** Scans system for all installed Spine versions on startup.
+*   **Smart Matching:** Exact match preferred, falls back to closest major.minor version.
+*   **Launcher Integration:** Modifies launcher settings file (start-1.json) per operation.
+*   **Cross-Platform:** Handles both single launcher and multi-version installations.
+
+--- SLIDE 15 ---
+TITLE: Additional Fixes (v5.55)
+BODY:
+*   **JSON Path Updates:** Fixed mesh attachments now properly redirect between jpeg/png folders.
+*   **Multi-Skeleton Packaging:** Multiple skeletons now correctly pack into single .spine file.
+*   **Binary File Handling:** Improved error handling for version detection in binary .spine files.
+*   **Artist Impact:** Eliminates manual version switching and reduces processing errors.
+
