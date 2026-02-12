@@ -96,7 +96,7 @@ class SpineScannerThread(QThread):
 	
 	This prevents the UI from freezing while searching file system roots
 	and querying executables for their version strings.
-	 """
+	"""
 
 	versions_found = Signal(list)
 
@@ -293,13 +293,13 @@ class ImageCache:
 	
 	The cache stores the file modification time and size to invalidate entries
 	if the source file changes.
-	 """
- def __init__(self, cache_path):
+	"""
+	def __init__(self, cache_path):
 		self.cache_path = cache_path
 		self.cache = {}
 		self.load()
 
- def load(self):
+	def load(self):
 		"""Loads the cache from the JSON file."""
 		try:
 			if os.path.exists(self.cache_path):
@@ -308,7 +308,7 @@ class ImageCache:
 		except Exception:
 			self.cache = {}
 
- def save(self):
+	def save(self):
 		"""Saves the current cache state to the JSON file."""
 		try:
 			with open(self.cache_path, 'w', encoding='utf-8') as f:
@@ -316,7 +316,7 @@ class ImageCache:
 		except Exception:
 			pass
 
- def get(self, path):
+	def get(self, path):
 		"""
 		Retrieves data for a file if the cache is valid (mtime/size match).
 		"""
@@ -333,7 +333,7 @@ class ImageCache:
 			pass
 		return None
 
- def set(self, path, data):
+	def set(self, path, data):
 		"""Updates or adds an entry to the cache."""
 		try:
 			stat = os.stat(path)
@@ -347,37 +347,36 @@ class ImageCache:
 
 
 class FileScanner:
-class FileScanner:
-    """
-    Recursively scans directories for files.
-    
-    Results are cached in memory for the lifetime of the object to avoid
-    re-scanning the file system unnecessarily.
-     """
-    def __init__(self):
-        self.cache = {} # dir_path -> list of (full_path, basename_lower)
-        
-    def scan(self, directory):
-        """
-        Scans a directory for all files recursively.
-        
-        Args:
-            directory (str): The root directory to scan.
-            
-        Returns:
-            list: A list of tuples (full_path, lowercase_filename).
-        """
-        if directory in self.cache:
-            return self.cache[directory]
-        
-        results = []
-        if directory and os.path.exists(directory):
-            for root, dirs, files in os.walk(directory):
-                for f in files:
-                    full_path = os.path.join(root, f)
-                    results.append((full_path, f.lower()))
-        self.cache[directory] = results
-        return results
+	"""
+	Recursively scans directories for files.
+	
+	Results are cached in memory for the lifetime of the object to avoid
+	re-scanning the file system unnecessarily.
+	"""
+	def __init__(self):
+		self.cache = {} # dir_path -> list of (full_path, basename_lower)
+
+	def scan(self, directory):
+		"""
+		Scans a directory for all files recursively.
+		
+		Args:
+			directory (str): The root directory to scan.
+			
+		Returns:
+			list: A list of tuples (full_path, lowercase_filename).
+		"""
+		if directory in self.cache:
+			return self.cache[directory]
+		
+		results = []
+		if directory and os.path.exists(directory):
+			for root, dirs, files in os.walk(directory):
+				for f in files:
+					full_path = os.path.join(root, f)
+					results.append((full_path, f.lower()))
+		self.cache[directory] = results
+		return results
 
 
 class SpinePackageValidator:
@@ -1423,7 +1422,7 @@ class MainWindow(QMainWindow):
 
 			# normalize, dedupe and semantically sort versions (highest first)
 			def ver_key(s):
-				parts = [int(x) for x in s.split('.')[:3)]
+				parts = [int(x) for x in s.split('.')[:3]]
 				while len(parts) < 3:
 					parts.append(0)
 				return tuple(parts)
@@ -1506,7 +1505,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, runnable_spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -1627,7 +1626,7 @@ class MainWindow(QMainWindow):
 									self.info_panel.append(f"<font color='#FF4500'>    - ... and {n_inv - 10} more</font>")
 									break
 
-						# Report HIDDEN (visible: false) Setup Pose Slots
+						# Report Hidden Setup Pose (Warning)
 						if 'setup_pose_hidden' in stats and stats['setup_pose_hidden']:
 							self.info_panel.append("<br>")
 							n_hidden = len(stats['setup_pose_hidden'])
@@ -2140,12 +2139,7 @@ class MainWindow(QMainWindow):
 
 				# skeleton name
 				internal_skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
-				# Remove version suffix from internal name if present (e.g. ambient_v1 -> ambient)
-				internal_skeleton_name = re.sub(r'_v\d+$', '', internal_skeleton_name)
-
 				skeleton_name = os.path.splitext(os.path.basename(input_path))[0]
-				# Remove version suffix from project filename
-				skeleton_name = re.sub(r'_v\d+$', '', skeleton_name)
 
 				# build slot blend map
 				slot_blend = {}
@@ -2905,14 +2899,14 @@ class MainWindow(QMainWindow):
 													
 													# Check if this skeleton name matches any path part
 													# 1. Exact match
-													if s_name in src_parts:
+													if s_name in src_parts_lower:
 														potential_skeleton = s
 														is_other_skeleton = True
 														break
 													
 													# 2. Relaxed match (folder "symbols" matches skeleton "symbols_v6")
-													for p in src_parts:
-														if len(p) < 3 or p in ['jpeg', 'png', 'images', 'symbols', 'skeleton', 'root', 'backup']:
+													for p in src_parts_lower:
+														if len(p) < 3 or p in ['jpeg', 'png', 'images', 'assets', 'source', 'common', 'root', 'backup']:
 															continue
 														
 														if s_name.startswith(p):
@@ -3143,6 +3137,19 @@ class MainWindow(QMainWindow):
 													first_rel = f"{base_no_digits}".replace('\\', '/')
 												else:
 													first_rel = f"{target_skeleton}/{family}/{base_no_digits}".replace('\\', '/')
+										else:
+											# For static: use basename WITHOUT extension
+											name_no_ext = os.path.splitext(os.path.basename(m))[0]
+											if nested_folders_str:
+												if is_reference:
+													first_rel = f"{nested_folders_str}/{name_no_ext}".replace('\\', '/')
+												else:
+													first_rel = f"{target_skeleton}/{family}/{nested_folders_str}/{name_no_ext}".replace('\\', '/')
+											else:
+												if is_reference:
+													first_rel = f"{name_no_ext}".replace('\\', '/')
+												else:
+													first_rel = f"{target_skeleton}/{family}/{name_no_ext}".replace('\\', '/')
 										
 										# Clean up any duplicate family tokens
 										first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
@@ -3668,7 +3675,7 @@ class MainWindow(QMainWindow):
 
 				# create a .spine package using Spine CLI (binary format)
 				if hasattr(self, 'status_label'): self.status_label.setText(f"Creating .spine: {ui_label_text}")
-				spine_pkg = os.path.join(base_output_root, os.path.splitext(os.path.basename(input_path))[0] + '.spine')
+				spine_pkg = os.path.join(output_root, os.path.splitext(name)[0] + '.spine')
 				if spine_exe and os.path.exists(spine_exe):
 					self.info_panel.append(f"Converting JSON to binary .spine using: {spine_exe}")
 					try:
@@ -4109,6 +4116,9 @@ class MainWindow(QMainWindow):
 			# User explicitly asked for -n (clean=false/no-clean)
 			# Note: -n in some Spine versions might mean --name. But we will follow user instruction.
 			# To be safe against version differences, we rely primarily on export_settings "cleanUp": false.
+			# But I will append it as a separate flag check? No, standard CLI: -c is clean.
+			# There is no --no-clean.
+			# I will rely on the export settings which I set to cleanUp: false.
 			
 			self.info_panel.append(f"Running export with cleanUp=false via settings.")
 			self.status_label.setText(f"Exporting raw data: {name}")
@@ -4344,6 +4354,21 @@ class MainWindow(QMainWindow):
 				# and then we keep it linked in file_stats['skeletons'].
 				# Wait, if we append to all_file_stats, the outer loop reporting logic will see it as a top-level file entry
 				# unless we change the reporting logic to ignore 'non-container' entries OR handle flat lists.
+				# The user requested "separate final reports for each included skeleton", so a flat list of skeletons per file IS actually fine for reporting,
+				# provided we label them meaningfully.
+				#
+				# However, to preserve the "clean" structure, I will:
+				# 1. Append skeleton_stats to all_file_stats
+				# 2. Let the function run
+				# 3. (Optional) Later in reporting, we can group them if needed, but flat reporting is what was asked (separate reports).
+				#
+				# BUT our 'file_stats' init above line 3167 is now a "container" (is_container=True).
+				# If we append skeletal stats to all_file_stats, we will have: [ContainerForFile1, Skel1, Skel2]
+				# We should probably REMOVE the ContainerForFile1 from the reporting list or make the reporting list smarter.
+				#
+				# Let's adjust:
+				# The reporting logic iterates over all_file_stats.
+				# If we change 'file_stats' (the container) to NOT be in all_file_stats, or filter it out?
 				#
 				# Better approach for minimal code change in `_process_single_skeleton`:
 				# We keep `all_file_stats` as a flat list of REPORTS.
@@ -4398,7 +4423,7 @@ class MainWindow(QMainWindow):
 			if 'total_exported_unique' in stats: # New format
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total Attachments: {stats.get('total_attachments', 0)}</font>")
-				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total used images in Spine: {stats.get('total_spine', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total used images in Spine: {stats.get('total_spine_used', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
@@ -4469,7 +4494,7 @@ class MainWindow(QMainWindow):
 			
 			if source_analysis_failed:
 				anim_color = 'orange'
-				self.info_panel.append(f"  Detected Animations: {anim_total} (Exported: {anim_exported})")
+				self.info_panel.append(f"<font color='orange'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
 				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>Source analysis found 0 animations (but {anim_exported} exported). Cannot verify unchecked animations.</span>")
 			else:
 				# Normal reporting
@@ -4654,7 +4679,7 @@ class MainWindow(QMainWindow):
 						for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
 							c = n.get(cat, {})
 							if c and c.get('count', 0) > 0:
-								report_lines.append(f" - {cat.split('_')[0].capitalize()} issues: {c.get('count')}")
+								report_lines.append(f" - {cat.split('_')[0].capitalize()} issues (recommendation): {c.get('count')}")
 								for ex in c.get('examples', []):
 									reasons = ', '.join(ex.get('reasons', []))
 									report_lines.append(f"    - {ex.get('name')} -> {reasons}")
