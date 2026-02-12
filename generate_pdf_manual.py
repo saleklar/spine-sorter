@@ -61,22 +61,21 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v.5.54",
+            "title": "Spine Sorter v.5.55",
             "subtitle": "The Animator's Survival Guide",
             "body": [
-                "<b>No more manual sorting. No more missing files.</b>",
+                "<b>No more manual sorting. No more missing files. No more version conflicts.</b>",
                 "<br/>",
                 "This tool ensures your Spine projects are optimal for the game engine.",
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.54):</b>",
-                "• <b>Duplicate-image detection:</b> SHA1-based grouping and RECOMMENDATIONS to dedupe identical attachments.",
-                "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples.",
-                "• <b>Fuzzy spell-check:</b> Flags probable misspellings (e.g. 'anticiation' → 'anticipation').",
-                "• <b>Warnings for skeleton/animation names:</b> These now show as RED warnings in the UI and appear in the warnings report.",
-                "• <b>Validate-only temp cleanup:</b> Validate-only runs now delete temporary JSON/export folders unless 'Keep temporary files' is enabled.",
-                "• <b>Misc fixes:</b> Prevent output filename collisions, restored Spine scanner thread, improved report layout."
+                "<b>WHAT'S NEW IN THIS EDITION (v5.55):</b>",
+                "• <b>Automatic Spine version detection:</b> Detects your project version (e.g., 4.2.42) and auto-switches the Spine Launcher before processing.",
+                "• <b>Smart version matching:</b> Uses the closest available version if exact match not found.",
+                "• <b>Fixed JSON path updates:</b> Mesh attachments now properly update when moved between jpeg/png folders.",
+                "• <b>Fixed multi-skeleton packaging:</b> Multiple skeletons now correctly pack into a single .spine file.",
+                "• <b>Better binary file handling:</b> Improved error recovery when reading version info from binary .spine files."
             ],
             "is_cover": True
         },
@@ -167,8 +166,38 @@ def create_pdf(filename):
             ]
         },
         {
+            "title": "New (v5.55): Automatic Version Detection",
+            "body": [
+                "<b>The Problem:</b> Spine projects are version-specific. Opening a 4.2.42 project with Spine 4.1.24 causes 'Unknown project format' errors.",
+                "<br/>",
+                "<b>The Solution:</b> The tool now automatically detects your project version and switches the Spine Launcher before processing.",
+                "<br/>",
+                "<b>How It Works:</b>",
+                "1. Reads version metadata from your .spine file (e.g., 4.2.42)",
+                "2. Temporarily switches Spine Launcher to that version",
+                "3. Runs info, export, and import operations",
+                "4. Restores your original Spine version when done"
+            ]
+        },
+        {
+            "title": "Version Detection: Technical Details",
+            "body": [
+                "<b>Smart Matching:</b> If exact version not found, uses closest available:",
+                "• Prefers same major.minor version (4.2.10 → 4.2.15)",
+                "• Falls back to same major version (4.2.10 → 4.3.5)",
+                "• Uses highest available as last resort",
+                "<br/>",
+                "<b>Benefits:</b>",
+                "• No more manual version switching",
+                "• Processes projects from different Spine versions seamlessly",
+                "• Eliminates 'Unknown project format' errors",
+                "• Works with Spine Launcher's internal version management"
+            ]
+        },
+        {
              "title": "Changelog",
              "body": [
+                "<b>v5.55:</b> Automatic Spine version detection, fixed mesh attachment path updates, fixed multi-skeleton packaging, improved binary file handling.",
                 "<b>v5.54:</b> Added duplicate-image recommendations, fuzzy naming checks, skeleton/animation name warnings, validate-only temp-cleanup, and misc fixes.",
                 "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
                 "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
@@ -179,7 +208,14 @@ def create_pdf(filename):
         {
             "title": "All Features By Version",
             "body": [
-                "<b>v5.54 (current):</b>",
+                "<b>v5.55 (current):</b>",
+                "• Automatic Spine version detection from .spine files",
+                "• Smart version matching with Spine Launcher integration",
+                "• Fixed JSON path updates for mesh attachments (jpeg vs png folders)",
+                "• Fixed multi-skeleton packaging into single .spine file",
+                "• Improved binary .spine file version detection with error handling",
+                "<br/>",
+                "<b>v5.54:</b>",
                 "• Duplicate-image detection and RECOMMENDATIONS (SHA1 grouping)",
                 "• Naming-convention checks (skeleton, animations) with fuzzy spell-check",
                 "• Skeleton & animation name issues shown as WARNINGS in UI and reports",
@@ -235,4 +271,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.54_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.55_Artist_Guide.pdf")
