@@ -1,7 +1,12 @@
-SPINE SORTER v5.67 - ARTIST GUIDE
+SPINE SORTER v5.68 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.67)
+LATEST UPDATES (v5.68)
+----------------------------------------
+- Fix: Resolved issue where Spine Version Launcher would show only limited versions on macOS laptops.
+- Feature: Added proper Mac support for Spine version detection.
+
+PREVIOUS UPDATES (v5.67)
 ----------------------------------------
 - Feature: Added "Active Spine Version" switcher. You can now select which installed version of Spine to use directly from a dropdown menu.
 - Feature: "LAUNCH SPINE" button. Quickly launch the specific Spine version selected in the dropdown.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.67 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.68 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -983,7 +983,7 @@ class MainWindow(QMainWindow):
 		layout.addWidget(self.active_version_label)
 		
 		# Version Warning/Instruction
-		self.version_instruction_label = QLabel("make sure that active spine version match the version used in the project")
+		self.version_instruction_label = QLabel("choose exact version of spine used in the project to avoid compatibility issues")
 		self.version_instruction_label.setStyleSheet("color: #FF9800; font-style: italic; margin-bottom: 5px;")
 		self.version_instruction_label.setAlignment(Qt.AlignCenter)
 		layout.addWidget(self.version_instruction_label)
@@ -1200,16 +1200,27 @@ class MainWindow(QMainWindow):
 		versions = []
 		# Locate Spine Data for Version Scanning
 		try:
-			spine_data = Path(os.environ['USERPROFILE']) / "Spine"
-			updates_folder = spine_data / "updates"
-			
-			if updates_folder.exists():
-				versions = [f.name for f in updates_folder.iterdir() if f.name and f.name[0].isdigit()]
-				# Sort versions descending (semantic sort favored)
-				try:
-					versions = sorted(versions, key=lambda v: [int(x) for x in v.split('.') if x.isdigit()] or [0], reverse=True)
-				except:
-					versions = sorted(versions, reverse=True)
+			import sys
+			spine_folder_path = None
+			if sys.platform == 'win32':
+				user_profile = os.environ.get('USERPROFILE')
+				if user_profile:
+					spine_folder_path = Path(user_profile) / "Spine"
+			elif sys.platform == 'darwin':
+				spine_folder_path = Path.home() / "Library/Application Support/Spine"
+			else:
+				spine_folder_path = Path.home() / ".spine"
+
+			if spine_folder_path:
+				updates_folder = spine_folder_path / "updates"
+				
+				if updates_folder.exists():
+					versions = [f.name for f in updates_folder.iterdir() if f.name and f.name[0].isdigit()]
+					# Sort versions descending (semantic sort favored)
+					try:
+						versions = sorted(versions, key=lambda v: [int(x) for x in v.split('.') if x.isdigit()] or [0], reverse=True)
+					except:
+						versions = sorted(versions, reverse=True)
 		except Exception:
 			pass
 		
