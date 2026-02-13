@@ -1,29 +1,31 @@
-GOOGLE SLIDES COPY-PASTE SCRIPT (PROFESSIONAL EDITION)
+GOOGLE SLIDES COPY-PASTE SCRIPT (PROFESSIONAL EDITION) v5.67
 ============================================================
 
 --- SLIDE 1 ---
-TITLE: Spine Sorter v5.51
+TITLE: Spine Sorter v5.67
 SUBTITLE: Automated Asset Optimization & Pipeline Integrity
 BODY:
 *   Technical Artist / Animator Workflow
 *   Runtime Optimization (VRAM/Disk)
 *   Automated QC & Integrity Verification
+*   **NEW:** Version Management & Launcher
 
 --- SLIDE 2 ---
 TITLE: Pipeline Objective
 BODY:
 *   Automates pre-export asset processing.
-*   Optimizes build size via intelligent texture sorting (JPEG vs PNG).
-*   Enforces build integrity by verifying internal export flags.
-*   Standardizes output structure for engineering handoff.
+*   Optimizes build size via intelligent texture sorting.
+*   Enforces build integrity/version consistency.
+*   Standardizes output structure.
 
 --- SLIDE 3 ---
 TITLE: Workflow (Standard Operation)
 BODY:
-1.  Target source directory containing `.spine` project files.
-2.  Select specific skeleton/project file from queue.
-3.  Execute processing pipeline ("Run Selected File").
-4.  Review generated build report and error logs.
+1.  Target source directory.
+2.  **Select active Spine version** from dropdown (New!).
+3.  Select specific skeleton file.
+4.  Execute processing pipeline.
+5.  (Optional) "Launch Spine" to edit source.
 
 --- SLIDE 4 ---
 TITLE: Feature: Intelligent Compression Sorting

@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v.5.54",
+            "title": "Spine Sorter v5.67",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -70,13 +70,13 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.54):</b>",
+                "<b>WHAT'S NEW IN THIS EDITION (v5.67):</b>",
+                "• <b>Active Version Switcher:</b> Dropdown to select and lock the Spine version used for processing.",
+                "• <b>Quick Launch:</b> 'LAUNCH SPINE' button to open the specific selected version immediately.",
+                "• <b>Smart Open:</b> 'Open after export' now uses the specific version you selected.",
                 "• <b>Duplicate-image detection:</b> SHA1-based grouping and RECOMMENDATIONS to dedupe identical attachments.",
                 "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples.",
-                "• <b>Fuzzy spell-check:</b> Flags probable misspellings (e.g. 'anticiation' → 'anticipation').",
-                "• <b>Warnings for skeleton/animation names:</b> These now show as RED warnings in the UI and appear in the warnings report.",
-                "• <b>Validate-only temp cleanup:</b> Validate-only runs now delete temporary JSON/export folders unless 'Keep temporary files' is enabled.",
-                "• <b>Misc fixes:</b> Prevent output filename collisions, restored Spine scanner thread, improved report layout."
+                "• <b>Fuzzy spell-check:</b> Flags probable misspellings (e.g. 'anticiation' → 'anticipation')."
             ],
             "is_cover": True
         },
@@ -167,8 +167,28 @@ def create_pdf(filename):
             ]
         },
         {
-             "title": "Changelog",
+            "title": "New: Version Management",
+            "body": [
+                "<b>Active Version Dropdown:</b>",
+                "Located on the main screen. Allows you to choose exactly which installed Spine version to use (e.g., 4.1.24 vs 4.2.35).",
+                "<br/>",
+                "<b>LAUNCH SPINE Button:</b>",
+                "Instantly opens the Spine Editor with the selected version. Useful for quick fixes.",
+                "<br/>",
+                "<b>Consistency:</b>",
+                "The tool now forces the 'Open after export' features to use the exact version you selected, preventing accidental version upgrades."
+            ]
+        },
+        {
+            "title": "Changelog",
              "body": [
+                "<b>v5.67:</b>",
+                "• <b>Feature:</b> Active Version Switcher (Dropdown) & Quick Launcher.",
+                "• <b>fix:</b> 'Open after export' now respects the selected version.",
+                "• <b>Improvement:</b> Automatic version detection sync between launcher mode and processing.",
+                "• <b>UI:</b> Added dedicated version controls and status labels.",
+                "• <b>Docs:</b> Updated manual and PDF guide with version management instructions.",
+                "<br/>",
                 "<b>v5.54:</b> Added duplicate-image recommendations, fuzzy naming checks, skeleton/animation name warnings, validate-only temp-cleanup, and misc fixes.",
                 "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
                 "<b>v5.51:</b> 'Validate Only' mode (Dev). JPEG/PNG edge detection improvements.",
@@ -179,12 +199,16 @@ def create_pdf(filename):
         {
             "title": "All Features By Version",
             "body": [
-                "<b>v5.54 (current):</b>",
-                "• Duplicate-image detection and RECOMMENDATIONS (SHA1 grouping)",
-                "• Naming-convention checks (skeleton, animations) with fuzzy spell-check",
-                "• Skeleton & animation name issues shown as WARNINGS in UI and reports",
-                "• Validate-only runs clean up temporary JSON/export folders unless 'Keep temporary files' is checked",
-                "• Misc fixes: filename collision prevention, restored background Spine scanner thread, improved report insertion and HTML formatting",
+                "<b>v5.67 (current):</b>",
+                "• Active Spine Version Switcher & Launcher",
+                "• Version-aware 'Open after export'",
+                "• Duplicate-image deduplication recommendations",
+                "• Fuzzy naming checks",
+                "<br/>",
+                "<b>v5.54:</b>",
+                "• Naming-convention checks (skeleton, animations)",
+                "• Skeleton & animation name issues shown as WARNINGS",
+                "• Validate-only runs clean up temporary JSON/export folders",
                 "<br/>",
                 "<b>v5.53:</b>",
                 "• Hidden/Invisible slot checks in Setup Pose",
@@ -235,4 +259,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.54_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.67_Artist_Guide.pdf")

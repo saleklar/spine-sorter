@@ -3,6 +3,9 @@ SPINE SORTER v5.67 - ARTIST GUIDE
 
 LATEST UPDATES (v5.67)
 ----------------------------------------
+- Feature: Added "Active Spine Version" switcher. You can now select which installed version of Spine to use directly from a dropdown menu.
+- Feature: "LAUNCH SPINE" button. Quickly launch the specific Spine version selected in the dropdown.
+- Feature: "Open after export" now respects the chosen version in the dropdown.
 - Fixed: Application crash when clicking the "Help" button. The documentation now correctly opens in your default text editor or browser.
 - Improved: Cleaned up project structure and temporary files management for better stability.
 
@@ -73,7 +76,19 @@ KEY FEATURES
    - Validation: It checks if your .spine file is valid and can be opened.
    - Animation Integrity: Uses the official Spine CLI to verify the "Source of Truth" for your project structure.
 
-5. CHECKBOX OPTIONS
+6. VERSION MANAGEMENT [NEW]
+   
+   The tool now detects all installed Spine versions in your user folder and lets you switch between them easily.
+
+   - Active Version Dropdown:
+     Located just below the green status label. Select a version here (e.g., 4.1.24, 4.2.35) to set it as the "Active" version for the tool. All processing and consistency checks will use this version.
+
+   - LAUNCH SPINE Button:
+     Instantly launches the selected version of the Spine Editor. This is useful if you need to open the project to fix a warning (like checking an export box).
+
+   NOTE: If you have "Open .spine after export" checked, the tool will update your Spine launcher to open the file in the version you selected in the dropdown.
+
+7. CHECKBOX OPTIONS
 ----------------------------------------
 
 The main interface has several checkboxes that control how the tool works.

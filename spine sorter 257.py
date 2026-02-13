@@ -31,6 +31,7 @@ import zipfile
 import io
 import errno
 import random
+from pathlib import Path
 
 # --- Configuration Constants ---
 # Default Spine versions for the version selector dropdown.
@@ -987,6 +988,28 @@ class MainWindow(QMainWindow):
 		self.version_instruction_label.setAlignment(Qt.AlignCenter)
 		layout.addWidget(self.version_instruction_label)
 
+		# --- Version Switcher Integration (Roll Down Menu) ---
+		switcher_layout = QHBoxLayout()
+		switcher_layout.setContentsMargins(0, 5, 0, 5)
+		
+		self.launcher_version_combo = QComboBox()
+		self.launcher_version_combo.setToolTip("Select a specific Spine version to launch")
+		self.launcher_version_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+		self.launcher_version_combo.currentTextChanged.connect(self._on_launcher_version_changed)
+		
+		self.launch_btn = QPushButton("LAUNCH SPINE")
+		self.launch_btn.setToolTip("Launch the selected version of Spine immediately")
+		self.launch_btn.setStyleSheet("background-color: #d35400; color: white; font-weight: bold;")
+		self.launch_btn.clicked.connect(self._launch_selected_spine_version)
+		
+		switcher_layout.addWidget(self.launcher_version_combo)
+		switcher_layout.addWidget(self.launch_btn)
+		
+		layout.addLayout(switcher_layout)
+
+		# Populate launcher versions immediately
+		self._refresh_launcher_versions()
+
 		layout.addWidget(QLabel("Spine files in folder:"))
 		self.list_widget.setToolTip("List of .spine files found in the selected folder")
 		layout.addWidget(self.list_widget)
@@ -1050,6 +1073,7 @@ class MainWindow(QMainWindow):
 
 		# Monitor external Spine version changes (e.g. from Spine Launcher)
 		self.last_external_spine_version = None
+		self.last_disk_read_version = None
 		self.last_external_spine_mtime = 0
 		
 		# Initial label update
@@ -1084,7 +1108,8 @@ class MainWindow(QMainWindow):
 		try:
 			# Check modification time first to avoid unnecessary reads
 			mtime = os.path.getmtime(target_file)
-			if mtime == self.last_external_spine_mtime:
+			# Force read if we haven't read anything yet
+			if mtime == self.last_external_spine_mtime and self.last_disk_read_version is not None:
 				return
 			
 			self.last_external_spine_mtime = mtime
@@ -1098,45 +1123,38 @@ class MainWindow(QMainWindow):
 			if not re.match(r"^\d+\.\d+(\.\d+)?$", content):
 				return
 
-			# If this is the first run, just store it but do NOT return
-			# We want to check mismatches on startup too!
-			# (Checking None -> Valid transition is also a "Change" from unknown state)
-			is_startup = (self.last_external_spine_version is None)
+			# Initialize disk read version if first time
+			is_startup = (self.last_disk_read_version is None)
 			
-			# Check mismatch even if startup
-			if content != self.last_external_spine_version:
-				self.last_external_spine_version = content
+			# Has the FILE changed since we last read IT?
+			if content != self.last_disk_read_version:
+				self.last_disk_read_version = content
 				
 				# Only log if it's an actual change during runtime vs startup detection
 				if not is_startup:
 					self.info_panel.append(f"Detected external Spine version change to: {content}")
 				
-				# Try to find a matching executable in our list
-				best_match = self.find_best_spine_exe(content)
+				# Update the Launcher Combo to match the Disk
+				# This will trigger _on_launcher_version_changed -> which updates UI
+				if hasattr(self, 'launcher_version_combo'):
+					idx = self.launcher_version_combo.findText(content)
+					if idx >= 0:
+						self.launcher_version_combo.setCurrentIndex(idx)
+					else:
+						# If disk version is not in our list, weird, but maybe just use it manually?
+						# Or just let default behavior happen
+						pass
 				
+				# Also attempt to update the EXE selection just in case (Legacy behavior)
+				best_match = self.find_best_spine_exe(content)
 				if best_match:
 					current_sel = self.spine_combo.currentData()
-					
-					# Force update if different OR if this is startup and we want to sync
 					if best_match != current_sel:
 						if not is_startup:
 							self.info_panel.append(f"Auto-switching Sorter to match: {content}")
-						
-						# Set in combo (this triggers signals -> saves config -> updates label)
 						index = self.spine_combo.findData(best_match)
 						if index >= 0:
 							self.spine_combo.setCurrentIndex(index)
-					else:
-						# It matched the current selection, but let's force a label update anyway
-						# to ensure the display text is correct (e.g. showing the specific version)
-						self._update_active_version_label()
-				else:
-					# No local matching executable found (e.g. user is using Launcher but we don't know the exact binary version)
-					# BUT we should still update the UI to show we detected the change!
-					
-					# Force the label to show this detected version, overriding the combo box text
-					self.active_version_label.setText(f"Active Spine Version: {content} (External Check)")
-					self.active_version_label.setStyleSheet("font-weight: bold; color: #FF9800; margin: 5px 0;") # Orange to indicate mismatch/external
 					
 		except Exception as e:
 			# self.info_panel.append(f"Monitor Warning: {e}") 
@@ -1144,17 +1162,22 @@ class MainWindow(QMainWindow):
 
 	def _update_active_version_label(self):
 		"""Updates the active version label on the main GUI based on current selection."""
-		# If we just set an external override in the monitor loop, we might not want to overwrite it??
-		# Actually, this method represents the "Truth" of what the Sorter is configured to use.
-		
-		# Get from combo if available (live update), else config
+		# If the launcher combo has a selection, that takes precedence for the label display
+		if hasattr(self, 'launcher_version_combo') and self.launcher_version_combo.count() > 0:
+			selected_ver = self.launcher_version_combo.currentText()
+			if selected_ver:
+				# Prioritize the launcher selection
+				self.active_version_label.setStyleSheet("font-weight: bold; color: #4CAF50; margin: 5px 0 0 0;")
+				self.active_version_label.setText(f"Active Spine Version: {selected_ver}")
+				return
+
+		# Fallback to legacy behavior (Spine EXE based)
 		txt = ""
 		current_exe = None
 		if self.spine_combo.currentIndex() >= 0:
 			txt = self.spine_combo.itemText(self.spine_combo.currentIndex())
 			current_exe = self.spine_combo.currentData()
 		else:
-			# If combo empty (e.g. startup scanning), rely on config path
 			path = self.config.get('spine_exe_selected') or self.config.get('spine_exe')
 			if path:
 				txt = f"Spine - {os.path.basename(path)}"
@@ -1163,23 +1186,112 @@ class MainWindow(QMainWindow):
 				txt = "None selected"
 		
 		# Clean up label (remove path noise)
-		# "Spine (4.2.35) - Spine.exe" -> "Spine (4.2.35)"
 		if " - " in txt:
 			txt = txt.split(" - ")[0]
-			
-		# If we have a detected external version that matches, maybe append it?
-		if self.last_external_spine_version and current_exe:
-			# Check if current_exe looks like it matches last_external_spine_version
-			# Simple exact match check or inclusion
-			if self.last_external_spine_version in txt:
-				pass # Already in text
-			else:
-				# Don't append if totally different, that's confusing.
-				pass
-		
-		# Reset style to Green
+
 		self.active_version_label.setStyleSheet("font-weight: bold; color: #4CAF50; margin: 5px 0 0 0;")
 		self.active_version_label.setText(f"Active Spine Version: {txt}")
+
+	def _refresh_launcher_versions(self):
+		"""
+		Scans for Spine updates in the user profile to populate the quick-launcher combobox.
+		Based on spin_version_changer.py logic.
+		"""
+		versions = []
+		# Locate Spine Data for Version Scanning
+		try:
+			spine_data = Path(os.environ['USERPROFILE']) / "Spine"
+			updates_folder = spine_data / "updates"
+			
+			if updates_folder.exists():
+				versions = [f.name for f in updates_folder.iterdir() if f.name and f.name[0].isdigit()]
+				# Sort versions descending (semantic sort favored)
+				try:
+					versions = sorted(versions, key=lambda v: [int(x) for x in v.split('.') if x.isdigit()] or [0], reverse=True)
+				except:
+					versions = sorted(versions, reverse=True)
+		except Exception:
+			pass
+		
+		# Fallbacks if none found or error
+		if not versions:
+			versions = ["4.1.24", "4.0.64", "3.8.99"]
+			
+		self.launcher_version_combo.clear()
+		self.launcher_version_combo.addItems(versions)
+		if versions:
+			self.launcher_version_combo.setCurrentIndex(0)
+			# Trigger the change handler manually for initial state
+			self._on_launcher_version_changed(versions[0])
+
+	def _on_launcher_version_changed(self, text):
+		"""
+		Called when the user selects a version from the launcher dropdown.
+		Updates the active version label to reflect this choice as the intended version,
+		overriding the detected/default one.
+		"""
+		if not text:
+			return
+			
+		# Update the label to show this specific version is active (Manual override)
+		self.active_version_label.setText(f"Active Spine Version: {text}")
+		self.active_version_label.setStyleSheet("font-weight: bold; color: #4CAF50; margin: 5px 0 0 0;")
+		
+		# Also update our internal tracking if needed, so checks against this version work
+		# We assume the user wants THIS version to be the benchmark
+		self.last_external_spine_version = text
+
+	def _launch_selected_spine_version(self):
+		"""
+		Launches the selected Spine version using the --update flag.
+		"""
+		version = self.launcher_version_combo.currentText().strip()
+		if not version:
+			return
+
+		# Try to use the configured spine executable if possible
+		spine_exe_path = self.config.get('spine_exe_selected') or self.config.get('spine_exe')
+		
+		# Fallback to default if configured one is missing or invalid
+		# Note: spin_version_changer.py uses Spine.com
+		candidates = []
+		if spine_exe_path:
+			if str(spine_exe_path).lower().endswith('.exe'):
+				# Try to replace .exe with .com in the same folder
+				candidates.append(str(spine_exe_path)[:-4] + ".com")
+			candidates.append(str(spine_exe_path))
+
+		# Add standard defaults
+		candidates.extend([
+			r"C:\Program Files\Spine\Spine.com",
+			r"C:\Program Files\Spine\Spine.exe",
+		])
+		if sys.platform == 'darwin':
+			candidates.extend([
+				"/Applications/Spine.app/Contents/MacOS/Spine",
+				os.path.expanduser("~/Applications/Spine.app/Contents/MacOS/Spine")
+			])
+		
+		final_exe = None
+		for c in candidates:
+			if c and os.path.exists(c):
+				final_exe = c
+				break
+		
+		if not final_exe:
+			QMessageBox.critical(self, "Error", f"Spine executable not found.\nChecked locations:\n" + "\n".join([str(c) for c in candidates]))
+			return
+
+		try:
+			# Command: "C:\Program Files\Spine\Spine.com" --update <version>
+			cmd = [str(final_exe), "--update", version]
+			
+			self.info_panel.append(f"Launching Spine: {' '.join(cmd)}")
+			# Launch independent process
+			subprocess.Popen(cmd)
+			
+		except Exception as e:
+			QMessageBox.critical(self, "Error", f"Failed to launch: {e}")
 
 	def _pulse_checkbox(self):
 		self.pulse_state = not self.pulse_state
@@ -4319,7 +4431,10 @@ class MainWindow(QMainWindow):
 								# Wait a moment to ensure file handles are released
 								time.sleep(1.0)
 								# Use subprocess.Popen to avoid blocking the UI
-								subprocess.Popen([spine_exe, spine_pkg])
+								# Include extra_cli_args (like --update version) if present
+								cmd_open = [spine_exe] + (extra_cli_args or []) + [spine_pkg]
+								self.info_panel.append(f"Launch cmd: {' '.join(cmd_open)}")
+								subprocess.Popen(cmd_open)
 							else:
 								if not spine_exe:
 									self.info_panel.append("Spine executable not configured; cannot open.")
@@ -4512,9 +4627,28 @@ class MainWindow(QMainWindow):
 			extra_cli_args = []
 			detected_ver = None
 			
-			# If user selected a specific version for this file, use it and SKIP detection
+			# Check if we have a specific setup from the launcher version combo override
+			using_launcher_version = False
+			if hasattr(self, 'launcher_version_combo') and self.launcher_version_combo.count() > 0:
+				selected_launcher_ver = self.launcher_version_combo.currentText().strip()
+				if selected_launcher_ver:
+					self.info_panel.append(f"Using Launcher Version Override: {selected_launcher_ver}")
+					extra_cli_args = ["--update", selected_launcher_ver]
+					detected_ver = selected_launcher_ver
+					using_launcher_version = True
+					
+					# When using launcher version, we usually prefer Spine.com if the base was Spine.exe, 
+					# because CLI args work better with .com on Windows
+					if os.name == 'nt' and str(current_runnable_spine_exe).lower().endswith('.exe'):
+						candidate_com = str(current_runnable_spine_exe)[:-4] + ".com"
+						if os.path.exists(candidate_com):
+							current_runnable_spine_exe = candidate_com
+			
+			# If user selected a specific version for this file (in the list), it overrides global/launcher settings
 			if manual_exe:
 				self.info_panel.append(f"Using manually selected version for {name}")
+				# Clear any launcher overrides if per-file override is set
+				extra_cli_args = [] 
 				current_runnable_spine_exe = manual_exe
 				# Mac app bundle resolution
 				if sys.platform == 'darwin' and current_runnable_spine_exe.endswith('.app'):
@@ -4526,7 +4660,7 @@ class MainWindow(QMainWindow):
 				pass
 
 			# Auto-detection removed as per user request
-			detected_ver = None
+			# detected_ver = None # (Already handled above for Launcher Override)
 			final_exe_path = None
 			
 			# Capture which version we finally decided on for reporting
