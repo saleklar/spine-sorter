@@ -61,8 +61,8 @@ except Exception:
 # --- GUI Dependencies ---
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
-	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor
+	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer, QUrl
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor, QDesktopServices
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
