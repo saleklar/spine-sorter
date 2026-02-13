@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v5.68",
+            "title": "Spine Sorter v5.69",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -70,14 +70,14 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.68):</b>",
+                "<b>WHAT'S NEW IN THIS EDITION (v5.69):</b>",
+                "• <b>Fetch All Versions:</b> New button to grab the complete list of historical Spine patches from the web.",
                 "• <b>Mac Support:</b> Fixed Spine version detection for macOS users.",
                 "• <b>Active Version Switcher:</b> Dropdown to select and lock the Spine version used for processing.",
                 "• <b>Quick Launch:</b> 'LAUNCH SPINE' button to open the specific selected version immediately.",
                 "• <b>Smart Open:</b> 'Open after export' now uses the specific version you selected.",
                 "• <b>Duplicate-image detection:</b> SHA1-based grouping and RECOMMENDATIONS to dedupe identical attachments.",
-                "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples.",
-                "• <b>Fuzzy spell-check:</b> Flags probable misspellings (e.g. 'anticiation' → 'anticipation')."
+                "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples."
             ],
             "is_cover": True
         },
@@ -183,6 +183,9 @@ def create_pdf(filename):
         {
             "title": "Changelog",
              "body": [
+                "<b>v5.69:</b>",
+                "• <b>New:</b> 'Fetch All' button to retrieve all historical versions from Esoteric Software.",
+                "<br/>",
                 "<b>v5.68:</b>",
                 "• <b>Fix:</b> Resolved Spine version detection issues on macOS.",
                 "• <b>Platform:</b> Improved cross-platform compatibility for version launcher.",
@@ -267,4 +270,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.68_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.69_Artist_Guide.pdf")

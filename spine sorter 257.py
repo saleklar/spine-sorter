@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.68 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.69 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -31,6 +31,10 @@ import zipfile
 import io
 import errno
 import random
+# Imports for version fetching
+import ssl
+import urllib.request
+import urllib.parse
 from pathlib import Path
 
 # --- Configuration Constants ---
@@ -129,6 +133,97 @@ class SpineFileWidget(QWidget):
 	def updateVersions(self, available_versions):
 		# No op since dropdown is removed
 		pass
+
+
+class VersionFetcherThread(QThread):
+	"""
+	Background thread to fetch all available Spine versions from the official archive.
+	"""
+	versions_fetched = Signal(list)
+	error_occurred = Signal(str)
+
+	def run(self):
+		base_urls = [
+			'https://hr.esotericsoftware.com/spine-changelog/archive',
+			'https://esotericsoftware.com/spine-changelog/archive',
+		]
+		
+		collected = set()
+		monthly_urls = []
+		
+		def fetch_url(u, timeout=10):
+			last_err = None
+			try:
+				ctx = ssl.create_default_context()
+				with urllib.request.urlopen(u, timeout=timeout, context=ctx) as r:
+					return r.read().decode('utf-8', errors='ignore')
+			except Exception as e1:
+				last_err = e1
+				try:
+					# Fallback for old ssl certs if needed
+					ctx = ssl._create_unverified_context()
+					with urllib.request.urlopen(u, timeout=timeout, context=ctx) as r:
+						return r.read().decode('utf-8', errors='ignore')
+				except Exception as e2:
+					last_err = e2
+					if u.startswith('https://'):
+						http_u = 'http://' + u[len('https://'):]
+						try:
+							with urllib.request.urlopen(http_u, timeout=timeout) as r:
+								return r.read().decode('utf-8', errors='ignore')
+						except Exception as e3:
+							last_err = e3
+			return None
+
+		try:
+			# 1. Fetch from Archive Base URLs
+			for base in base_urls:
+				html = fetch_url(base)
+				if not html:
+					continue
+				
+				# Grab direct versions listed
+				for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?)\b", html):
+					collected.add(v)
+				
+				# Grab monthly changelog links
+				for m in re.findall(r'href=["\']([^"\']*spine-changelog/\d{4}/\d{2}[^"\']*)', html, flags=re.IGNORECASE):
+					u = urllib.parse.urljoin(base, m)
+					if u not in monthly_urls:
+						monthly_urls.append(u)
+			
+			# 2. Fetch from Monthly URLs (limit to recent/all depending on speed)
+			# To be safe, we just fetch them. This might take a few seconds.
+			for mu in monthly_urls:
+				h = fetch_url(mu, timeout=5)
+				if h:
+					for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?)\b", h):
+						collected.add(v)
+						
+			# 3. Always try root changelog too
+			try:
+				root_url = 'https://hr.esotericsoftware.com/spine-changelog/'
+				r = fetch_url(root_url)
+				if r:
+					for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?)\b", r):
+						collected.add(v)
+			except:
+				pass
+
+			# Sort versions
+			def ver_key(s):
+				parts = [int(x) for x in s.split('.')[:3] if x.isdigit()]
+				while len(parts) < 3:
+					parts.append(0)
+				return tuple(parts)
+
+			valid_versions = {v for v in collected if re.match(r'^\d+\.\d+(?:\.\d+)?$', v)}
+			sorted_versions = sorted(valid_versions, key=ver_key, reverse=True)
+			
+			self.versions_fetched.emit(sorted_versions)
+			
+		except Exception as e:
+			self.error_occurred.emit(str(e))
 
 
 class SpineScannerThread(QThread):
@@ -997,12 +1092,20 @@ class MainWindow(QMainWindow):
 		self.launcher_version_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 		self.launcher_version_combo.currentTextChanged.connect(self._on_launcher_version_changed)
 		
+		# Button to fetch all remote versions
+		self.fetch_all_btn = QPushButton("Fetch All")
+		self.fetch_all_btn.setToolTip("Download list of ALL official Spine versions from server")
+		self.fetch_all_btn.setStyleSheet("background-color: #0277bd; color: white;")
+		self.fetch_all_btn.clicked.connect(self._fetch_remote_versions)
+		self.fetch_all_btn.setFixedWidth(80)
+
 		self.launch_btn = QPushButton("LAUNCH SPINE")
 		self.launch_btn.setToolTip("Launch the selected version of Spine immediately")
 		self.launch_btn.setStyleSheet("background-color: #d35400; color: white; font-weight: bold;")
 		self.launch_btn.clicked.connect(self._launch_selected_spine_version)
 		
 		switcher_layout.addWidget(self.launcher_version_combo)
+		switcher_layout.addWidget(self.fetch_all_btn)
 		switcher_layout.addWidget(self.launch_btn)
 		
 		layout.addLayout(switcher_layout)
@@ -1243,6 +1346,65 @@ class MainWindow(QMainWindow):
 			self.launcher_version_combo.setCurrentIndex(0)
 			# Trigger the change handler manually for initial state
 			self._on_launcher_version_changed(versions[0])
+
+	def _fetch_remote_versions(self):
+		"""
+		Start the thread to fetch full version list.
+		"""
+		self.fetch_all_btn.setEnabled(False)
+		self.fetch_all_btn.setText("Fetching...")
+		self.status_label.setText("Contacting Esoteric Software archive...")
+		
+		self.version_fetcher = VersionFetcherThread()
+		self.version_fetcher.versions_fetched.connect(self._on_remote_versions_loaded)
+		self.version_fetcher.error_occurred.connect(self._on_remote_versions_error)
+		self.version_fetcher.start()
+		
+	def _on_remote_versions_loaded(self, fetched_versions):
+		"""
+		Merge fetched versions with existing ones and update combo.
+		"""
+		self.fetch_all_btn.setEnabled(True)
+		self.fetch_all_btn.setText("Fetch All")
+		self.status_label.setText(f"Fetched {len(fetched_versions)} version(s).")
+		
+		# Get current list
+		current_items = [self.launcher_version_combo.itemText(i) for i in range(self.launcher_version_combo.count())]
+		current_selection = self.launcher_version_combo.currentText()
+		
+		# Merge (Fetched + Current + Defaults)
+		# Prioritize fetched as they are the source of truth for "all possible"
+		all_versions = set(current_items)
+		all_versions.update(fetched_versions)
+		
+		# Convert to sorted list
+		def ver_key(s):
+			try:
+				parts = [int(x) for x in s.split('.')[:3] if x.isdigit()]
+				while len(parts) < 3: parts.append(0)
+				return tuple(parts)
+			except:
+				return (0, 0, 0)
+
+		final_list = sorted(all_versions, key=ver_key, reverse=True)
+		
+		# Repopulate
+		self.launcher_version_combo.clear()
+		self.launcher_version_combo.addItems(final_list)
+		
+		# Restore selection if possible, else top
+		idx = self.launcher_version_combo.findText(current_selection)
+		if idx >= 0:
+			self.launcher_version_combo.setCurrentIndex(idx)
+		elif final_list:
+			self.launcher_version_combo.setCurrentIndex(0)
+
+	def _on_remote_versions_error(self, err_msg):
+		self.fetch_all_btn.setEnabled(True)
+		self.fetch_all_btn.setText("Fetch All")
+		self.status_label.setText("Fetch failed. Check log.")
+		self.log_error(f"Version Fetch Error: {err_msg}")
+		QMessageBox.warning(self, "Fetch Failed", f"Could not retrieve versions:\n{err_msg}")
 
 	def _on_launcher_version_changed(self, text):
 		"""
