@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.55 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.67 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -597,7 +597,7 @@ class SpinePackageValidator:
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter v5.55")
+		self.setWindowTitle("Spine Sorter v5.67")
 		self._setup_icons()
 
 		# Configuration
@@ -780,6 +780,13 @@ class MainWindow(QMainWindow):
 		self.json_only_cb.setChecked(bool(self.config.get("json_export_only", False)))
 		self.json_only_cb.stateChanged.connect(lambda v: self._save_json_only_config(v))
 		dev_layout.addWidget(self.json_only_cb)
+		
+		# Smart Corner Detection Option
+		self.smart_corners_cb = QCheckBox("Smart Corner Detection (Force PNG for rounded assets)")
+		self.smart_corners_cb.setToolTip("If checked, images with opaque centers but transparent corners (like cards) will be forced to PNG. Disable this if your backgrounds are being wrongly converted.")
+		self.smart_corners_cb.setChecked(bool(self.config.get("smart_corner_detection", True)))
+		self.smart_corners_cb.stateChanged.connect(lambda v: self._save_smart_corners_config(v))
+		dev_layout.addWidget(self.smart_corners_cb)
 		
 		settings_layout.addWidget(self.dev_container)
 		
@@ -1119,6 +1126,13 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
+	def _save_smart_corners_config(self, v):
+		try:
+			self.config["smart_corner_detection"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
 	def _save_validate_only_config(self, v):
 		try:
 			self.config["validate_only"] = bool(v)
@@ -1289,6 +1303,259 @@ class MainWindow(QMainWindow):
 			except Exception:
 				pass
 			self._save_spine_selection()
+
+	def find_working_spine_version_bruteforce(self, input_path):
+		"""
+		Iterates through all installed Spine versions (Oldest -> Newest).
+		Returns (exe_path, version_string) of the first one that opens the file successfully.
+		"""
+		# Collect versions
+		candidates = []
+		for i in range(self.spine_combo.count()):
+			path = self.spine_combo.itemData(i)
+			text = self.spine_combo.itemText(i)
+			if not path: continue
+			
+			# Extract version
+			m = re.search(r'\((\d+\.\d+(?:\.\d+)?)\)', text)
+			if m:
+				v_str = m.group(1)
+				candidates.append((v_str, path))
+		
+		# Sort by version (Oldest first)
+		try:
+			candidates.sort(key=lambda x: [int(p) for p in x[0].split('.')])
+		except:
+			candidates.sort() # Fallback string sort
+
+		if not candidates:
+			return None, None
+
+		self.info_panel.append(f"Starting brute-force version probe on {len(candidates)} versions...")
+		
+		# Keep track of tried versions to avoid redundancy if multiple exes have same version
+		tried_versions = set()
+
+		for v_str, path in candidates:
+			# Skip if we already tried this version string (unless specific path differs, but version is usually the key)
+			if v_str in tried_versions:
+				continue
+			tried_versions.add(v_str)
+
+			QApplication.processEvents()
+			# We use the existing probe method
+			# If it returns v_str, it means SUCCESS (opened fine)
+			# If it returns something else, it might be the REQUIRED version from an error message
+			res = self.probe_project_version_via_cli(input_path, path, probe_ver_str=v_str)
+			
+			if res == v_str:
+				return path, v_str
+			
+			# Optimization: If probe returned a DIFFERENT version (e.g. from error "Project version: 4.2"),
+			# check if we have that version in our candidates!
+			if res and res != v_str:
+				# Find if we have a candidate that matches 'res' (Major.Minor)
+				target_parts = res.split('.')[:2] # "4.2"
+				target_mm = ".".join(target_parts)
+				
+				# Look for best match in remaining candidates
+				for c_ver, c_path in candidates:
+					c_parts = c_ver.split('.')[:2]
+					c_mm = ".".join(c_parts)
+					if c_mm == target_mm:
+						# Try this specific candidate next!
+						self.info_panel.append(f"Jumping to hinted version {c_ver}...")
+						res2 = self.probe_project_version_via_cli(input_path, c_path, probe_ver_str=c_ver)
+						if res2 == c_ver:
+							return c_path, c_ver
+		
+		return None, None
+
+	def detect_project_version(self, spine_path):
+		"""
+		Attempts to detect the Spine version used to create a .spine project.
+		Reads the binary header or searches for version string in the file.
+		Returns version string (e.g. "4.0.25") or None.
+		"""
+		try:
+			# Spine binary format often has version string near the beginning
+			with open(spine_path, 'rb') as f:
+				# Read first 1MB (increased from 4KB to handle large headers/meta)
+				header = f.read(1024 * 1024)
+				
+				# RESTRICT PRIMARY SEARCH TO FIRST 50KB (Increased from 5KB)
+				# The version string is almost always in the file header.
+				# Searching 1MB risks finding a version string inside a string table, cached data, or comments
+				# which might reference a newer version (e.g. "Compatible with Spine 4.2").
+				head_sample = header[:51200] 
+
+				# DEBUG: Print Hex for analysis (first 64 bytes)
+				# Let the user see this if detection fails or is suspicious
+				try:
+					import binascii
+					hex_dump = binascii.hexlify(header[:128]).decode('ascii')
+					print(f"DEBUG: Header HEX: {hex_dump}")
+				except:
+					pass
+
+				# SEARCH DIRECTLY IN BYTES (No decoding needed)
+				# 1. Look for pattern X.Y.Z (e.g. 4.2.43) in ASCII bytes
+				# This is the most robust way if the file is binary mixed with text
+				m = re.search(rb'([345]\.\d+\.\d+)', head_sample)
+				if m:
+					ver = m.group(1).decode('ascii', errors='ignore')
+					# print(f"DEBUG: Found version in bytes (Rule 1): {ver}")
+					return ver
+				
+				# 2. Look for "spine" or "version" followed by X.Y in bytes
+				m = re.search(rb'(?:spine|version).*?([345]\.\d+(?:\.\d+)?)', head_sample, re.IGNORECASE)
+				if m:
+					ver = m.group(1).decode('ascii', errors='ignore')
+					# print(f"DEBUG: Found version in bytes (Rule 2): {ver}")
+					return ver
+				
+				# 3. Look for "spine" followed by version with potential binary separators
+				# e.g. spine...4.1
+				m = re.search(rb'spine.*?([345]\.\d+)', head_sample, re.IGNORECASE)
+				if m:
+					ver = m.group(1).decode('ascii', errors='ignore')
+					# print(f"DEBUG: Found version in bytes (Rule 3): {ver}")
+					return ver
+
+
+				# Fallback: Decoding (Legacy check)
+				try:
+					decoded = header.decode('utf-8', errors='ignore')
+					# ... existing string checks if needed, but byte check covers most
+				except:
+					pass
+		except Exception:
+			pass
+		return None
+
+	def find_best_spine_exe(self, target_version):
+		"""
+		Finds the best matching Spine executable from the combo box items.
+		Prioritizes:
+		1. Exact Version Match (e.g. 4.0.25 == 4.0.25)
+		2. Major.Minor Match (e.g. 4.0.xx == 4.0.yy)
+		3. Major Match (e.g. 4.x == 4.y) - Risky but better than mismatch
+		"""
+		if not target_version:
+			return None
+			
+		target_parts = target_version.split('.')
+		if len(target_parts) < 2: return None
+		
+		# e.g. "4.0"
+		target_major_minor = f"{target_parts[0]}.{target_parts[1]}"
+		target_major = target_parts[0]
+		print(f"DEBUG: find_best_spine_exe target={target_version} major_minor={target_major_minor}")
+		
+		best_exe = None
+		best_score = -1 # 0=major only, 1=major.minor match, 2=exact match
+		
+		# Iterate through all items in the combobox
+		for i in range(self.spine_combo.count()):
+			exe_path = self.spine_combo.itemData(i)
+			disp_text = self.spine_combo.itemText(i)
+			if not exe_path: continue
+			
+			# Extract version from display text (e.g. "Spine (4.0.25) - ...")
+			ver = None
+			m = re.search(r'\((\d+\.\d+(?:\.\d+)?)\)', disp_text)
+			if m:
+				ver = m.group(1)
+			else:
+				# If version not in text, try to detect it from the exe itself (slow but necessary fallback)
+				# We use the thread's cached detector or run it synchronously
+				try:
+					ver = self.scanner_thread.detect_spine_version(exe_path, timeout=0.5)
+				except:
+					pass
+
+			if not ver: continue
+			
+			# DEBUG LOG
+			# self.info_panel.append(f"DEBUG: Checking candidate {ver} against target {target_version}")
+
+			if ver == target_version:
+				return exe_path # Exact match is best immediately
+			
+			ver_parts = ver.split('.')
+			if len(ver_parts) >= 2:
+				ver_major_minor = f"{ver_parts[0]}.{ver_parts[1]}"
+				
+				if ver_major_minor == target_major_minor:
+					if best_score < 1:
+						best_score = 1
+						best_exe = exe_path
+						
+		return best_exe
+
+	def find_oldest_spine_exe(self):
+		"""
+		Finds the oldest installed Spine version to use as a probe.
+		"""
+		best_exe = None
+		oldest_ver = None
+		
+		for i in range(self.spine_combo.count()):
+			exe_path = self.spine_combo.itemData(i)
+			disp_text = self.spine_combo.itemText(i)
+			if not exe_path: continue
+			
+			ver_match = re.search(r'\((\d+\.\d+(?:\.\d+)?)\)', disp_text)
+			if ver_match:
+				ver = ver_match.group(1)
+				if oldest_ver is None or self._compare_versions(ver, oldest_ver) < 0:
+					oldest_ver = ver
+					best_exe = exe_path
+		
+		return best_exe, oldest_ver
+
+	def _compare_versions(self, v1, v2):
+		try:
+			p1 = [int(x) for x in v1.split('.')]
+			p2 = [int(x) for x in v2.split('.')]
+			return (p1 > p2) - (p1 < p2)
+		except:
+			return 0
+
+	def probe_project_version_via_cli(self, input_path, probe_exe, probe_ver_str=None):
+		"""
+		Attempts to determine the project version by running an old Spine version 
+		and capturing the version mismatch error.
+		If the probe succeeds (no error), returns probe_ver_str (assuming compatibility).
+		"""
+		try:
+			# We use -i (info) mode which is fast and triggers the load
+			cmd = [probe_exe, '-i', input_path]
+			# Fix: Force UTF-8 encoding or replacement
+			proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+			
+			output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+			
+			# Look for "Project version: X.Y.Z" (mismatch error)
+			m = re.search(r"Project version:\s*([0-9]+\.[0-9]+\.[0-9]+)", output)
+			if m:
+				return m.group(1)
+			
+			# If no mismatch error and return code is 0, assume it opened successfully!
+			# This means the file version is <= probe_exe version.
+			# We return the probe's version as the detected version.
+			if proc.returncode == 0 and probe_ver_str:
+				# Double check for "error" word just in case
+				if "error" not in output.lower():
+					return probe_ver_str
+					
+			return None
+		except Exception as e:
+			print(f"Probe failed: {e}")
+			return None
+
+			print(f"DEBUG: Probe failed: {e}")
+		return None
 
 
 	def _open_report_file(self):
@@ -1505,7 +1772,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -1521,6 +1788,15 @@ class MainWindow(QMainWindow):
 				try:
 					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
 						obj = json.load(fh)
+					
+					# Fallback Version Detection: If source version is Unknown, grab it from the exported JSON
+					if 'skeleton' in obj and 'spine' in obj['skeleton']:
+						exported_ver = obj['skeleton']['spine']
+						current_stats = all_file_stats[-1]
+						if current_stats.get('spine_version_source', 'Unknown') == 'Unknown':
+							current_stats['spine_version_source'] = f"{exported_ver} (Exported)"
+							# self.info_panel.append(f"Retrieved version from exported JSON: {exported_ver}")
+
 					# Check for active attachments in SETUP POSE
 					if 'slots' in obj:
 						for slot in obj['slots']:
@@ -2061,6 +2337,53 @@ class MainWindow(QMainWindow):
 					threshold = threshold_val_config / 100.0
 					fully_opaque = (ratio >= threshold)
 					
+					# Smart Corner Detection:
+					# If the image is considered opaque by ratio, but has transparent corners, 
+					# it is likely a rounded-rect asset (like a card or button) that MUST be PNG.
+					# Note: This is now optional via config
+					if fully_opaque and total > 0 and self.config.get("smart_corner_detection", True):
+						width, height = im.size
+						# Check 4 corners if image is large enough (at least 8x8 to check blocks)
+						if width >= 8 and height >= 8:
+							# Use a stricter threshold (e.g. 15) for structural transparency checks
+							# independently of the global alpha_cutoff which might be high.
+							# This avoids false positives on backgrounds with faint vignettes.
+							corner_strict_cutoff = 20
+							
+							# Define 4 corner blocks (top-left, top-right, bottom-left, bottom-right)
+							# We check a small 4x4 sample at each corner.
+							# If the *average* alpha of the corner block is low, it's a structural corner.
+							# Single pixel checks are too sensitive to noise/AA.
+							block_size = 4
+							corners_starts = [(0,0), (width-block_size, 0), (0, height-block_size), (width-block_size, height-block_size)]
+							
+							transparent_corners = 0
+							for start_x, start_y in corners_starts:
+								# Analyze the block
+								block_transparent_pixels = 0
+								total_block_pixels = 0
+								
+								for by in range(block_size):
+									for bx in range(block_size):
+										cx = start_x + bx
+										cy = start_y + by
+										c_idx = cy * width + cx
+										if 0 <= c_idx < len(data):
+											total_block_pixels += 1
+											if data[c_idx] <= corner_strict_cutoff:
+												block_transparent_pixels += 1
+								
+								# If > 75% of the corner block is transparent, count it as a transparent corner
+								if total_block_pixels > 0 and (block_transparent_pixels / total_block_pixels) > 0.75:
+									transparent_corners += 1
+							
+							# If 3 or more corners are strictly transparent, force PNG
+							if transparent_corners >= 3:
+								fully_opaque = False
+								try:
+									self.info_panel.append(f"  > Detected {transparent_corners} transparent corners in {os.path.basename(img_path)}. Forcing PNG.")
+								except: pass
+
 					# LOG DETAIL
 					with open(debug_log_path, "a") as df:
 						status = "OPAQUE" if fully_opaque else "TRANSPARENT"
@@ -2152,6 +2475,10 @@ class MainWindow(QMainWindow):
 				# Prefer the skeleton name embedded in the exported JSON (internal_skeleton_name).
 				# Fall back to the project/spine filename (`skeleton_name`) if the JSON name isn't available.
 				final_skeleton_dir = internal_skeleton_name or skeleton_name
+				
+				# Debug: Log the skeleton naming decision
+				self.info_panel.append(f"Skeleton Folder Name Decision: JSON='{internal_skeleton_name}' Project='{skeleton_name}' -> Final='{final_skeleton_dir}'")
+				
 				images_root = os.path.join(output_root, 'images', final_skeleton_dir)
 				jpeg_dir = os.path.join(images_root, 'jpeg')
 				png_dir = os.path.join(images_root, 'png')
@@ -2841,7 +3168,8 @@ class MainWindow(QMainWindow):
 								base_name = os.path.basename(str(ref))
 								
 								# Check if the attachment belongs to another skeleton
-								target_skeleton = skeleton_name
+								# Default to the CURRENT processed skeleton (final_skeleton_dir), NOT the project name
+								target_skeleton = final_skeleton_dir
 								parts = attach_name_str.split('/')
 								
 								# Heuristic to detect if attachment belongs to another skeleton
@@ -3692,11 +4020,12 @@ class MainWindow(QMainWindow):
 							except Exception as e:
 								self.info_panel.append(f"<font color='yellow'>Warning: Could not remove existing file {spine_pkg}: {e}</font>")
 
-						cmd = [spine_exe, '-i', abs_json, '-o', abs_pkg, '--import']
+						cmd = [spine_exe] + (extra_cli_args or []) + ['-i', abs_json, '-o', abs_pkg, '--import']
 						self.info_panel.append(f"Running: {' '.join(cmd)}")
 						
 						# Run synchronously
-						proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+						# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
+						proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 						
 						# Always log output for debugging import issues
 						if proc.stdout: self.info_panel.append(f"Import STDOUT: {proc.stdout}")
@@ -3913,6 +4242,81 @@ class MainWindow(QMainWindow):
 				self.log_error(msg)
 				continue
 
+			# Version Auto-Switch Logic
+			# We'll use a local variable for the executable so we don't permanently switch the global selection
+			current_runnable_spine_exe = runnable_spine_exe
+			extra_cli_args = []
+			
+			detected_ver = self.detect_project_version(input_path)
+			print(f"DEBUG: detected_ver = {detected_ver}")
+			self.info_panel.append(f"DEBUG: detected_ver = {detected_ver}")
+			
+			detected_ver = None
+			final_exe_path = None
+
+			# 3.1. Auto-detect version if "Auto" is selected (Default behavior now usually)
+			if self.json_version_combo.currentText() == "Auto":
+				# A. Binary Scan (Fast)
+				detected_ver = self.detect_project_version(input_path)
+				
+				if detected_ver:
+					self.info_panel.append(f"Binary scan found version: {detected_ver}")
+					# Try to find matching installed exe
+					best_exe = self.find_best_spine_exe(detected_ver)
+					if best_exe:
+						final_exe_path = best_exe
+						if sys.platform == 'darwin' and final_exe_path.endswith('.app'):
+							candidate = os.path.join(final_exe_path, "Contents", "MacOS", "Spine")
+							if os.path.exists(candidate):
+								final_exe_path = candidate
+						
+						if final_exe_path != current_runnable_spine_exe:
+							self.info_panel.append(f"Auto-switching Spine executable to match {detected_ver}")
+							current_runnable_spine_exe = final_exe_path
+					else:
+						# Binary scan found a version, but we don't have it locally.
+						self.info_panel.append(f"Binary scan detected {detected_ver}, but no local match found.")
+						# We will fall through to Brute Force to see if another version can open it
+						# detected_ver = None # Keep detected ver for forced -u usage later if brute force fails
+						pass
+				else:
+					self.info_panel.append("Binary scan could not detect version.")
+				
+				# B. Brute Force Fallback (Slow but robust)
+				# If we haven't found a working executable yet, try brute force
+				if not final_exe_path:
+					self.info_panel.append("Attempting to find a compatible Spine version via brute-force...")
+					bf_exe, bf_ver = self.find_working_spine_version_bruteforce(input_path)
+					
+					if bf_exe and bf_ver:
+						detected_ver = bf_ver
+						final_exe_path = bf_exe
+						self.info_panel.append(f"Brute-force success! Found compatible version: {detected_ver}")
+						
+						if sys.platform == 'darwin' and final_exe_path.endswith('.app'):
+							candidate = os.path.join(final_exe_path, "Contents", "MacOS", "Spine")
+							if os.path.exists(candidate):
+								final_exe_path = candidate
+						current_runnable_spine_exe = final_exe_path
+					else:
+						self.info_panel.append("Brute-force detection failed. Using default/selected executable.")
+
+			# If we still have a detected version but no exe (e.g. from binary scan where brute force also failed?),
+			# fall back to -u flag on default exe
+			if detected_ver and not final_exe_path:
+				 self.info_panel.append(f"Forcing version {detected_ver} using -u flag on selected executable.")
+				 extra_cli_args = ['-u', detected_ver]
+			
+			# Capture which version we finally decided on for reporting
+			final_reported_version = detected_ver if detected_ver else "Unknown"
+			final_exe_used = os.path.basename(current_runnable_spine_exe)
+			if extra_cli_args:
+				final_exe_used += f" (Args: {' '.join(extra_cli_args)})"
+				
+			# Store in stats for report
+			file_stats['spine_version_source'] = final_reported_version
+			file_stats['spine_exe_used'] = final_exe_used
+
 			# Determine base output root and create a timestamped temporary export folder
 			base_output_root = self.output_display.text() or os.path.expanduser("~")
 			os.makedirs(base_output_root, exist_ok=True)
@@ -3934,7 +4338,7 @@ class MainWindow(QMainWindow):
 			try:
 				# Spine 4.0+ uses just -i <path> for info. Old --info flag is deprecated/removed in some versions.
 				# We try without --info first as it is cleaner for newer versions found in testing.
-				info_cmd = [runnable_spine_exe, '-i', input_path]
+				info_cmd = [current_runnable_spine_exe] + extra_cli_args + ['-i', input_path]
 				self.info_panel.append(f"Running Source Info Check: {' '.join(info_cmd)}")
 				self.status_label.setText(f"Analyzing source info: {name}")
 				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
@@ -3942,9 +4346,6 @@ class MainWindow(QMainWindow):
 				
 				# If that failed uniquely or produced no output, maybe try --info (legacy fallback)?
 				# But per testing, -i is the "Info" command if no other action is specified.
-				
-				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
-				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
 				# ANSI Strip Helper
 				def strip_ansi(text):
@@ -4107,7 +4508,8 @@ class MainWindow(QMainWindow):
 				pass
 
 			cmd = [
-				runnable_spine_exe, 
+				current_runnable_spine_exe 
+			] + extra_cli_args + [
 				'-i', input_path, 
 				'-o', result_dir,
 				'-e', export_settings if os.path.exists(export_settings) else 'json'
@@ -4131,6 +4533,54 @@ class MainWindow(QMainWindow):
 				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
 				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
+				# Reactive Version Switching (Retry Logic)
+				# If export fails due to version mismatch, parse the required version and retry
+				if proc.returncode != 0:
+					combined_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+					# Pattern: "Project version: 4.2.43"
+					m_ver = re.search(r"Project version:\s*([0-9]+\.[0-9]+\.[0-9]+)", combined_output)
+					if m_ver:
+						required_ver = m_ver.group(1)
+						self.info_panel.append(f"Detected version mismatch! Required: {required_ver}. Retrying...")
+						
+						# Switch to required version
+						# 1. Try local find
+						retry_exe = self.find_best_spine_exe(required_ver)
+						retry_args = []
+						if retry_exe:
+							self.info_panel.append(f"Found local executable for retry: {retry_exe}")
+							# Only switch exe, no extra args needed usually
+						else:
+							# Fallback: Use same exe (Launcher) but force version
+							self.info_panel.append(f"No local exe found. Forcing download/launch with -u {required_ver}")
+							retry_exe = current_runnable_spine_exe
+							retry_args = ['-u', required_ver]
+							
+						# Construct new command
+						# We must insert -u BEFORE -i usually
+						retry_cmd = [retry_exe] + retry_args + [
+							'-i', input_path, 
+							'-o', result_dir,
+							'-e', export_settings if os.path.exists(export_settings) else 'json'
+						]
+						
+						self.info_panel.append(f"Retrying export command: {' '.join(retry_cmd)}")
+						proc = subprocess.run(retry_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+						
+						if proc.returncode == 0:
+							self.info_panel.append("Retry successful!")
+							# Update variables for subsequent steps (Import) to use the correct version
+							current_runnable_spine_exe = retry_exe
+							extra_cli_args = retry_args
+							
+							# Update report stats with the corrected version
+							final_reported_version = required_ver
+							final_exe_used = os.path.basename(current_runnable_spine_exe)
+							if extra_cli_args:
+								final_exe_used += f" (Args: {' '.join(extra_cli_args)})"
+							file_stats['spine_version_source'] = final_reported_version
+							file_stats['spine_exe_used'] = final_exe_used
+
 				# Parse output for unchecked export warnings
 				# Example: Attachment's keys not exported because it has "Export" unchecked: [region: pop/coin_fx/coin_fx_00, slot: fx]
 				# We check both stdout and stderr just in case
@@ -4339,7 +4789,9 @@ class MainWindow(QMainWindow):
 					'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0,
 					# Per-skeleton animations (set) for accurate comparisons
 					'source_anims_defined': per_skel_anims,
-					'unchecked_skeletons': file_stats.get('unchecked_skeletons', [])
+					'unchecked_skeletons': file_stats.get('unchecked_skeletons', []),
+					'spine_version_source': file_stats.get('spine_version_source', 'Unknown'),
+					'spine_exe_used': file_stats.get('spine_exe_used', 'Unknown')
 				}
 				
 				# Add to the file's list of skeletons
@@ -4391,11 +4843,12 @@ class MainWindow(QMainWindow):
 				
 				self._process_single_skeleton(
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
-					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
+					base_output_root, current_runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=all_skeleton_names,
 					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked(),
 					spine_export_unchecked=spine_export_unchecked,
-					spine_export_unchecked_anims=spine_export_unchecked_anims
+					spine_export_unchecked_anims=spine_export_unchecked_anims,
+					extra_cli_args=extra_cli_args
 				)
 
 
@@ -4427,6 +4880,13 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
+				
+				# Report Version Info
+				src_ver = stats.get('spine_version_source', 'Unknown')
+				exe_used = stats.get('spine_exe_used', 'Unknown')
+				self.info_panel.append(f"<font color='#00BFFF'>  Source Project Version: {src_ver}</font>")
+				self.info_panel.append(f"<font color='#00BFFF'>  Processed with Spine: {exe_used}</font>")
+
 				# Duplicate images summary moved to RECOMMENDATIONS (appended at report end)
 				# dup_groups = stats.get('duplicate_image_groups', [])
 				# Naming violations summary
@@ -4630,6 +5090,9 @@ class MainWindow(QMainWindow):
 				report_lines.append("\nWarnings and details per file:")
 				for stats in all_file_stats:
 					report_lines.append(f"\nFile: {stats.get('name')}")
+					report_lines.append(f"Source Version: {stats.get('spine_version_source', 'Unknown')}")
+					report_lines.append(f"Processed with: {stats.get('spine_exe_used', 'Unknown')}")
+					
 					if stats.get('unchecked'):
 						report_lines.append("Unchecked attachments:")
 						for u in stats.get('unchecked'):
