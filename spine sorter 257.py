@@ -1224,9 +1224,18 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 		
-		# Fallbacks if none found or error
-		if not versions:
-			versions = ["4.1.24", "4.0.64", "3.8.99"]
+		# Merge with defaults (ensure user always has options even if local updates are sparse)
+		# We want unique versions, sorted
+		detected_set = set(versions)
+		for def_ver in DEFAULT_VERSIONS:
+			if def_ver not in detected_set:
+				versions.append(def_ver)
+		
+		# Re-sort combined list
+		try:
+			versions = sorted(versions, key=lambda v: [int(x) for x in v.split('.') if x.isdigit()] or [0], reverse=True)
+		except:
+			versions = sorted(versions, reverse=True)
 			
 		self.launcher_version_combo.clear()
 		self.launcher_version_combo.addItems(versions)
