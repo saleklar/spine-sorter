@@ -1,5 +1,10 @@
-SPINE SORTER v5.53 - ARTIST GUIDE
+SPINE SORTER v5.67 - ARTIST GUIDE
 ========================================
+
+LATEST UPDATES (v5.67)
+----------------------------------------
+- Fixed: Application crash when clicking the "Help" button. The documentation now correctly opens in your default text editor or browser.
+- Improved: Cleaned up project structure and temporary files management for better stability.
 
 WHAT DOES THIS TOOL DO?
 ----------------------------------------
