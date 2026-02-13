@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.67 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.55 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -83,51 +83,10 @@ try:
 		QDialog,
 		QProgressBar,
 		QStyle,
-		QListWidgetItem,
-		QSizePolicy,
 	)
 except ModuleNotFoundError:
 	print("PySide6 is not installed. Install with: pip install PySide6")
 	sys.exit(1)
-
-
-class SpineFileWidget(QWidget):
-	"""
-	Custom widget for the file list: [CheckBox] [Filename]
-	"""
-	stateChanged = Signal(int)
-
-	def __init__(self, text, available_versions, parent=None):
-		super().__init__(parent)
-		layout = QHBoxLayout(self)
-		layout.setContentsMargins(4, 2, 4, 2)
-		layout.setSpacing(10)
-		
-		# Checkbox
-		self.checkbox = QCheckBox()
-		self.checkbox.stateChanged.connect(self.stateChanged.emit)
-		layout.addWidget(self.checkbox)
-		
-		# Filename Label
-		self.label = QLabel(text)
-		self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-		layout.addWidget(self.label)
-		
-		# Removed per-request: Version selector dropdown
-		
-	def isChecked(self):
-		return self.checkbox.isChecked()
-		
-	def setChecked(self, checked):
-		self.checkbox.setChecked(checked)
-		
-	def getSelectedSpineExe(self):
-		# Always return None so it falls back to global default
-		return None
-		
-	def updateVersions(self, available_versions):
-		# No op since dropdown is removed
-		pass
 
 
 class SpineScannerThread(QThread):
@@ -229,19 +188,10 @@ class SpineScannerThread(QThread):
 		roots = []
 		if os.name == 'nt':
 			roots = [cfg_dir, r"C:\Program Files", r"C:\Program Files (x86)"]
-			# Also check parent of cfg_dir if it looks like a versioned folder (e.g. "Spine 4.0")
-			# This helps find siblings like "Spine 3.8" in the same parent dir
-			parent = os.path.dirname(cfg_dir)
-			if parent and os.path.isdir(parent) and len(parent) > 3: # Avoid scanning C:\ directly unless constrained
-				roots.append(parent)
 		elif sys.platform == 'darwin':
 			roots = [cfg_dir, "/Applications", os.path.expanduser("~/Applications")]
 		else:
 			roots = [cfg_dir, "/usr/bin", "/usr/local/bin"]
-		
-		# Deduplicate roots
-		roots = list(set(os.path.normpath(r) for r in roots if r and os.path.isdir(r)))
-
 		seen = set()
 		for root in roots:
 			if not root or not os.path.isdir(root):
@@ -254,21 +204,11 @@ class SpineScannerThread(QThread):
 							if os.path.isdir(exe) and exe not in seen:
 								candidates.append(exe); seen.add(exe)
 						else:
-							# Check for Spine.exe inside (standard)
 							exe = os.path.join(root, name, 'Spine.exe')
 							if os.path.isfile(exe) and exe not in seen:
 								candidates.append(exe); seen.add(exe)
-						
-							# Also check if the folder itself contains the exe directly (rare but possible flat structure)
-							# e.g. root/Spine.exe
-							if name.lower() == 'spine.exe':
-								exe = os.path.join(root, name)
-								if os.path.isfile(exe) and exe not in seen:
-									candidates.append(exe); seen.add(exe)
-
 			except Exception:
 				pass
-
 		for root in roots:
 			try:
 				if sys.platform == 'darwin':
@@ -657,7 +597,7 @@ class SpinePackageValidator:
 class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter v5.67")
+		self.setWindowTitle("Spine Sorter v5.55")
 		self._setup_icons()
 
 		# Configuration
@@ -685,18 +625,6 @@ class MainWindow(QMainWindow):
 		self.scanner_thread = SpineScannerThread(self.config, self.default_spine_exe, self)
 		self.scanner_thread.versions_found.connect(self.on_spine_versions_found)
 		self.scanner_thread.start()
-		
-		self.available_spine_versions = [] # Populated by scanner thread
-
-		# Load persistantly known versions from config into available versions immediately
-		# this ensures they are available even before scanner finishes, or if scanner fails
-		known_exes = self.config.get('known_spine_exes', [])
-		if known_exes:
-			for path in known_exes:
-				if os.path.exists(path):
-					# Basic label until scanner verifies version
-					label = f"Spine - {os.path.basename(os.path.dirname(path))}"
-					self.available_spine_versions.append((label, path))
 
 		# --- Settings Dialog Setup ---
 		self.settings_dialog = QDialog(self)
@@ -853,13 +781,6 @@ class MainWindow(QMainWindow):
 		self.json_only_cb.stateChanged.connect(lambda v: self._save_json_only_config(v))
 		dev_layout.addWidget(self.json_only_cb)
 		
-		# Smart Corner Detection Option
-		self.smart_corners_cb = QCheckBox("Smart Corner Detection (Force PNG for rounded assets)")
-		self.smart_corners_cb.setToolTip("If checked, images with opaque centers but transparent corners (like cards) will be forced to PNG. Disable this if your backgrounds are being wrongly converted.")
-		self.smart_corners_cb.setChecked(bool(self.config.get("smart_corner_detection", True)))
-		self.smart_corners_cb.stateChanged.connect(lambda v: self._save_smart_corners_config(v))
-		dev_layout.addWidget(self.smart_corners_cb)
-		
 		settings_layout.addWidget(self.dev_container)
 		
 		# Default hidden
@@ -974,18 +895,6 @@ class MainWindow(QMainWindow):
 		# Make it "big and prominent"
 		self.progress_bar.setStyleSheet("QProgressBar { height: 30px; font-size: 14px; font-weight: bold; text-align: center; } QProgressBar::chunk { background-color: #4CAF50; }")
 		layout.addWidget(self.progress_bar)
-		
-		# Active Version Label
-		self.active_version_label = QLabel("Active Spine Version: Detecting...")
-		self.active_version_label.setStyleSheet("font-weight: bold; color: #4CAF50; margin: 5px 0 0 0;")
-		self.active_version_label.setAlignment(Qt.AlignCenter)
-		layout.addWidget(self.active_version_label)
-		
-		# Version Warning/Instruction
-		self.version_instruction_label = QLabel("make sure that active spine version match the version used in the project")
-		self.version_instruction_label.setStyleSheet("color: #FF9800; font-style: italic; margin-bottom: 5px;")
-		self.version_instruction_label.setAlignment(Qt.AlignCenter)
-		layout.addWidget(self.version_instruction_label)
 
 		layout.addWidget(QLabel("Spine files in folder:"))
 		self.list_widget.setToolTip("List of .spine files found in the selected folder")
@@ -1037,8 +946,6 @@ class MainWindow(QMainWindow):
 					self.spine_combo.setCurrentIndex(i)
 		# save selection when changed
 		self.spine_combo.currentIndexChanged.connect(lambda _: self._save_spine_selection())
-		# Also update main UI label immediately when settings change
-		self.spine_combo.currentIndexChanged.connect(self._update_active_version_label)
 
 		# restore json version selection
 		jv = self.config.get('spine_json_version')
@@ -1047,139 +954,6 @@ class MainWindow(QMainWindow):
 			self.json_version_combo.setCurrentText(jv)
 		# save when edited
 		self.json_version_combo.currentTextChanged.connect(lambda v: self._save_json_version(v))
-
-		# Monitor external Spine version changes (e.g. from Spine Launcher)
-		self.last_external_spine_version = None
-		self.last_external_spine_mtime = 0
-		
-		# Initial label update
-		self._update_active_version_label()
-
-		self.external_monitor_timer = QTimer(self)
-		self.external_monitor_timer.timeout.connect(self._check_external_spine_change)
-		self.external_monitor_timer.start(2000) # Check every 2 seconds
-
-	def _check_external_spine_change(self):
-		"""
-		Polls the standard Spine version file (e.g. ~/Spine/version.txt) to see if the user 
-		changed the version in the Spine Launcher. If so, auto-update our selection.
-		"""
-		# Common location for Spine Launcher version config
-		home = os.path.expanduser("~")
-		candidates = [
-			os.path.join(home, "Spine", "version.txt"),
-			os.path.join(home, ".spine", "version.txt"),
-			os.path.join(home, "Library", "Application Support", "Spine", "version.txt") # macOS
-		]
-		
-		target_file = None
-		for f in candidates:
-			if os.path.isfile(f):
-				target_file = f
-				break
-		
-		if not target_file:
-			return
-
-		try:
-			# Check modification time first to avoid unnecessary reads
-			mtime = os.path.getmtime(target_file)
-			if mtime == self.last_external_spine_mtime:
-				return
-			
-			self.last_external_spine_mtime = mtime
-			
-			with open(target_file, 'r', encoding='utf-8') as f:
-				content = f.read().strip()
-			
-			if not content: return
-			
-			# Validate format X.Y.Z
-			if not re.match(r"^\d+\.\d+(\.\d+)?$", content):
-				return
-
-			# If this is the first run, just store it but do NOT return
-			# We want to check mismatches on startup too!
-			# (Checking None -> Valid transition is also a "Change" from unknown state)
-			is_startup = (self.last_external_spine_version is None)
-			
-			# Check mismatch even if startup
-			if content != self.last_external_spine_version:
-				self.last_external_spine_version = content
-				
-				# Only log if it's an actual change during runtime vs startup detection
-				if not is_startup:
-					self.info_panel.append(f"Detected external Spine version change to: {content}")
-				
-				# Try to find a matching executable in our list
-				best_match = self.find_best_spine_exe(content)
-				
-				if best_match:
-					current_sel = self.spine_combo.currentData()
-					
-					# Force update if different OR if this is startup and we want to sync
-					if best_match != current_sel:
-						if not is_startup:
-							self.info_panel.append(f"Auto-switching Sorter to match: {content}")
-						
-						# Set in combo (this triggers signals -> saves config -> updates label)
-						index = self.spine_combo.findData(best_match)
-						if index >= 0:
-							self.spine_combo.setCurrentIndex(index)
-					else:
-						# It matched the current selection, but let's force a label update anyway
-						# to ensure the display text is correct (e.g. showing the specific version)
-						self._update_active_version_label()
-				else:
-					# No local matching executable found (e.g. user is using Launcher but we don't know the exact binary version)
-					# BUT we should still update the UI to show we detected the change!
-					
-					# Force the label to show this detected version, overriding the combo box text
-					self.active_version_label.setText(f"Active Spine Version: {content} (External Check)")
-					self.active_version_label.setStyleSheet("font-weight: bold; color: #FF9800; margin: 5px 0;") # Orange to indicate mismatch/external
-					
-		except Exception as e:
-			# self.info_panel.append(f"Monitor Warning: {e}") 
-			pass
-
-	def _update_active_version_label(self):
-		"""Updates the active version label on the main GUI based on current selection."""
-		# If we just set an external override in the monitor loop, we might not want to overwrite it??
-		# Actually, this method represents the "Truth" of what the Sorter is configured to use.
-		
-		# Get from combo if available (live update), else config
-		txt = ""
-		current_exe = None
-		if self.spine_combo.currentIndex() >= 0:
-			txt = self.spine_combo.itemText(self.spine_combo.currentIndex())
-			current_exe = self.spine_combo.currentData()
-		else:
-			# If combo empty (e.g. startup scanning), rely on config path
-			path = self.config.get('spine_exe_selected') or self.config.get('spine_exe')
-			if path:
-				txt = f"Spine - {os.path.basename(path)}"
-				current_exe = path
-			else:
-				txt = "None selected"
-		
-		# Clean up label (remove path noise)
-		# "Spine (4.2.35) - Spine.exe" -> "Spine (4.2.35)"
-		if " - " in txt:
-			txt = txt.split(" - ")[0]
-			
-		# If we have a detected external version that matches, maybe append it?
-		if self.last_external_spine_version and current_exe:
-			# Check if current_exe looks like it matches last_external_spine_version
-			# Simple exact match check or inclusion
-			if self.last_external_spine_version in txt:
-				pass # Already in text
-			else:
-				# Don't append if totally different, that's confusing.
-				pass
-		
-		# Reset style to Green
-		self.active_version_label.setStyleSheet("font-weight: bold; color: #4CAF50; margin: 5px 0 0 0;")
-		self.active_version_label.setText(f"Active Spine Version: {txt}")
 
 	def _pulse_checkbox(self):
 		self.pulse_state = not self.pulse_state
@@ -1249,57 +1023,12 @@ class MainWindow(QMainWindow):
 
 	def on_spine_versions_found(self, results):
 		"""Callback when background scan finishes."""
-		
-		# Merge with persistent known executables (manual adds)
-		known_exes = self.config.get('known_spine_exes', [])
-		
-		# Helper to check if path in results
-		def in_results(p):
-			p_norm = os.path.normpath(p)
-			for _, res_path in results:
-				if os.path.normpath(res_path) == p_norm:
-					return True
-			return False
-
-		# Add known exes if missing
-		for path in known_exes:
-			if os.path.exists(path) and not in_results(path):
-				# Detect version on the fly if needed (might briefly hang UI but expected for precision)
-				ver = None
-				try:
-					# Use cached scanner function logic (synchronous here but it's okay for 1-2 items)
-					# Or just use the quick scanner thread method
-					ver = self.scanner_thread.detect_spine_version(path, timeout=0.2)
-				except: pass
-				label = f"Spine ({ver})" if ver else f"Spine - {os.path.basename(os.path.dirname(path))}"
-				results.append((label, path))
-
-		# Ensure the currently selected/configured executable is included in the list
-		# even if the scanner didn't pick it up (e.g. custom location)
-		sel = self.config.get('spine_exe_selected')
-		if sel and os.path.exists(sel) and not in_results(sel):
-			sel_norm = os.path.normpath(sel)
-			# Attempt to get a nice label
-			ver = None
-			try:
-				ver = self.scanner_thread.detect_spine_version(sel, timeout=0.2)
-			except: pass
-			label = f"Spine ({ver})" if ver else f"Spine - {os.path.basename(os.path.dirname(sel))}"
-			results.append((label, sel))
-
-		self.available_spine_versions = results
 		self.spine_combo.clear()
 		for disp, exe in results:
 			self.spine_combo.addItem(disp, exe)
 			
-		# Update all existing file list items with the new versions
-		for i in range(self.list_widget.count()):
-			item = self.list_widget.item(i)
-			widget = self.list_widget.itemWidget(item)
-			if widget and isinstance(widget, SpineFileWidget):
-				widget.updateVersions(results)
-				
 		# restore selected spine exe if in config
+		sel = self.config.get('spine_exe_selected')
 		if sel:
 			# try to select existing item
 			for i in range(self.spine_combo.count()):
@@ -1307,8 +1036,6 @@ class MainWindow(QMainWindow):
 					self.spine_combo.setCurrentIndex(i)
 					break
 		
-		self._update_active_version_label()
-
 		# If no selection restored, and we have items, select the first one (or default)
 		if self.spine_combo.currentIndex() == -1 and self.spine_combo.count() > 0:
 			self.spine_combo.setCurrentIndex(0)
@@ -1388,13 +1115,6 @@ class MainWindow(QMainWindow):
 	def _save_json_only_config(self, v):
 		try:
 			self.config["json_export_only"] = bool(v)
-			self._save_config()
-		except Exception:
-			pass
-
-	def _save_smart_corners_config(self, v):
-		try:
-			self.config["smart_corner_detection"] = bool(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -1545,52 +1265,17 @@ class MainWindow(QMainWindow):
 		filter_str = "Executables (*.exe)" if os.name == 'nt' else "Applications (*.app);;Executables (*)"
 		path, _ = QFileDialog.getOpenFileName(self, "Select Spine executable", start, filter_str)
 		if path:
-			path = os.path.normpath(path)
-			
-			# 1. Detect info for nicer label
-			ver = None
-			try:
-				ver = self.scanner_thread.detect_spine_version(path)
-			except: pass
-			label = f"Spine ({ver})" if ver else f"{os.path.basename(os.path.dirname(path))} - {os.path.basename(path)}"
-			
-			# 2. Update global available versions list to include this manual selection
-			# This ensures it appears in the per-file dropdowns too
-			found_in_avail = False
-			for _, exe in self.available_spine_versions:
-				if os.path.normpath(exe) == path:
-					found_in_avail = True
-					break
-			if not found_in_avail:
-				self.available_spine_versions.append((label, path))
-				# Push update to all file widgets
-				for i in range(self.list_widget.count()):
-					item = self.list_widget.item(i)
-					widget = self.list_widget.itemWidget(item)
-					if widget and isinstance(widget, SpineFileWidget):
-						widget.updateVersions(self.available_spine_versions)
-
-			# 3. Add to main combo if not present
+			# add to combo if not present
 			if path not in [self.spine_combo.itemData(i) for i in range(self.spine_combo.count())]:
-				self.spine_combo.addItem(label, path)
+				label = os.path.basename(os.path.dirname(path)) or os.path.basename(path)
+				self.spine_combo.addItem(f"{label} - {os.path.basename(path)}", path)
 				self.spine_combo.setCurrentIndex(self.spine_combo.count()-1)
-			else:
-				# Select existing
-				for i in range(self.spine_combo.count()):
-					if self.spine_combo.itemData(i) == path:
-						self.spine_combo.setCurrentIndex(i)
-						break
-			
-			# 4. Save to known_spine_exes in config
-			known_exes = self.config.get('known_spine_exes', [])
-			if path not in known_exes:
-				known_exes.append(path)
-				self.config['known_spine_exes'] = known_exes
-				self._save_config()
-
 			# attempt to detect the spine version from the selected executable and prefer it in the JSON-version combo
-			if ver: # Re-use detected version
-				try:
+			try:
+				# Use the thread's method (we can instantiate a temporary thread object or just copy the method)
+				# Or just use the scanner thread instance we have
+				ver = self.scanner_thread.detect_spine_version(path)
+				if ver:
 					# insert at top if not already present
 					found_idx = -1
 					for i in range(self.json_version_combo.count()):
@@ -1601,110 +1286,10 @@ class MainWindow(QMainWindow):
 						self.json_version_combo.setCurrentIndex(0)
 					else:
 						self.json_version_combo.setCurrentIndex(found_idx)
-				except Exception:
-					pass
+			except Exception:
+				pass
 			self._save_spine_selection()
 
-	def find_best_spine_exe(self, target_version):
-		"""
-		Finds the best matching Spine executable from the combo box items.
-		Prioritizes:
-		1. Exact Version Match (e.g. 4.0.25 == 4.0.25)
-		2. Major.Minor Match (e.g. 4.0.xx == 4.0.yy)
-		"""
-		if not target_version:
-			return None
-			
-		target_parts = target_version.split('.')
-		if len(target_parts) < 2: return None
-		
-		# e.g. "4.0"
-		target_major_minor = f"{target_parts[0]}.{target_parts[1]}"
-		
-		best_exe = None
-		best_score = -1 # 0=major only (unused), 1=major.minor match, 2=exact match
-		
-		# Iterate through all items in the combobox
-		for i in range(self.spine_combo.count()):
-			exe_path = self.spine_combo.itemData(i)
-			disp_text = self.spine_combo.itemText(i)
-			if not exe_path: continue
-			
-			# Extract version from display text (e.g. "Spine (4.0.25) - ...")
-			ver = None
-			m = re.search(r'\((\d+\.\d+(?:\.\d+)?)\)', disp_text)
-			if m:
-				ver = m.group(1)
-			else:
-				# Fallback: try to detect from exe path name if it contains version (e.g. "Spine 4.0")
-				path_ver_match = re.search(r'Spine\s+(\d+\.\d+(\.\d+)?)', os.path.dirname(exe_path), re.IGNORECASE)
-				if path_ver_match:
-					ver = path_ver_match.group(1)
-				else:
-					# Last resort: Detect from binary (cached if possible)
-					try:
-						# Use short timeout to avoid lag
-						ver = self.scanner_thread.detect_spine_version(exe_path, timeout=0.1)
-					except:
-						pass
-
-			if not ver: continue
-
-			if ver == target_version:
-				return exe_path # Exact match is best immediately
-			
-			ver_parts = ver.split('.')
-			if len(ver_parts) >= 2:
-				ver_major_minor = f"{ver_parts[0]}.{ver_parts[1]}"
-				
-				if ver_major_minor == target_major_minor:
-					if best_score < 1:
-						best_score = 1
-						best_exe = exe_path
-						# Keep searching for exact match though
-						
-		return best_exe
-
-	def find_oldest_spine_exe(self):
-		"""
-		Finds the oldest installed Spine version to use as a probe.
-		"""
-		best_exe = None
-		oldest_ver = None
-		
-		for i in range(self.spine_combo.count()):
-			exe_path = self.spine_combo.itemData(i)
-			disp_text = self.spine_combo.itemText(i)
-			if not exe_path: continue
-			
-			ver_match = re.search(r'\((\d+\.\d+(?:\.\d+)?)\)', disp_text)
-			if ver_match:
-				ver = ver_match.group(1)
-				if oldest_ver is None or self._compare_versions(ver, oldest_ver) < 0:
-					oldest_ver = ver
-					best_exe = exe_path
-		
-		return best_exe, oldest_ver
-
-	def _compare_versions(self, v1, v2):
-		try:
-			p1 = [int(x) for x in v1.split('.')]
-			p2 = [int(x) for x in v2.split('.')]
-			return (p1 > p2) - (p1 < p2)
-		except:
-			return 0
-
-	def probe_project_version_via_cli(self, input_path, probe_exe, probe_ver_str=None):
-		# Deprecated method
-		return None
-
-	def detect_project_version(self, spine_path):
-		# Deprecated / Disabled
-		return None
-
-	def find_working_spine_version_bruteforce(self, input_path):
-		# Deprecated / Disabled
-		return None, None
 
 	def _open_report_file(self):
 		"""Open the last generated plain-text report with the system default viewer."""
@@ -1891,42 +1476,23 @@ class MainWindow(QMainWindow):
 			return
 		try:
 			files = sorted(os.listdir(folder), key=lambda s: s.lower())
-			# from PySide6.QtWidgets import QListWidgetItem # Already imported globally
+			from PySide6.QtWidgets import QListWidgetItem
 
 			for name in files:
 				if name.lower().endswith(".spine"):
-					item = QListWidgetItem() # Don't pass text here, widget handles it
-					# item.setFlags(item.flags() | Qt.ItemIsUserCheckable) 
-					# We rely on the widget for checking, but we keep the item Checked/Unchecked state for compatibility if we sync it.
-					# But standard checkable flag might render a checkbox BEHIND our widget. 
-					# So let's NOT set ItemIsUserCheckable if we provide our own checkbox.
-					# Or if we want process_selected to work unmodified using item.checkState(), we need to keep the state on the item.
-					
-					widget = SpineFileWidget(name, self.available_spine_versions)
-					
-					# Set initial item size hint
-					item.setSizeHint(widget.sizeHint())
-					
+					item = QListWidgetItem(name)
+					item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+					item.setCheckState(Qt.Unchecked)
 					self.list_widget.addItem(item)
-					self.list_widget.setItemWidget(item, widget)
-					
-					# Initialize widget state
-					widget.setChecked(False)
-					
 		except Exception as e:
 			QMessageBox.warning(self, "Read Error", f"Could not read folder: {e}")
 
 	def toggle_select_all(self, state):
 		# Qt.Checked is 2, Qt.Unchecked is 0
-		is_checked = (state == 2)
+		check_state = Qt.Checked if state == 2 else Qt.Unchecked
 		for i in range(self.list_widget.count()):
 			item = self.list_widget.item(i)
-			widget = self.list_widget.itemWidget(item)
-			
-			if widget and isinstance(widget, SpineFileWidget):
-				widget.setChecked(is_checked)
-			else:
-				item.setCheckState(Qt.Checked if is_checked else Qt.Unchecked)
+			item.setCheckState(check_state)
 
 	def stop_process(self):
 		self.stop_requested = True
@@ -1939,7 +1505,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -1955,15 +1521,6 @@ class MainWindow(QMainWindow):
 				try:
 					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
 						obj = json.load(fh)
-					
-					# Fallback Version Detection: If source version is Unknown, grab it from the exported JSON
-					if 'skeleton' in obj and 'spine' in obj['skeleton']:
-						exported_ver = obj['skeleton']['spine']
-						current_stats = all_file_stats[-1]
-						if current_stats.get('spine_version_source', 'Unknown') == 'Unknown':
-							current_stats['spine_version_source'] = f"{exported_ver} (Exported)"
-							# self.info_panel.append(f"Retrieved version from exported JSON: {exported_ver}")
-
 					# Check for active attachments in SETUP POSE
 					if 'slots' in obj:
 						for slot in obj['slots']:
@@ -1971,10 +1528,11 @@ class MainWindow(QMainWindow):
 							
 							# Check if slot is explicitly hidden (visible: false)
 							if 'visible' in slot and slot['visible'] is False:
-								att_str = f" (attachment: {slot['attachment']})" if slot.get('attachment') else " (empty)"
-								msg_hidden = f"Slot '{s_name}' is HIDDEN (visible: false) in Setup Pose{att_str}"
+								msg_hidden = f"Slot '{s_name}' is HIDDEN (visible: false) in Setup Pose"
 								all_file_stats[-1].setdefault('setup_pose_hidden', []).append(msg_hidden)
-								
+								# If it's hidden, we might not care if it has an attachment (it won't verify well anyway)
+								# but let's allow fallthrough if desired. For now, we count it as Hidden.
+
 							if 'attachment' in slot and slot['attachment']:
 								# s_name already retrieved
 								a_name = slot['attachment']
@@ -1999,94 +1557,12 @@ class MainWindow(QMainWindow):
 											all_file_stats[-1].setdefault('setup_pose_warnings', []).append(msg)
 											self.log_warning(msg)
 					
-
-					# Define collection helpers early so we can use them for validation
-					def collect_from_json(x):
-						if isinstance(x, str):
-							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
-								image_paths.add(x)
-								json_image_paths.add(x)
-						elif isinstance(x, dict):
-							for k, v in x.items():
-								if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-									image_paths.add(k)
-									json_image_paths.add(k)
-								collect_from_json(v)
-						elif isinstance(x, list):
-							for v in x:
-								collect_from_json(v)
-					
-					# also collect keys (attachment names) which may be basenames without extension
-					# ignore common non-image keys (e.g. 'skins', 'skeleton', 'slots') to reduce noise
-					IGNORE_KEYS = {
-						'skins', 'skeleton', 'slots', 'bones', 'animations', 'attachment', 'attachments',
-						'audio', 'path', 'name', 'width', 'height', 'x', 'y', 'scale', 'scalex', 'scaley',
-						'translate', 'translatex', 'translatey', 'rotate', 'rotation', 'rgba', 'color',
-						'blend', 'start', 'time', 'delay', 'sequence', 'mode', 'count', 'length', 'hash',
-						'icon', 'logo', 'parent', 'value', 'spine'
-					}
-					def collect_keys(x):
-						if isinstance(x, dict):
-							for k, v in x.items():
-								if isinstance(k, str):
-									kl = k.lower()
-									# add explicit image filenames
-									if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-										image_paths.add(k)
-										json_image_paths.add(k)
-									# add bare keys only if they're not in the ignore list
-									elif kl not in IGNORE_KEYS:
-										image_paths.add(k)
-										json_image_paths.add(k)
-									
-									# Also collect values from 'path' and 'name' properties as they often point to images
-									if kl in ['path', 'name'] and isinstance(v, str):
-										image_paths.add(v)
-										json_image_paths.add(v)
-
-								collect_keys(v)
-						elif isinstance(x, list):
-							for v in x:
-								collect_keys(v)
-
-					# Run collection immediately
-					collect_from_json(obj)
-					collect_keys(obj)
-
-
 					# -------------------------------------------------------------------------
-					# EARLY REPORTING: Unchecked Animations & Setup Pose Warnings & Missing Files
+					# EARLY REPORTING: Unchecked Animations & Setup Pose Warnings
 					# -------------------------------------------------------------------------
 					try:
 						stats = all_file_stats[-1]
 						j = obj # Alias for compatibility with copied code
-
-						# 0. Missing Images (from Spine CLI Export Log)
-						if spine_export_missing:
-							self.info_panel.append("<br>")
-							count = len(spine_export_missing)
-							self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>Spine Export reported {count} MISSING images:</span>")
-							for i, m in enumerate(spine_export_missing):
-								if i < 15:
-									self.info_panel.append(f"<font color='red'>    - {m}</font>")
-								else:
-									self.info_panel.append(f"<font color='red'>    - ... and {count - 15} more</font>")
-									break
-							# Add to stats?
-							stats['missing_files_reported'] = spine_export_missing
-
-						# 0.5 Generic Log Warnings (Hidden/Invisible/Not Exported)
-						if spine_export_log_warnings:
-							self.info_panel.append("<br>")
-							count = len(spine_export_log_warnings)
-							self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>Spine Export Log reported {count} additional issues (Hidden/Not Exported):</span>")
-							for i, m in enumerate(spine_export_log_warnings):
-								if i < 15:
-									self.info_panel.append(f"<font color='red'>    - {m}</font>")
-								else:
-									self.info_panel.append(f"<font color='red'>    - ... and {count - 15} more</font>")
-									break
-							stats['log_warnings_reported'] = spine_export_log_warnings
 
 						# 1. Unchecked Animations Logic
 						unique_unchecked_anims = sorted(list(set(spine_export_unchecked_anims))) if spine_export_unchecked_anims else []
@@ -2166,54 +1642,62 @@ class MainWindow(QMainWindow):
 
 						# Stop here if Validate Only is strictly requested
 						if self.config.get("validate_only", False):
-							# Perform Missing Files Check NOW
-							if json_image_paths:
-								missing_files = []
-								search_dirs = [folder, os.path.dirname(input_path)]
-								# Helper to check existence
-								def find_file(path_str):
-									if os.path.isabs(path_str) and os.path.isfile(path_str): return True
-									for d in search_dirs:
-										if d and os.path.isfile(os.path.join(d, path_str)): return True
-									return False
-								
-								for p in json_image_paths:
-									if not find_file(p):
-										# Try without extension or matching basename
-										found_fuzzy = False
-										base = os.path.basename(p)
-										for d in search_dirs:
-											if not d or not os.path.exists(d): continue
-											for root, dirs, files in os.walk(d):
-												for f in files:
-													# simple prefix match
-													if f.lower().startswith(base.lower()) or os.path.splitext(f)[0].lower() == base.lower():
-														found_fuzzy = True
-														break
-												if found_fuzzy: break
-											if found_fuzzy: break
-										
-										if not found_fuzzy:
-											missing_files.append(p)
-								
-								if missing_files:
-									self.info_panel.append("<br>")
-									self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{len(missing_files)} referenced images are MISSING from source folder:</span>")
-									for i, m in enumerate(sorted(missing_files)):
-										if i < 10:
-											self.info_panel.append(f"<font color='red'>    - {m}</font>")
-										else:
-											self.info_panel.append(f"<font color='red'>    - ... and {len(missing_files) - 10} more</font>")
-											break
-								else:
-									self.info_panel.append(f"<br><font color='#4CAF50'><b>File Integrity Check: OK ({len(json_image_paths)} images referenced and found)</b></font>")
-
 							self.info_panel.append("<br><b><font color='blue'>Analysis Mode: Validation complete. Skipping image processing and file generation.</font></b>")
 							return
 
 					except Exception as e:
 						self.log_error(f"Early Reporting Error: {e}")
 					# -------------------------------------------------------------------------
+
+
+					def collect_from_json(x):
+						if isinstance(x, str):
+							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
+								image_paths.add(x)
+								json_image_paths.add(x)
+						elif isinstance(x, dict):
+							for k, v in x.items():
+								if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
+									image_paths.add(k)
+									json_image_paths.add(k)
+								collect_from_json(v)
+						elif isinstance(x, list):
+							for v in x:
+								collect_from_json(v)
+					collect_from_json(obj)
+					# also collect keys (attachment names) which may be basenames without extension
+					# ignore common non-image keys (e.g. 'skins', 'skeleton', 'slots') to reduce noise
+					IGNORE_KEYS = {
+						'skins', 'skeleton', 'slots', 'bones', 'animations', 'attachment', 'attachments',
+						'audio', 'path', 'name', 'width', 'height', 'x', 'y', 'scale', 'scalex', 'scaley',
+						'translate', 'translatex', 'translatey', 'rotate', 'rotation', 'rgba', 'color',
+						'blend', 'start', 'time', 'delay', 'sequence', 'mode', 'count', 'length', 'hash',
+						'icon', 'logo', 'parent', 'value', 'spine'
+					}
+					def collect_keys(x):
+						if isinstance(x, dict):
+							for k, v in x.items():
+								if isinstance(k, str):
+									kl = k.lower()
+									# add explicit image filenames
+									if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
+										image_paths.add(k)
+										json_image_paths.add(k)
+									# add bare keys only if they're not in the ignore list
+									elif kl not in IGNORE_KEYS:
+										image_paths.add(k)
+										json_image_paths.add(k)
+									
+									# Also collect values from 'path' and 'name' properties as they often point to images
+									if kl in ['path', 'name'] and isinstance(v, str):
+										image_paths.add(v)
+										json_image_paths.add(v)
+
+								collect_keys(v)
+						elif isinstance(x, list):
+							for v in x:
+								collect_keys(v)
+					collect_keys(obj)
 				except Exception:
 					# fallback to raw text regex if JSON parsing fails
 					with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
@@ -2577,53 +2061,6 @@ class MainWindow(QMainWindow):
 					threshold = threshold_val_config / 100.0
 					fully_opaque = (ratio >= threshold)
 					
-					# Smart Corner Detection:
-					# If the image is considered opaque by ratio, but has transparent corners, 
-					# it is likely a rounded-rect asset (like a card or button) that MUST be PNG.
-					# Note: This is now optional via config
-					if fully_opaque and total > 0 and self.config.get("smart_corner_detection", True):
-						width, height = im.size
-						# Check 4 corners if image is large enough (at least 8x8 to check blocks)
-						if width >= 8 and height >= 8:
-							# Use a stricter threshold (e.g. 15) for structural transparency checks
-							# independently of the global alpha_cutoff which might be high.
-							# This avoids false positives on backgrounds with faint vignettes.
-							corner_strict_cutoff = 20
-							
-							# Define 4 corner blocks (top-left, top-right, bottom-left, bottom-right)
-							# We check a small 4x4 sample at each corner.
-							# If the *average* alpha of the corner block is low, it's a structural corner.
-							# Single pixel checks are too sensitive to noise/AA.
-							block_size = 4
-							corners_starts = [(0,0), (width-block_size, 0), (0, height-block_size), (width-block_size, height-block_size)]
-							
-							transparent_corners = 0
-							for start_x, start_y in corners_starts:
-								# Analyze the block
-								block_transparent_pixels = 0
-								total_block_pixels = 0
-								
-								for by in range(block_size):
-									for bx in range(block_size):
-										cx = start_x + bx
-										cy = start_y + by
-										c_idx = cy * width + cx
-										if 0 <= c_idx < len(data):
-											total_block_pixels += 1
-											if data[c_idx] <= corner_strict_cutoff:
-												block_transparent_pixels += 1
-								
-								# If > 75% of the corner block is transparent, count it as a transparent corner
-								if total_block_pixels > 0 and (block_transparent_pixels / total_block_pixels) > 0.75:
-									transparent_corners += 1
-							
-							# If 3 or more corners are strictly transparent, force PNG
-							if transparent_corners >= 3:
-								fully_opaque = False
-								try:
-									self.info_panel.append(f"  > Detected {transparent_corners} transparent corners in {os.path.basename(img_path)}. Forcing PNG.")
-								except: pass
-
 					# LOG DETAIL
 					with open(debug_log_path, "a") as df:
 						status = "OPAQUE" if fully_opaque else "TRANSPARENT"
@@ -2715,10 +2152,6 @@ class MainWindow(QMainWindow):
 				# Prefer the skeleton name embedded in the exported JSON (internal_skeleton_name).
 				# Fall back to the project/spine filename (`skeleton_name`) if the JSON name isn't available.
 				final_skeleton_dir = internal_skeleton_name or skeleton_name
-				
-				# Debug: Log the skeleton naming decision
-				self.info_panel.append(f"Skeleton Folder Name Decision: JSON='{internal_skeleton_name}' Project='{skeleton_name}' -> Final='{final_skeleton_dir}'")
-				
 				images_root = os.path.join(output_root, 'images', final_skeleton_dir)
 				jpeg_dir = os.path.join(images_root, 'jpeg')
 				png_dir = os.path.join(images_root, 'png')
@@ -3408,8 +2841,7 @@ class MainWindow(QMainWindow):
 								base_name = os.path.basename(str(ref))
 								
 								# Check if the attachment belongs to another skeleton
-								# Default to the CURRENT processed skeleton (final_skeleton_dir), NOT the project name
-								target_skeleton = final_skeleton_dir
+								target_skeleton = skeleton_name
 								parts = attach_name_str.split('/')
 								
 								# Heuristic to detect if attachment belongs to another skeleton
@@ -4260,12 +3692,11 @@ class MainWindow(QMainWindow):
 							except Exception as e:
 								self.info_panel.append(f"<font color='yellow'>Warning: Could not remove existing file {spine_pkg}: {e}</font>")
 
-						cmd = [spine_exe] + (extra_cli_args or []) + ['-i', abs_json, '-o', abs_pkg, '--import']
+						cmd = [spine_exe, '-i', abs_json, '-o', abs_pkg, '--import']
 						self.info_panel.append(f"Running: {' '.join(cmd)}")
 						
 						# Run synchronously
-						# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
-						proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+						proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 						
 						# Always log output for debugging import issues
 						if proc.stdout: self.info_panel.append(f"Import STDOUT: {proc.stdout}")
@@ -4348,23 +3779,23 @@ class MainWindow(QMainWindow):
 	def process_selected(self):
 		self.stop_requested = False
 		# use selected Spine executable from dropdown (fall back to config/default)
-		global_spine_exe = None
+		spine_exe = None
 		try:
-			global_spine_exe = self.spine_combo.currentData()
+			spine_exe = self.spine_combo.currentData()
 		except Exception:
 			pass
-		if not global_spine_exe:
-			global_spine_exe = self.config.get('spine_exe_selected') or self.config.get("spine_exe", self.default_spine_exe)
+		if not spine_exe:
+			spine_exe = self.config.get('spine_exe_selected') or self.config.get("spine_exe", self.default_spine_exe)
 		
 		# Check existence (support .app directories on macOS)
-		if not os.path.exists(global_spine_exe):
-			QMessageBox.warning(self, "Spine not found", f"Spine executable not found:\n{global_spine_exe}")
+		if not os.path.exists(spine_exe):
+			QMessageBox.warning(self, "Spine not found", f"Spine executable not found:\n{spine_exe}")
 			return
 
 		# Resolve .app to binary on macOS for execution
-		runnable_spine_exe = global_spine_exe
-		if sys.platform == 'darwin' and global_spine_exe.endswith('.app'):
-			binary = os.path.join(global_spine_exe, "Contents", "MacOS", "Spine")
+		runnable_spine_exe = spine_exe
+		if sys.platform == 'darwin' and spine_exe.endswith('.app'):
+			binary = os.path.join(spine_exe, "Contents", "MacOS", "Spine")
 			if os.path.exists(binary):
 				runnable_spine_exe = binary
 
@@ -4376,22 +3807,8 @@ class MainWindow(QMainWindow):
 		to_process = []
 		for i in range(self.list_widget.count()):
 			item = self.list_widget.item(i)
-			widget = self.list_widget.itemWidget(item)
-			
-			is_checked = False
-			filename = item.text()
-			manual_exe = None
-			
-			if widget and isinstance(widget, SpineFileWidget):
-				is_checked = widget.isChecked()
-				filename = widget.label.text()
-				manual_exe = widget.getSelectedSpineExe()
-			else:
-				# Fallback if no widget set (legacy items)
-				is_checked = (item.checkState() == Qt.Checked)
-				
-			if is_checked:
-				to_process.append((filename, manual_exe))
+			if item.checkState() == Qt.Checked:
+				to_process.append(item.text())
 
 		if not to_process:
 			QMessageBox.information(self, "No files selected", "Please check one or more .spine files to process.")
@@ -4403,9 +3820,6 @@ class MainWindow(QMainWindow):
 		self.setWindowIcon(self.icon_busy)
 		self.progress_bar.setRange(0, len(to_process) * 100)
 		self.progress_bar.setValue(0)
-
-		# Make sure label is up to date (in case user changed config but UI didn't reflow)
-		self._update_active_version_label()
 		
 		# List to collect warnings about JPEGs forced to PNG
 		jpeg_forced_png_warnings = []
@@ -4465,17 +3879,10 @@ class MainWindow(QMainWindow):
 		results = []
 		errors = []
 		
-		for i, item_data in enumerate(to_process):
+		for i, name in enumerate(to_process):
 			if self.stop_requested:
 				self.info_panel.append("Process stopped by user.")
 				break
-			
-			# Unpack item data (filename, manual_exe)
-			if isinstance(item_data, tuple):
-				name, manual_exe = item_data
-			else:
-				name = item_data
-				manual_exe = None
 
 			base_progress = i * 100
 			self.progress_bar.setValue(base_progress)
@@ -4486,7 +3893,7 @@ class MainWindow(QMainWindow):
 			file_stats = {
 				'name': name,
 				'is_container': True,
-			    'skeletons': [],
+				'skeletons': [],
 				# Default keys to prevent KeyError if no skeletons are processed
 				'total': 0, 'jpeg': 0, 'png': 0, 'total_spine': 0
 			}
@@ -4505,40 +3912,6 @@ class MainWindow(QMainWindow):
 				errors.append(msg)
 				self.log_error(msg)
 				continue
-
-			# Version Auto-Switch / Manual Selection Logic
-			# We'll use a local variable for the executable so we don't permanently switch the global selection
-			current_runnable_spine_exe = runnable_spine_exe
-			extra_cli_args = []
-			detected_ver = None
-			
-			# If user selected a specific version for this file, use it and SKIP detection
-			if manual_exe:
-				self.info_panel.append(f"Using manually selected version for {name}")
-				current_runnable_spine_exe = manual_exe
-				# Mac app bundle resolution
-				if sys.platform == 'darwin' and current_runnable_spine_exe.endswith('.app'):
-					candidate = os.path.join(current_runnable_spine_exe, "Contents", "MacOS", "Spine")
-					if os.path.exists(candidate):
-						current_runnable_spine_exe = candidate
-			else:
-				# Use global default
-				pass
-
-			# Auto-detection removed as per user request
-			detected_ver = None
-			final_exe_path = None
-			
-			# Capture which version we finally decided on for reporting
-
-			final_reported_version = detected_ver if detected_ver else "Unknown"
-			final_exe_used = os.path.basename(current_runnable_spine_exe)
-			if extra_cli_args:
-				final_exe_used += f" (Args: {' '.join(extra_cli_args)})"
-				
-			# Store in stats for report
-			file_stats['spine_version_source'] = final_reported_version
-			file_stats['spine_exe_used'] = final_exe_used
 
 			# Determine base output root and create a timestamped temporary export folder
 			base_output_root = self.output_display.text() or os.path.expanduser("~")
@@ -4561,7 +3934,7 @@ class MainWindow(QMainWindow):
 			try:
 				# Spine 4.0+ uses just -i <path> for info. Old --info flag is deprecated/removed in some versions.
 				# We try without --info first as it is cleaner for newer versions found in testing.
-				info_cmd = [current_runnable_spine_exe] + extra_cli_args + ['-i', input_path]
+				info_cmd = [runnable_spine_exe, '-i', input_path]
 				self.info_panel.append(f"Running Source Info Check: {' '.join(info_cmd)}")
 				self.status_label.setText(f"Analyzing source info: {name}")
 				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
@@ -4569,6 +3942,9 @@ class MainWindow(QMainWindow):
 				
 				# If that failed uniquely or produced no output, maybe try --info (legacy fallback)?
 				# But per testing, -i is the "Info" command if no other action is specified.
+				
+				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
+				i_proc = subprocess.run(info_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
 				# ANSI Strip Helper
 				def strip_ansi(text):
@@ -4731,8 +4107,7 @@ class MainWindow(QMainWindow):
 				pass
 
 			cmd = [
-				current_runnable_spine_exe 
-			] + extra_cli_args + [
+				runnable_spine_exe, 
 				'-i', input_path, 
 				'-o', result_dir,
 				'-e', export_settings if os.path.exists(export_settings) else 'json'
@@ -4756,54 +4131,6 @@ class MainWindow(QMainWindow):
 				# Fix: Force UTF-8 encoding or replacement to avoid Windows codepage errors on binary logs
 				proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 				
-				# Reactive Version Switching (Retry Logic)
-				# If export fails due to version mismatch, parse the required version and retry
-				if proc.returncode != 0:
-					combined_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
-					# Pattern: "Project version: 4.2.43"
-					m_ver = re.search(r"Project version:\s*([0-9]+\.[0-9]+\.[0-9]+)", combined_output)
-					if m_ver:
-						required_ver = m_ver.group(1)
-						self.info_panel.append(f"Detected version mismatch! Required: {required_ver}. Retrying...")
-						
-						# Switch to required version
-						# 1. Try local find
-						retry_exe = self.find_best_spine_exe(required_ver)
-						retry_args = []
-						if retry_exe:
-							self.info_panel.append(f"Found local executable for retry: {retry_exe}")
-							# Only switch exe, no extra args needed usually
-						else:
-							# Fallback: Use same exe (Launcher) but force version
-							self.info_panel.append(f"No local exe found. Forcing download/launch with -u {required_ver}")
-							retry_exe = current_runnable_spine_exe
-							retry_args = ['-u', required_ver]
-							
-						# Construct new command
-						# We must insert -u BEFORE -i usually
-						retry_cmd = [retry_exe] + retry_args + [
-							'-i', input_path, 
-							'-o', result_dir,
-							'-e', export_settings if os.path.exists(export_settings) else 'json'
-						]
-						
-						self.info_panel.append(f"Retrying export command: {' '.join(retry_cmd)}")
-						proc = subprocess.run(retry_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
-						
-						if proc.returncode == 0:
-							self.info_panel.append("Retry successful!")
-							# Update variables for subsequent steps (Import) to use the correct version
-							current_runnable_spine_exe = retry_exe
-							extra_cli_args = retry_args
-							
-							# Update report stats with the corrected version
-							final_reported_version = required_ver
-							final_exe_used = os.path.basename(current_runnable_spine_exe)
-							if extra_cli_args:
-								final_exe_used += f" (Args: {' '.join(extra_cli_args)})"
-							file_stats['spine_version_source'] = final_reported_version
-							file_stats['spine_exe_used'] = final_exe_used
-
 				# Parse output for unchecked export warnings
 				# Example: Attachment's keys not exported because it has "Export" unchecked: [region: pop/coin_fx/coin_fx_00, slot: fx]
 				# We check both stdout and stderr just in case
@@ -4829,12 +4156,6 @@ class MainWindow(QMainWindow):
 					re.compile(r"not exported\s*:\s*Animation\s+['\"]?(.+?)['\"]?$", re.IGNORECASE),
 					re.compile(r"Animation\s+['\"]?(.+?)['\"]?\s+skipped", re.IGNORECASE)
 				]
-				
-				# Regex for missing images (Spine CLI Warning)
-				# Example: Image for attachment [region: path/to/img, slot: slotName] not found: path/to/img
-				missing_image_pattern = re.compile(r"Image\s+for\s+attachment\s+\[region:.+?\]\s+not\s+found:\s*(.+)", re.IGNORECASE)
-				spine_export_missing = []
-				spine_export_log_warnings = []
 
 				# Save log to file for debugging/verification
 				log_path = os.path.join(result_dir, "spine_export.log")
@@ -4845,53 +4166,22 @@ class MainWindow(QMainWindow):
 					self.log_error(f"Could not write log file: {e}")
 
 				for line in combined_output.splitlines():
-					clean_line = line.strip()
-					if not clean_line: continue
-					
-					# Track if handled
-					is_handled = False
-
-					# Check attachments unchecked
-					m = unchecked_pattern.search(clean_line)
+					# Check attachments
+					m = unchecked_pattern.search(line)
 					if m:
 						r_name = m.group(1).strip()
 						s_name = m.group(2).strip() if m.group(2) else None
 						spine_export_unchecked.append({'region': r_name, 'slot': s_name})
-						is_handled = True
 					
-					# Check missing images
-					m_missing = missing_image_pattern.search(clean_line)
-					if m_missing:
-						missing_path = m_missing.group(1).strip()
-						spine_export_missing.append(missing_path)
-						is_handled = True
-
-					# Check "Slot is hidden: [slot: h1_refp, bone: root, skeleton: symbols]"
-					# This format is specific to recent Spine versions
-					m_hidden = re.search(r"Slot\s+is\s+hidden:\s*\[(.+?)\]", clean_line, re.IGNORECASE)
-					if m_hidden:
-						# Capture full message or just the inside
-						spine_export_log_warnings.append(clean_line)
-						is_handled = True
-
 					# Check animations using multiple patterns
 					for p in unchecked_anim_patterns:
-						m_anim = p.search(clean_line)
+						m_anim = p.search(line)
 						if m_anim:
 							anim_name = m_anim.group(1).strip()
 							# Do not add if it's overly generic or empty
 							if anim_name:
 								spine_export_unchecked_anims.append(anim_name)
-							is_handled = True
 							break
-					
-					# General Scan for other "not exported" or "hidden" warnings
-					# If line contains 'not exported' but wasn't handled above, or contains 'hidden'/'invisible'
-					if not is_handled:
-						lower_line = clean_line.lower()
-						if ('not exported' in lower_line) or ('hidden' in lower_line) or ('invisible' in lower_line):
-							# Avoid duplicates or noise
-							spine_export_log_warnings.append(clean_line)
 
 				# Advanced Check: If input is a ZIP-based .spine file, we can read the source of truth
 				# and conduct a perfect diff of animations.
@@ -5049,9 +4339,7 @@ class MainWindow(QMainWindow):
 					'jpeg': 0, 'png': 0, 'total': 0, 'total_spine': 0,
 					# Per-skeleton animations (set) for accurate comparisons
 					'source_anims_defined': per_skel_anims,
-					'unchecked_skeletons': file_stats.get('unchecked_skeletons', []),
-					'spine_version_source': file_stats.get('spine_version_source', 'Unknown'),
-					'spine_exe_used': file_stats.get('spine_exe_used', 'Unknown')
+					'unchecked_skeletons': file_stats.get('unchecked_skeletons', [])
 				}
 				
 				# Add to the file's list of skeletons
@@ -5103,14 +4391,11 @@ class MainWindow(QMainWindow):
 				
 				self._process_single_skeleton(
 					f_json, found_info, result_dir, folder, input_path, file_scanner,
-					base_output_root, current_runnable_spine_exe, base_progress, name, errors, results, 
+					base_output_root, runnable_spine_exe, base_progress, name, errors, results, 
 					all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=all_skeleton_names,
 					is_first=is_first, is_last=is_last, optimization_enabled=self.optimization_cb.isChecked(),
 					spine_export_unchecked=spine_export_unchecked,
-					spine_export_unchecked_anims=spine_export_unchecked_anims,
-					extra_cli_args=extra_cli_args,
-					spine_export_missing=spine_export_missing,
-					spine_export_log_warnings=spine_export_log_warnings
+					spine_export_unchecked_anims=spine_export_unchecked_anims
 				)
 
 
@@ -5142,18 +4427,6 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
-				
-				# Report Missing Files Count
-				if 'missing_files_reported' in stats and stats['missing_files_reported']:
-					count = len(stats['missing_files_reported'])
-					self.info_panel.append(f"<font color='red'>  Missing files (not copied): {count}</font>")
-				
-				# Report Version Info
-				src_ver = stats.get('spine_version_source', 'Unknown')
-				exe_used = stats.get('spine_exe_used', 'Unknown')
-				self.info_panel.append(f"<font color='#00BFFF'>  Source Project Version: {src_ver}</font>")
-				self.info_panel.append(f"<font color='#00BFFF'>  Processed with Spine: {exe_used}</font>")
-
 				# Duplicate images summary moved to RECOMMENDATIONS (appended at report end)
 				# dup_groups = stats.get('duplicate_image_groups', [])
 				# Naming violations summary
@@ -5170,11 +4443,6 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']}</font>")
-				
-				# Report Missing Files Count
-				if 'missing_files_reported' in stats and stats['missing_files_reported']:
-					count = len(stats['missing_files_reported'])
-					self.info_panel.append(f"<font color='red'>  Missing files (not copied): {count}</font>")
 				# Duplicate images summary moved to RECOMMENDATIONS (appended at report end)
 				# dup_groups = stats.get('duplicate_image_groups', [])
 				# Naming violations summary (fallback stats format)
@@ -5186,37 +4454,6 @@ class MainWindow(QMainWindow):
 				else:
 					self.info_panel.append(f"  Naming violations: none")
 			
-			# Report Missing Files (CRITICAL)
-			if 'missing_files_reported' in stats and stats['missing_files_reported']:
-				any_warnings = True
-				self.info_panel.append("<br>")
-				count = len(stats['missing_files_reported'])
-				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>Spine Export reported {count} MISSING images:</span>")
-				for i, m in enumerate(stats['missing_files_reported']):
-					if i < 15:
-						self.info_panel.append(f"<font color='red'>    - {m}</font>")
-					else:
-						self.info_panel.append(f"<font color='red'>    - ... and {count - 15} more</font>")
-						break
-
-			# Report Log Warnings (CRITICAL)
-			if 'log_warnings_reported' in stats and stats['log_warnings_reported']:
-				any_warnings = True
-				self.info_panel.append("<br>")
-				count = len(stats['log_warnings_reported'])
-				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:orange;'>Spine Export Log reported {count} additional issues:</span>")
-				for i, m in enumerate(stats['log_warnings_reported']):
-					# Use orange for these specific log messages as requested ("red and orange letters")
-					# Actually usage was "Critical errors found... check for report" in red, and 
-					# user said: "with red and orange letters : JSON export: symbols_v3 Slot is hidden..."
-					# I will use Orange for the message content to differentiate slightly or Red if it's super critical.
-					# Let's use Red for the header and Orange for the message body as user hinted.
-					if i < 15:
-						self.info_panel.append(f"<font color='orange'>    - {m}</font>")
-					else:
-						self.info_panel.append(f"<font color='orange'>    - ... and {count - 15} more</font>")
-						break
-
 			# Report Unchecked Skeletons
 			if 'unchecked_skeletons' in stats and stats['unchecked_skeletons']:
 				any_warnings = True
@@ -5322,14 +4559,13 @@ class MainWindow(QMainWindow):
 				any_warnings = True
 				self.info_panel.append("<br>")
 				n_hidden = len(stats['setup_pose_hidden'])
-				# CRITICAL styling
-				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{n_hidden} slots are HIDDEN (visible: false) in Setup Pose but have active attachments:</span>")
+				# Using a distinct color, e.g. blueish or gray
+				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#CD5C5C;'>{n_hidden} slots are HIDDEN (visible: false) in Setup Pose:</span>")
 				for i, msg in enumerate(stats['setup_pose_hidden']):
 					if i < 10:
-						self.info_panel.append(f"<font color='red'>    - {msg}</font>")
+						self.info_panel.append(f"<font color='#CD5C5C'>    - {msg}</font>")
 					else:
-						# Keep format
-						self.info_panel.append(f"<font color='red'>    - ... and {n_hidden - 10} more</font>")
+						self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
 						break
 
 			# Naming / Naming-convention Recommendations (detailed per-skeleton, summaries for slots/bones)
@@ -5394,9 +4630,6 @@ class MainWindow(QMainWindow):
 				report_lines.append("\nWarnings and details per file:")
 				for stats in all_file_stats:
 					report_lines.append(f"\nFile: {stats.get('name')}")
-					report_lines.append(f"Source Version: {stats.get('spine_version_source', 'Unknown')}")
-					report_lines.append(f"Processed with: {stats.get('spine_exe_used', 'Unknown')}")
-					
 					if stats.get('unchecked'):
 						report_lines.append("Unchecked attachments:")
 						for u in stats.get('unchecked'):
@@ -5538,32 +4771,11 @@ class MainWindow(QMainWindow):
 		except Exception as e:
 			self.info_panel.append(f"Could not generate report: {e}")
 
-		# Check for critical errors (missing files) in stats
-		any_critical = False
-		for stats in all_file_stats:
-			if 'missing_files_reported' in stats and stats['missing_files_reported']:
-				any_critical = True
-				break
-			if 'log_warnings_reported' in stats and stats['log_warnings_reported']:
-				any_critical = True
-				break
-			if 'setup_pose_hidden' in stats and stats['setup_pose_hidden']:
-				any_critical = True
-				break
-			if 'setup_pose_warnings' in stats and stats['setup_pose_warnings']:
-				any_critical = True
-				break
-
-		if errors or any_critical:
+		if errors:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
-			self.status_label.setStyleSheet("font-weight: bold; color: #FF0000;") # Red for critical
-			if any_critical:
-				self.status_label.setText("CRITICAL ERRORS FOUND - CHECK REPORT")
-				QMessageBox.warning(self, "Completed with Critical Errors", f"Processed {len(to_process)} files.\nMissing files or critical errors detected.\nSee the report for details.")
-			else:
-				self.status_label.setStyleSheet("font-weight: bold; color: #FF4500;") # OrangeRed for standard errors
-				self.status_label.setText("Finished with errors")
-				QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
+			self.status_label.setStyleSheet("font-weight: bold; color: #FF4500;") # OrangeRed for errors
+			self.status_label.setText("Finished with errors")
+			QMessageBox.warning(self, "Completed with errors", f"Processed {len(to_process)} files.\n{len(errors)} errors occurred.\nSee info log for details.")
 		else:
 			if hasattr(self, 'blink_timer'): self.blink_timer.stop()
 			if any_warnings:

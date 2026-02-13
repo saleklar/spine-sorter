@@ -19,3 +19,5 @@ output/
 run_output.txt
 *.log
 spine_temp_*/
+
+tmpclaude-*/
