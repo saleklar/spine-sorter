@@ -271,4 +271,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.69_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.70_Artist_Guide.pdf")
