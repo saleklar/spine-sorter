@@ -1,0 +1,26 @@
+Starting processing of 1 file(s)
+Config path: /Users/milos/Library/Preferences/Spine Sorter 257/config.json
+Config validate_only: False  Checkbox validate_only: False
+Config keep_temp_files: False  Checkbox keep_temp: False
+Config verbose_cleanup_logging: True  Checkbox verbose_cleanup: True
+Using opacity threshold: 92%  alpha cutoff: 150
+Using Launcher Version Override: 4.2.69
+
+Processing: ambient.spine
+Running Source Info Check: /Applications/Spine.app/Contents/MacOS/Spine --update 4.2.69 -i /Users/milos/Downloads/Spine/ambient.spine
+CLI Info command failed (Code 1)
+Exporting JSON to: /Users/milos/Downloads/ouitput/spine_temp_1771027191_0
+Running export with cleanUp=false via settings.
+Running export command: /Applications/Spine.app/Contents/MacOS/Spine --update 4.2.69 -i /Users/milos/Downloads/Spine/ambient.spine -o /Users/milos/Downloads/ouitput/spine_temp_1771027191_0 -e json
+--- SPINE EXPORT LOGS ---
+Spine Launcher 4.3.01 (macOS Apple Silicon)
+Esoteric Software LLC (C) 2013-2025 | http://esotericsoftware.com
+Mac OS X aarch64 15.6
+Downloading: Spine 4.2.69 Enterprise
+ERROR: Unable to download: The requested update version does not exist. [0x105]
+
+
+-------------------------
+Spine export failed (Code 1): STDOUT: Spine Launcher 4.3.01 (macOS Apple Silicon) Esoteric Software LLC (C) 2013-2025 | http://esotericsoftware.com Mac OS X aarch64 15.6 Downloading: Spine 4.2.69 Enterprise ERROR: Unable to download: The requested update version does not exist. [0x105] STDERR: 
+--- Processing Statistics ---
+Detected Animations: 0 (Exported: 0)
