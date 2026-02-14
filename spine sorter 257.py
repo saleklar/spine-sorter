@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.69 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.70 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -182,8 +182,8 @@ class VersionFetcherThread(QThread):
 				if not html:
 					continue
 				
-				# Grab direct versions listed
-				for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?)\b", html):
+				# Grab direct versions listed (including -beta)
+				for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?(?:-beta)?)\b", html, re.IGNORECASE):
 					collected.add(v)
 				
 				# Grab monthly changelog links
@@ -197,7 +197,7 @@ class VersionFetcherThread(QThread):
 			for mu in monthly_urls:
 				h = fetch_url(mu, timeout=5)
 				if h:
-					for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?)\b", h):
+					for v in re.findall(r"\b(\d+\.\d+(?:\.\d+)?(?:-beta)?)\b", h, re.IGNORECASE):
 						collected.add(v)
 						
 			# 3. Always try root changelog too

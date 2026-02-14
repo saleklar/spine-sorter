@@ -1,7 +1,11 @@
-SPINE SORTER v5.69 - ARTIST GUIDE
+SPINE SORTER v5.70 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.69)
+LATEST UPDATES (v5.70)
+----------------------------------------
+- Fix: "Fetch All" now correctly handles "-beta" versions (e.g., 4.2.69-beta) instead of downloading broken versions (e.g., 4.2.69).
+
+PREVIOUS UPDATES (v5.69)
 ----------------------------------------
 - Feature: Added "Fetch All" button to Spine Version Launcher. You can now download the list of specific patches (e.g. 4.1.18, 4.0.57) from the official archive directly into the dropdown.
 
