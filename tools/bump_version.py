@@ -2,8 +2,9 @@ import os
 import re
 import sys
 
-# Define the regex to find the version string "Spine Sorter vX.XX"
-VERSION_REGEX = r"Spine Sorter v(\d+\.\d+)"
+# Define the regex to find the version string "Spine Sorter vX.XX" or APP_VERSION = "X.XX"
+VERSION_REGEX = r'Spine Sorter v(\d+\.\d+)'
+APP_VERSION_REGEX = r'APP_VERSION\s*=\s*"(\d+\.\d+)"'
 
 # Files relative to this script (tools/bump_version.py)
 FILES = [
@@ -15,6 +16,7 @@ FILES = [
 def bump():
     # Get the directory where this script sits (tools/)
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    workspace_root = os.path.dirname(base_dir)
     
     # Read current version from the main python file
     main_file = os.path.join(base_dir, FILES[0])
@@ -24,8 +26,13 @@ def bump():
 
     with open(main_file, 'r', encoding='utf-8') as f:
         content = f.read()
+    
+    # Try to find version in APP_VERSION first (more reliable for code)
+    match = re.search(APP_VERSION_REGEX, content)
+    if not match:
+        # Fallback to header
+        match = re.search(VERSION_REGEX, content)
         
-    match = re.search(VERSION_REGEX, content)
     if not match:
         print("Could not find version string in main file.")
         return
@@ -46,8 +53,6 @@ def bump():
         new_minor_val = minor_val + 1
         
         # Determine padding based on the original string
-        # If it was "04" (len 2, starts with 0), pad to "05"
-        # If it was "4" (len 1), bump to "5" (no padding unless it was required)
         if len(minor_str) >= 2 and minor_str.startswith('0'):
              new_minor_str = f"{new_minor_val:02d}"
         else:
@@ -67,14 +72,24 @@ def bump():
             with open(path, 'r', encoding='utf-8') as f:
                 data = f.read()
             
-            # Replace all occurrences of "Spine Sorter vCurrent" with "Spine Sorter vNew"
+            # Replace logic:
+            # 1. "Spine Sorter vCurrent" -> "Spine Sorter vNew" (Header/Window Title)
+            # 2. APP_VERSION = "Current" -> APP_VERSION = "New" (Code Constant)
+            
             new_data = data.replace(f"Spine Sorter v{current_ver}", f"Spine Sorter v{new_ver}")
+            new_data = new_data.replace(f'APP_VERSION = "{current_ver}"', f'APP_VERSION = "{new_ver}"')
             
             if data != new_data:
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(new_data)
                 print(f"Updated {rel}")
                 files_changed = True
+
+    # 3. Create/Update version.txt in root
+    version_file = os.path.join(workspace_root, "version.txt")
+    with open(version_file, "w", encoding="utf-8") as vf:
+        vf.write(new_ver)
+    print(f"Updated version.txt to {new_ver}")
     
     if files_changed:
         print("Done.")

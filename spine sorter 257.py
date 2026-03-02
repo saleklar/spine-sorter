@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.70 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.71 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -20,6 +20,15 @@ Dependencies:
 - PySide6: For the GUI.
 - Pillow (PIL): Optional, for image processing if needed.
 """
+try:
+	import cv2
+	import numpy as np
+	from skimage.metrics import structural_similarity as ssim
+	OPENCV_AVAILABLE = True
+except ImportError:
+	OPENCV_AVAILABLE = False
+	print("Advanced matching libraries (opencv-python, scikit-image) not found. Falling back to basic hashing.")
+
 import sys
 import os
 import json
@@ -28,6 +37,8 @@ import time
 import re
 import ctypes
 import zipfile
+import difflib
+import hashlib
 import io
 import errno
 import random
@@ -67,7 +78,7 @@ except Exception:
 # We wrap this in a try-block to provide a clear error message if PySide6 is missing.
 try:
 	from PySide6.QtCore import QStandardPaths, Qt, QThread, Signal, QTimer, QUrl
-	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor, QDesktopServices
+	from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QBrush, QPalette, QTextCursor, QDesktopServices, QAction, QClipboard
 	from PySide6.QtWidgets import (
 		QApplication,
 		QMainWindow,
@@ -233,7 +244,7 @@ class SpineScannerThread(QThread):
 	
 	This prevents the UI from freezing while searching file system roots
 	and querying executables for their version strings.
-	"""
+	 """
 
 	versions_found = Signal(list)
 
@@ -449,7 +460,7 @@ class ImageCache:
 	
 	The cache stores the file modification time and size to invalidate entries
 	if the source file changes.
-	"""
+	 """
 	def __init__(self, cache_path):
 		self.cache_path = cache_path
 		self.cache = {}
@@ -505,7 +516,7 @@ class ImageCache:
 class FileScanner:
 	"""
 	Recursively scans directories for files.
-	
+
 	Results are cached in memory for the lifetime of the object to avoid
 	re-scanning the file system unnecessarily.
 	"""
@@ -751,10 +762,24 @@ class SpinePackageValidator:
 
 
 class MainWindow(QMainWindow):
+	# Version Configuration for "Version Locking"
+	APP_VERSION = "5.71"
+	# Update URL: Points to the raw version.txt on GitHub Main branch.
+	# This acts as the "Gatekeeper". Users check this URL on launch.
+	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
+	# Download URL: Where users go to get the new version.
+	# DIRECT LINK to the release page where the EXE is, instead of the code repo.
+	DOWNLOAD_URL = "https://github.com/saleklar/spine-sorter/releases/latest"
+
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Spine Sorter v5.67")
+		self.setWindowTitle(f"Spine Sorter v{self.APP_VERSION}")
+		
+		# Check for updates immediately (if online)
+		self._check_version_lock()
+
 		self._setup_icons()
+		self._setup_menu()
 
 		# Configuration
 		if sys.platform == 'darwin':
@@ -1050,6 +1075,28 @@ class MainWindow(QMainWindow):
 		actions_layout.addWidget(self.open_after_checkbox)
 		actions_layout.addWidget(self.force_local_cb)
 
+		# Consolidate Duplicates option
+		self.consolidate_duplicates_cb = QCheckBox("Consolidate Duplicate Images (Including Mirrored)")
+		self.consolidate_duplicates_cb.setToolTip("If checked, detects duplicates (visual and mirrored) and consolidates them into a single image reference.")
+		self.consolidate_duplicates_cb.setStyleSheet("font-weight: bold; color: #DAA520;")
+		# Default to CHECKED as per user preference likely
+		self.consolidate_duplicates_cb.setChecked(True)
+		actions_layout.addWidget(self.consolidate_duplicates_cb)
+
+		self.similarity_strictness_combo = QComboBox()
+		self.similarity_strictness_combo.addItems(["Safe", "Balanced", "Aggressive"])
+		self.similarity_strictness_combo.setToolTip(
+			"Controls near-duplicate matching sensitivity.\n"
+			"Safe: very strict, lowest false merges.\n"
+			"Balanced: recommended default.\n"
+			"Aggressive: catches more similar images."
+		)
+		_saved_mode = str(self.config.get("similarity_strictness", "balanced")).strip().lower()
+		_mode_to_index = {"safe": 0, "balanced": 1, "aggressive": 2}
+		self.similarity_strictness_combo.setCurrentIndex(_mode_to_index.get(_saved_mode, 1))
+		self.similarity_strictness_combo.currentTextChanged.connect(self._save_similarity_strictness_config)
+		actions_layout.addWidget(self.similarity_strictness_combo)
+
 		# Validate / Analyze Only option (Main Frame)
 		self.validate_only_cb = QCheckBox("Check for Errors Only (No Export)")
 		self.validate_only_cb.setToolTip("If checked, analyzes the Spine file for animation and setup pose warnings but skips sorting/exporting images.")
@@ -1058,7 +1105,7 @@ class MainWindow(QMainWindow):
 		self.validate_only_cb.setChecked(bool(self.config.get("validate_only", False)))
 		self.validate_only_cb.stateChanged.connect(lambda v: self._save_validate_only_config(v))
 		actions_layout.addWidget(self.validate_only_cb)
-
+		
 		layout.addLayout(actions_layout)
 
 		# Progress bar
@@ -1489,6 +1536,46 @@ class MainWindow(QMainWindow):
 		else:
 			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_path}")
 
+
+	def _check_version_lock(self):
+		"""
+		Checks the GitHub lock file to ensure the running version is current.
+		Blocks execution if local version is outdated compared to Published GitHub version.
+		"""
+		try:
+			import urllib.request
+			# Set a short timeout so we don't hang if GitHub is down/slow
+			with urllib.request.urlopen(self.MASTER_VERSION_URL, timeout=3) as response:
+				master_version_str = response.read().decode('utf-8').strip()
+			
+			# Parse simple floats for version comparison
+			try:
+				local_ver = float(self.APP_VERSION)
+				master_ver = float(master_version_str)
+				
+				# Tolerance for float comparison issues
+				if master_ver > local_ver + 0.001:
+					msg = QMessageBox()
+					msg.setIcon(QMessageBox.Critical)
+					msg.setWindowTitle("Update Required")
+					msg.setText(f"A new version ({master_version_str}) is published.\n")
+					msg.setInformativeText(f"You are running version {self.APP_VERSION}. Access works only on the latest published version.\n\nPlease update from GitHub or your team lead.")
+					
+					# Add buttons
+					btn_download = msg.addButton("Download Update", QMessageBox.AcceptRole)
+					btn_exit = msg.addButton("Exit", QMessageBox.RejectRole)
+					
+					msg.exec()
+					
+					if msg.clickedButton() == btn_download:
+						QDesktopServices.openUrl(QUrl(self.DOWNLOAD_URL))
+					
+					sys.exit(0) # Terminate app immediately
+			except ValueError:
+				pass # Version strings might be complex
+		except Exception as e:
+			print(f"Online version check skipped: {e}")
+
 	def _setup_icons(self):
 		# Create icons for different states
 		self.icon_idle = self._generate_icon("#FF9800", "S") # Orange S (Spine color-ish)
@@ -1533,6 +1620,44 @@ class MainWindow(QMainWindow):
 		painter.end()
 		return QIcon(pixmap)
 
+	def _setup_menu(self):
+		menubar = self.menuBar()
+		
+		# Help Menu
+		help_menu = menubar.addMenu("Help")
+		
+		# Open Manual Action
+		manual_action = QAction("Open Manual", self)
+		manual_action.triggered.connect(self.open_manual)
+		help_menu.addAction(manual_action)
+
+		# Version/Update Action
+		update_action = QAction("Check for Updates", self)
+		update_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(self.DOWNLOAD_URL)))
+		help_menu.addAction(update_action)
+		
+		# About
+		about_action = QAction("About / Share Link", self)
+		about_action.triggered.connect(self.show_about_dialog)
+		help_menu.addAction(about_action)
+
+	def show_about_dialog(self):
+		msg = QMessageBox(self)
+		msg.setWindowTitle("About Spine Sorter")
+		msg.setText(f"Spine Sorter v{self.APP_VERSION}")
+		msg.setInformativeText(f"Share this app via:\n{self.DOWNLOAD_URL}")
+		
+		# Copy Link Button
+		btn_copy = msg.addButton("Copy Link", QMessageBox.ActionRole)
+		btn_ok = msg.addButton(QMessageBox.Ok)
+		
+		msg.exec()
+		
+		if msg.clickedButton() == btn_copy:
+			QApplication.clipboard().setText(self.DOWNLOAD_URL)
+			QMessageBox.information(self, "Copied", "Download link copied to clipboard!")
+
+
 	def diagnose_file(self):
 		start = self.output_display.text() or os.path.expanduser("~")
 		path, _ = QFileDialog.getOpenFileName(self, "Select .spine file to diagnose", start, "Spine files (*.spine)")
@@ -1562,8 +1687,9 @@ class MainWindow(QMainWindow):
 				ver = None
 				try:
 					# Use cached scanner function logic (synchronous here but it's okay for 1-2 items)
-					# Or just use the quick scanner thread method
-					ver = self.scanner_thread.detect_spine_version(path, timeout=0.2)
+					# Or just rely on what we have.
+					# For now, let's just leave it.
+					pass
 				except: pass
 				label = f"Spine ({ver})" if ver else f"Spine - {os.path.basename(os.path.dirname(path))}"
 				results.append((label, path))
@@ -1696,6 +1822,16 @@ class MainWindow(QMainWindow):
 	def _save_validate_only_config(self, v):
 		try:
 			self.config["validate_only"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_similarity_strictness_config(self, mode_text):
+		try:
+			mode = str(mode_text).strip().lower()
+			if mode not in ('safe', 'balanced', 'aggressive'):
+				mode = 'balanced'
+			self.config["similarity_strictness"] = mode
 			self._save_config()
 		except Exception:
 			pass
@@ -2233,7 +2369,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_mode='balanced'):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -2633,37 +2769,70 @@ class MainWindow(QMainWindow):
 		resolved = set()
 		# directories to search (priority order)
 		search_dirs = [result_dir, folder, os.path.dirname(input_path)]
+		
+		# Pre-scan for exact filename matches to avoid aggressive collection
+		# Map basename_lower -> list of full absolute paths
+		file_map = {} 
+		for d in search_dirs:
+			if not d or not os.path.exists(d): continue
+			for root, dirs, files in os.walk(d):
+				for f in files:
+					if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+						# key by basename without extension
+						bn_noext = os.path.splitext(f)[0].lower()
+						fp = os.path.normcase(os.path.abspath(os.path.join(root, f)))
+						if bn_noext not in file_map: file_map[bn_noext] = []
+						file_map[bn_noext].append(fp)
+						
+						# also key by full basename
+						bn_full = f.lower()
+						if bn_full not in file_map: file_map[bn_full] = []
+						file_map[bn_full].append(fp)
+
 		for ip in image_paths:
-			# absolute path check (must be a file)
-			if os.path.isabs(ip) and os.path.isfile(ip):
-				resolved.add(ip)
+			# Cleaning the path from spine
+			ip_clean = ip.strip()
+			if not ip_clean: continue
+			
+			# 1. Absolute path check
+			if os.path.isabs(ip_clean) and os.path.isfile(ip_clean):
+				resolved.add(os.path.normcase(os.path.abspath(ip_clean)))
 				continue
-			# try direct joins first
+			
+			# 2. Direct lookup (Exact path relative to search dirs)
 			found = None
 			for d in search_dirs:
-				candidate = os.path.join(d, ip)
-				# only accept actual files (not directories)
+				candidate = os.path.join(d, ip_clean)
 				if os.path.isfile(candidate):
 					found = candidate
 					break
+				# Try adding extension if missing
+				if not found:
+					for ext in ['.png', '.jpg', '.jpeg']:
+						c_ext = candidate + ext
+						if os.path.isfile(c_ext):
+							found = c_ext
+							break
+					if found: break
+			
 			if found:
-				resolved.add(found)
+				resolved.add(os.path.normcase(os.path.abspath(found)))
 				continue
-			# fallback: search for matching basename in the search_dirs recursively
-			base = os.path.basename(ip)
-			for d in search_dirs:
-				if not d or not os.path.exists(d):
-					continue
-				for root, dirs, files in os.walk(d):
-					for f in files:
-						fname_noext = os.path.splitext(f)[0]
-						# Allow prefix match to catch sequences (e.g. 'run' matches 'run_00')
-						if f.lower() == base.lower() or fname_noext.lower() == base.lower() or fname_noext.lower().startswith(base.lower()):
-							resolved.add(os.path.join(root, f))
-							# Do NOT break, so we collect all frames of a sequence
-					else:
-						continue
-					# Do NOT break outer loop either, keep searching all subfolders
+
+			# 3. Recursive lookup for EXACT basename matches only
+			# (Removed strict prefix/sequence matching to fix user issue where similar filenames were grouped incorrectly)
+			base = os.path.basename(ip_clean)
+			base_noext = os.path.splitext(base)[0].lower()
+			base_full = base.lower()
+			
+			matches = file_map.get(base_full) or file_map.get(base_noext)
+			if matches:
+				# Add all exact matches found
+				for m in matches:
+					resolved.add(m)
+			
+		# convert to list for further processing and log resolved files
+		resolved = list(resolved)
 
 		# convert to list for further processing and log resolved files
 		resolved = list(resolved)
@@ -2674,6 +2843,29 @@ class MainWindow(QMainWindow):
 			pass
 
 		# --- Additional Checks: Duplicate content and naming conventions ---
+		similarity_mode = str(similarity_mode or 'balanced').strip().lower()
+		if similarity_mode not in ('safe', 'balanced', 'aggressive'):
+			similarity_mode = 'balanced'
+		# Note: ahash is now 192-bit (3x 64-bit for R,G,B channels) so thresholds are adjusted
+		# The distances are roughly 3x the original 64-bit distances
+		# UPDATE: User reported NOTHING consolidating, so we need to be MORE lenient.
+		# Original balanced d_max=5, a_max=6, sum=9
+		# New ahash is 3 separate 64-bit hashes.
+		# Since we now have STRONG verification via OpenCV (Histogram/SSIM), we can be VERY lenient with the initial hash filter.
+		# The hash filter's job is now just to group "potential" candidates.
+		similarity_thresholds = {
+			'safe': {'alpha_diff': 0.05, 'd_max': 10, 'a_max': 30, 'sum_max': 40},
+			'balanced': {'alpha_diff': 0.10, 'd_max': 15, 'a_max': 45, 'sum_max': 60}, 
+			'aggressive': {'alpha_diff': 0.20, 'd_max': 20, 'a_max': 60, 'sum_max': 80},
+		}
+		th = similarity_thresholds[similarity_mode]
+		
+		# Initialize consolidation maps
+		# consolidation_map: path -> target_path (For EXACT duplicates)
+		# consolidation_map_mirror: path -> {'target': target_path, 'axis': 'x'|'y'} (For FLIPPED duplicates)
+		consolidation_map = {}
+		consolidation_map_mirror = {}
+		
 		try:
 			# Duplicate image content detection (SHA1)
 			import hashlib
@@ -2682,25 +2874,689 @@ class MainWindow(QMainWindow):
 				with open(p, 'rb') as fh:
 					while True:
 						chunk = fh.read(65536)
-						if not chunk:
-							break
+						if not chunk: break
 						h.update(chunk)
 				return h.hexdigest()
 
-			hash_map = {}
+			# Helper for bytes hash
+			def _sha1_bytes(b):
+				h = hashlib.sha1()
+				h.update(b)
+				return h.hexdigest()
+
+			def _hamming_distance_int(a, b):
+				return (a ^ b).bit_count()
+
+			def _compute_similarity_signature(path, image_module):
+				try:
+					with image_module.open(path) as im_pil:
+						im = im_pil.convert('RGBA')
+
+						# Remove alpha dust/noise.
+						r, g, b, a = im.split()
+						lut = [0 if i < 5 else i for i in range(256)]
+						a = a.point(lut)
+						im.putalpha(a)
+
+						# Normalize transparent RGB values.
+						im_clean = im.convert('RGBa').convert('RGBA')
+
+						orig_w, orig_h = im_clean.size
+						bbox = im_clean.getbbox()
+						if bbox:
+							im_trimmed = im_clean.crop(bbox)
+							trim_l, trim_t, trim_r, trim_b = bbox
+							trim_w, trim_h = im_trimmed.size
+						else:
+							im_trimmed = im_clean
+							trim_l, trim_t = 0, 0
+							trim_w, trim_h = orig_w, orig_h
+
+						# Stable normalized hash (robust exact visual match).
+						im_thumb = im_trimmed.resize((64, 64), resample=image_module.BILINEAR)
+					# Reduce quantization to keep more color information (0xE0 = top 3 bits = 8 levels per channel)
+					# This prevents different colors from matching while still being robust to minor differences
+					im_quant = im_thumb.point(lambda p: p & 0xE0)
+					norm_hash = _sha1_bytes(im_quant.tobytes())
+
+					# Perceptual hashes for near-duplicate grouping.
+					# IMPORTANT: Compute on color channels, not grayscale, to distinguish different colors
+					# Resize to small size and separate into R, G, B channels
+					color_thumb = im_trimmed.resize((8, 8), resample=image_module.BILINEAR)
+					r_data, g_data, b_data, a_data = color_thumb.split()
+					
+					# Compute average hash on each color channel separately
+					# ALSO: Compute mean channel brightness to reject palette swaps (e.g. Red Chest vs Blue Chest)
+					# Structurally they are identical (ahash match), but absolute color is different.
+					mean_colors = []
+					
+					def compute_channel_ahash_and_mean(channel_img):
+						pixels = list(channel_img.getdata())
+						avg = sum(pixels) / len(pixels) if pixels else 0.0
+						mean_colors.append(avg)
+						hash_val = 0
+						for px in pixels:
+							hash_val = (hash_val << 1) | (1 if px >= avg else 0)
+						return hash_val
+					
+					ahash_r = compute_channel_ahash_and_mean(r_data)
+					ahash_g = compute_channel_ahash_and_mean(g_data)
+					ahash_b = compute_channel_ahash_and_mean(b_data)
+					# Combine into single hash (R in high bits, G in middle, B in low)
+					ahash = (ahash_r << 128) | (ahash_g << 64) | ahash_b
+					
+					# Compute difference hash on luminance only (for shape matching)
+					gray = im_trimmed.convert('L')
+					dh_img = gray.resize((9, 8), resample=image_module.BILINEAR)
+					dh_pixels = list(dh_img.getdata())
+					dhash = 0
+					for y in range(8):
+						row_start = y * 9
+						for x in range(8):
+							left = dh_pixels[row_start + x]
+							right = dh_pixels[row_start + x + 1]
+							dhash = (dhash << 1) | (1 if left >= right else 0)
+
+					alpha_hist = a.histogram()
+					total_px = max(1, orig_w * orig_h)
+					non_zero_alpha = total_px - (alpha_hist[0] if alpha_hist else 0)
+					alpha_ratio = float(non_zero_alpha) / float(total_px)
+
+					return {
+						'norm_hash': norm_hash,
+						'ahash': ahash,
+						'mean_colors': mean_colors, # [avg_r, avg_g, avg_b]
+						'dhash': dhash,
+						'alpha_ratio': alpha_ratio,
+						'original_w': orig_w,
+						'original_h': orig_h,
+						'trim_l': trim_l,
+						'trim_t': trim_t,
+						'trim_w': trim_w,
+						'trim_h': trim_h,
+						'path': path # Added path for advanced OpenCV check
+					}
+				except Exception as e:
+					return None
+
+			def _is_near_duplicate(sig_a, sig_b, th):
+				# Advanced OpenCV check for robust validation
+				# If basic criteria are met, we verify with histogram/SSIM if available
+				# This is the "Judge" phase.
+				
+				if not sig_a or not sig_b:
+					return False
+				if sig_a['trim_w'] != sig_b['trim_w'] or sig_a['trim_h'] != sig_b['trim_h']:
+					return False
+				
+				# 1. Quick Alpha/Aspect Ratio Check
+				if abs(sig_a['alpha_ratio'] - sig_b['alpha_ratio']) > th['alpha_diff']:
+					return False
+
+				# 2. Hash Distance Check (Candidate Selection)
+				d_dist = _hamming_distance_int(sig_a['dhash'], sig_b['dhash'])
+				a_dist = _hamming_distance_int(sig_a['ahash'], sig_b['ahash'])
+				
+				# Allow candidate if within relaxed bounds
+				is_hash_candidate = (d_dist <= th['d_max'] and a_dist <= th['a_max'] and (d_dist + a_dist) <= th['sum_max'])
+				
+				if not is_hash_candidate:
+					return False
+					
+				# 3. ADVANCED CHECK: OpenCV Histogram & SSIM
+				# If we have OpenCV, use it to confirm the match aggressively
+				if OPENCV_AVAILABLE and 'path' in sig_a and 'path' in sig_b:
+					try:
+						# Load images
+						img1 = cv2.imread(sig_a['path'])
+						img2 = cv2.imread(sig_b['path'])
+						
+						if img1 is None or img2 is None:
+							return False # Fallback to strict hash? Or fail safe?
+							
+						# Standardize size (img1 is source, resize img2 to match)
+						if img1.shape != img2.shape:
+							img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
+						
+						# A. Hue/Saturation Histogram Check (The "Color Family" check)
+						# This solves Red vs Blue chest
+						hsv1 = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
+						hsv2 = cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)
+						
+						hist1 = cv2.calcHist([hsv1], [0, 1], None, [180, 256], [0, 180, 0, 256])
+						hist2 = cv2.calcHist([hsv2], [0, 1], None, [180, 256], [0, 180, 0, 256])
+						cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
+						cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
+						
+						color_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+						
+						# If color distributions are very different (e.g. Red vs Blue), score will be low (< 0.9)
+						# Identical images usually > 0.99
+						if color_score < 0.95: 
+							return False # Reject different colors
+							
+						# B. Structural Similarity (SSIM)
+						# This confirms the "Drawing" is the same
+						gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+						gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+						
+						s = ssim(gray1, gray2)
+						
+						if s < 0.90: # 90% structural similarity required
+							return False
+							
+						return True # Confirmed match!
+						
+					except Exception:
+						pass # Fallback to basic logic if CV fails
+
+				# Standard Fallback: Hash Validation Only
+				# If we reached here, either OpenCV is missing or crashed. Use strict hash rules.
+				# OR we use the mean color check for safety
+				if 'mean_colors' in sig_a and 'mean_colors' in sig_b:
+					mc_a = sig_a['mean_colors']
+					mc_b = sig_b['mean_colors']
+					color_dist = sum(abs(mc_a[i] - mc_b[i]) for i in range(3))
+					if color_dist > 60: 
+						return False
+
+				return is_hash_candidate
+
+			# Store trim offsets for later compensation
+			trim_data = {}
+
+			# Helper to catch hardlinks/symlinks pointing to same inode
+			def _get_file_id(p):
+				try:
+					st = os.stat(p)
+					# Use st_dev + st_ino for unique identity
+					return (st.st_dev, st.st_ino)
+				except:
+					return p
+
+			# Logic revamp for mirrors:
+			# We want to detect if MULTIPLE *DIFFERENT* FILES (different inodes) have SAME HASH (Exact)
+			# OR if a file has a hash matching the FLIPPED version of another file (Mirror).
+			
+			if not resolved:
+				self.info_panel.append("No source images resolved for duplicate check.")
+
+			# content_registry: hash -> list of entries
+			# Entry: {'path': p, 'type': 'real'|'virtual_x'|'virtual_y', 'source_if_virtual': original_path}
+			content_registry = {}
+			
+			duplicate_groups = [] # For reporting exact dupes
+			
+			# Import PIL if needed (Consolidate duplicates logic uses it for fuzzy hashing now too)
+			if consolidate_duplicates or consolidate_mirrored:
+				try:
+					from PIL import Image
+					import io
+				except ImportError:
+					self.log_warning("Pillow (PIL) not found! Fuzzy consolidation disabled. Install 'pillow' to enable.")
+					consolidate_mirrored = False
+					# Don't disable consolidate_duplicates entirely, as it still supports exact hash match
+					# But fuzzy hashing won't work. The code below assumes PIL is present for normalized_hashes.
+
+
+			# Phase 1: Hash all REAL files
+			# Sort resolved to ensure deterministic primary selection
+			resolved.sort(key=lambda x: (len(x), x))
+			
+			real_file_entries = [] # List of {'path': p, 'hash': h}
+			
+			# Pre-calculate normalized hashes for everything if mirroring is active
+			# Because disk bytes != PIL save bytes
+			normalized_hashes = {} 
+			image_signatures = {}
+
 			for rp in resolved:
 				try:
 					h = _sha1_for_file(rp)
-					hash_map.setdefault(h, []).append(rp)
+					# Always register raw hash for exact duplicate detection
+					if h not in content_registry: content_registry[h] = []
+					entry = {'path': rp, 'type': 'real', 'hash': h}
+					content_registry[h].append(entry)
+					real_file_entries.append(entry)
+					# Visual signature used for robust exact/near matching.
+					if (consolidate_duplicates or consolidate_mirrored) and Image:
+						sig = _compute_similarity_signature(rp, Image)
+						if sig:
+							normalized_hashes[rp] = sig['norm_hash']
+							trim_data[rp] = {
+								'original_w': sig['original_w'],
+								'original_h': sig['original_h'],
+								'trim_l': sig['trim_l'],
+								'trim_t': sig['trim_t'],
+								'trim_w': sig['trim_w'],
+								'trim_h': sig['trim_h']
+							}
+							image_signatures[rp] = sig
+							
 				except Exception as e:
 					self.info_panel.append(f"Could not hash file {rp}: {e}")
 
-			duplicate_groups = [g for g in hash_map.values() if len(g) > 1]
-			# Persist to stats (empty list if none); reporting moved to RECOMMENDATIONS
-			if all_file_stats:
-				all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups
+			# Phase 2: Generate Virtual Hashes for Mirroring (if enabled)
+			# DEBUG: Write hash statistics before mirror phase
+			try:
+				debug_hash_path = os.path.join(result_dir, f"debug_hashes_{name}.txt")
+				with open(debug_hash_path, "w") as dhf:
+					dhf.write(f"Hash Statistics for {name}\n")
+					dhf.write("=" * 80 + "\n")
+					dhf.write(f"Total files hashed: {len(real_file_entries)}\n")
+					dhf.write(f"Unique SHA1 hashes: {len(content_registry)}\n")
+					dhf.write(f"Image signatures computed: {len(image_signatures)}\n")
+					dhf.write(f"consolidate_duplicates enabled: {consolidate_duplicates}\n")
+					dhf.write(f"consolidate_mirrored enabled: {consolidate_mirrored}\n\n")
+					
+					# Show hashes with collisions
+					dhf.write("Exact duplicates (SHA1 collisions):\n")
+					dup_count = 0
+					for h, entries in content_registry.items():
+						real_entries = [e for e in entries if e['type'] == 'real']
+						if len(real_entries) > 1:
+							dup_count += 1
+							dhf.write(f"  Hash {h[:12]}... has {len(real_entries)} files:\n")
+							for e in real_entries:
+								dhf.write(f"    - {os.path.basename(e['path'])}\n")
+					
+					if dup_count == 0:
+						dhf.write("  (No exact duplicates found)\n")
+			except Exception as e:
+				pass
+			
+			if consolidate_mirrored:
+				self.info_panel.append("<font color='#DAA520'>Generating mirror hashes for consolidation...</font>")
+				
+				# We need a reverse lookup for normalized hashes to find potential matches
+				# map: normalized_hash -> list of real paths
+				norm_hash_to_paths = {}
+				for p, h_n in normalized_hashes.items():
+					if h_n not in norm_hash_to_paths: norm_hash_to_paths[h_n] = []
+					norm_hash_to_paths[h_n].append(p)
+
+				# Iterate unique real NORMALIZED hashes (to avoid redundant flips)
+				unique_norm_hashes = list(norm_hash_to_paths.keys())
+				
+				for h_n in unique_norm_hashes:
+					paths = norm_hash_to_paths[h_n]
+					if not paths: continue
+					
+					# Source is the first path for this hash
+					source_path = paths[0]
+					
+					try:
+						# Update normalization map with all "exact duplicates" found via TRIMMED pixel hash
+						# This handles cases where file hash differs but pixel content (trimmed) is identical
+						if len(paths) > 1:
+							# Sort by path length then name to pick best "Source"
+							paths.sort(key=lambda x: (len(x), x))
+							primary = paths[0]
+							remaining_paths = paths[1:]
+
+							primary_norm = os.path.normcase(os.path.abspath(primary))
+							
+							for p in remaining_paths:
+								norm_p = os.path.normcase(os.path.abspath(p))
+								if norm_p != primary_norm: # Prevent self-assignment
+									consolidation_map[norm_p] = primary
+							
+							# Update source_path to be the primary for mirror checks
+							source_path = primary
+							# Update the hash map to only contain the primary (remove exact duplicates from mirror detection)
+							norm_hash_to_paths[h_n] = [primary]
+						
+						# Generate flips from the SOURCE
+						# We compare the FLIPPED hash against OTHER normalized hashes.
+						with Image.open(source_path) as im:
+							im = im.convert('RGBA')
+							
+							# Clean alpha before flipping ensure clean source
+							# Must apply SAME threshold logic as normalized_hashes generation!
+							r, g, b, a = im.split()
+							lut = []
+							for i in range(256):
+								lut.append(0 if i < 5 else i)
+							a = a.point(lut)
+							im.putalpha(a)
+							
+							im_clean = im.convert('RGBa').convert('RGBA')
+							
+							# Function to get TRIMMED hash of any image object
+							def get_trimmed_hash(img_obj):
+								bbox = img_obj.getbbox()
+								if bbox:
+									img_trimmed = img_obj.crop(bbox)
+								else:
+									img_trimmed = img_obj
+									
+								# Apply SAME fuzzy transform as original scan: 64x64 + Quantize
+								# MUST match the quantization in _compute_similarity_signature (0xE0)
+								im_thumb = img_trimmed.resize((64, 64), resample=Image.BILINEAR)
+								im_quant = im_thumb.point(lambda p: p & 0xE0)
+								
+								return _sha1_bytes(im_quant.tobytes())
+							
+							# X-Flip
+							im_x = im_clean.transpose(Image.FLIP_LEFT_RIGHT)
+							# Use FUZZY hash to match the database!
+							h_x = get_trimmed_hash(im_x)
+							
+							# If this flipped hash exists in our normalized DB, we found a match!
+							if h_x in norm_hash_to_paths:
+								targets = norm_hash_to_paths[h_x]
+								for t_path in targets:
+									# Skip self (symmetric images)
+									sp_norm = os.path.normcase(os.path.abspath(source_path))
+									tp_norm = os.path.normcase(os.path.abspath(t_path))
+									
+									if sp_norm == tp_norm:
+										continue
+									
+									# Avoid circular dependencies or overwriting exact matches
+									if tp_norm in consolidation_map: continue
+
+									# We found a Mirror Case!
+									# Deterministic choice: Keep the one that is "first" alphabetically as Source
+									if sp_norm < tp_norm:
+										# source is master. target is slave.
+										consolidation_map_mirror[tp_norm] = {'target': source_path, 'transform': 'flipX', 'axis': 'x'}
+									else:
+										# target is master. source is slave.
+										consolidation_map_mirror[sp_norm] = {'target': t_path, 'transform': 'flipX', 'axis': 'x'}
+
+							# Y-Flip
+							im_y = im_clean.transpose(Image.FLIP_TOP_BOTTOM)
+							h_y = get_trimmed_hash(im_y)
+							
+							# Check match
+							if h_y in norm_hash_to_paths:
+								targets = norm_hash_to_paths[h_y]
+								for t_path in targets:
+									sp_norm = os.path.normcase(os.path.abspath(source_path))
+									tp_norm = os.path.normcase(os.path.abspath(t_path))
+									
+									if sp_norm == tp_norm: continue
+									if tp_norm in consolidation_map: continue
+									
+									if sp_norm < tp_norm:
+										consolidation_map_mirror[tp_norm] = {'target': source_path, 'transform': 'flipY', 'axis': 'y'}
+									else:
+										consolidation_map_mirror[sp_norm] = {'target': t_path, 'transform': 'flipY', 'axis': 'y'}
+
+							
+							# Rotate 90 CW (transposed)
+							im_r90 = im_clean.transpose(Image.ROTATE_270) # PIL Rotate is CCW, so 270 is 90 CW
+							h_r90 = get_trimmed_hash(im_r90)
+
+							if h_r90 in norm_hash_to_paths:
+								targets = norm_hash_to_paths[h_r90]
+								for t_path in targets:
+									sp_norm = os.path.normcase(os.path.abspath(source_path))
+									tp_norm = os.path.normcase(os.path.abspath(t_path))
+									if sp_norm == tp_norm: continue
+									if tp_norm in consolidation_map: continue
+									
+									if sp_norm < tp_norm:
+										consolidation_map_mirror[tp_norm] = {'target': source_path, 'transform': 'rotate90', 'angle': 90}
+									else:
+										# If Source is target, then Source = Target rotated 90 CW.
+										# Target = Source rotated -90 (or 270)
+										consolidation_map_mirror[sp_norm] = {'target': t_path, 'transform': 'rotate90', 'angle': -90}
+
+							# Rotate 180
+							im_r180 = im_clean.transpose(Image.ROTATE_180)
+							h_r180 = get_trimmed_hash(im_r180)
+
+							if h_r180 in norm_hash_to_paths:
+								targets = norm_hash_to_paths[h_r180]
+								for t_path in targets:
+									sp_norm = os.path.normcase(os.path.abspath(source_path))
+									tp_norm = os.path.normcase(os.path.abspath(t_path))
+									
+									# Special Check: Identical vs Rotated 180
+									# Sometimes images are identical but one is "logically" rotated in Spine.
+									# BUT here we are comparing PIXELS.
+									# If PixelHash(A) == PixelHash(B-Rot180), then A is visually same as B rotated 180.
+									# This handles the case where the user rotated the image content in Photoshop before exporting.
+									
+									if sp_norm == tp_norm: continue
+									if tp_norm in consolidation_map: continue
+									
+									if sp_norm < tp_norm:
+										consolidation_map_mirror[tp_norm] = {'target': source_path, 'transform': 'rotate180', 'angle': 180}
+									else:
+										consolidation_map_mirror[sp_norm] = {'target': t_path, 'transform': 'rotate180', 'angle': 180}
+							
+							# Rotate 270 CW (90 CCW)
+							im_r270 = im_clean.transpose(Image.ROTATE_90) # PIL Rotate is CCW, so 90 is 270 CW
+							h_r270 = get_trimmed_hash(im_r270)
+
+							if h_r270 in norm_hash_to_paths:
+								targets = norm_hash_to_paths[h_r270]
+								for t_path in targets:
+									sp_norm = os.path.normcase(os.path.abspath(source_path))
+									tp_norm = os.path.normcase(os.path.abspath(t_path))
+									if sp_norm == tp_norm: continue
+									if tp_norm in consolidation_map: continue
+									
+									if sp_norm < tp_norm:
+										# Target = Source rotated 270 CW (or -90)
+										consolidation_map_mirror[tp_norm] = {'target': source_path, 'transform': 'rotate270', 'angle': -90}
+									else:
+										# Source = Target rotated 270 CW
+										# Target = Source rotated 90
+										consolidation_map_mirror[sp_norm] = {'target': t_path, 'transform': 'rotate270', 'angle': 90}
+					except Exception:
+						pass
+
+			# Phase 3: Consolidation Map Building
+			# Write simple debug file showing hash analysis
+			try:
+				simple_debug_path = os.path.join(result_dir, f"hash_analysis_{name}.txt")
+				with open(simple_debug_path, "w") as f:
+					f.write(f"Hash Analysis for {name}\n")
+					f.write("=" * 80 + "\n\n")
+					f.write(f"Total files analyzed: {len(resolved)}\n")
+					f.write(f"Content registry entries: {len(content_registry)}\n")
+					f.write(f"Consolidate duplicates enabled: {consolidate_duplicates}\n")
+					f.write(f"Consolidate mirrored enabled: {consolidate_mirrored}\n\n")
+					
+					f.write("Hash Collisions (multiple files with same SHA1):\n")
+					collision_count = 0
+					for h, entries in content_registry.items():
+						real_entries = [e for e in entries if e['type'] == 'real']
+						if len(real_entries) > 1:
+							collision_count += 1
+						if collision_count == 0:
+							f.write("  (none found)\n")
+						
+						f.write(f"\n\nImage Signatures Computed: {len(image_signatures)}\n")
+						
+			except Exception as e:
+				pass
+			
+			# Iterate over all content hashes that have collisions
+			for h, entries in content_registry.items():
+				real_entries = [e for e in entries if e['type'] == 'real']
+				
+				# Case A: Exact Duplicates (Multiple real files share hash)
+				if len(real_entries) > 1:
+					# Sort to pick primary
+					real_entries.sort(key=lambda x: (len(x['path']), x['path']))
+					primary = real_entries[0]['path']
+					
+					# Record group for reporting
+					group_paths = [e['path'] for e in real_entries]
+					duplicate_groups.append(group_paths)
+					
+					if consolidate_duplicates:
+						for other in real_entries[1:]:
+							norm_p = os.path.normcase(os.path.abspath(other['path']))
+							# Don't overwrite if existing (stable sort ensures consistency)
+							if norm_p not in consolidation_map:
+								consolidation_map[norm_p] = primary
+
+			# Phase 3b: Near-duplicate matching using perceptual signatures.
+			near_duplicate_groups = []
+			if consolidate_duplicates and image_signatures:
+				sig_buckets = {}
+				for p, sig in image_signatures.items():
+					bucket_key = (sig['trim_w'], sig['trim_h'])
+					if bucket_key not in sig_buckets:
+						sig_buckets[bucket_key] = []
+					sig_buckets[bucket_key].append(p)
+
+				for _, paths in sig_buckets.items():
+					if len(paths) < 2:
+						continue
+					paths.sort(key=lambda x: (len(x), x))
+					for idx, source_path in enumerate(paths):
+						source_norm = os.path.normcase(os.path.abspath(source_path))
+						if source_norm in consolidation_map:
+							continue
+
+						source_sig = image_signatures.get(source_path)
+						if not source_sig:
+							continue
+
+						group = [source_path]
+						for target_path in paths[idx + 1:]:
+							target_norm = os.path.normcase(os.path.abspath(target_path))
+							if target_norm in consolidation_map:
+								continue
+							target_sig = image_signatures.get(target_path)
+							if not target_sig:
+								continue
+
+							if _is_near_duplicate(source_sig, target_sig):
+								consolidation_map[target_norm] = source_path
+								group.append(target_path)
+							else:
+								# Optional: Log strictly why it failed if close
+								# This helps debug "why didn't these match?"
+								try:
+									d_dist = _hamming_distance_int(source_sig['dhash'], target_sig['dhash'])
+									a_dist = _hamming_distance_int(source_sig['ahash'], target_sig['ahash'])
+									if d_dist <= (th['d_max'] * 2) and a_dist <= (th['a_max'] * 2):
+										# Use a dedicated debug log for near-misses
+										debug_miss_path = os.path.join(result_dir, f"debug_missed_dupes_{name}.text")
+										with open(debug_miss_path, "a") as f:
+											f.write(f"Miss: {os.path.basename(source_path)} vs {os.path.basename(target_path)}\n")
+											f.write(f"  d_dist={d_dist}/{th['d_max']}, a_dist={a_dist}/{th['a_max']}, sum={d_dist+a_dist}/{th['sum_max']}\n")
+								except:
+									pass
+
+						if len(group) > 1:
+							near_duplicate_groups.append(group)
+
+			# Case B: Mirror Duplicates (Processed via Normalized Hashes)
+			# (Logic moved to Phase 2 to ensure clean alpha handling, but we filter against exact dups here)
+			# Prune any mirror mappings where the source or target has been consolidated as an exact duplicate
+			if consolidate_mirrored and consolidation_map_mirror:
+				# Remove mirror entries if:
+				# 1. The key (file to be replaced) is already being replaced by exact dup
+				# 2. The target is being remapped by exact consolidation (chaining issue)
+				keys_to_remove = []
+				for k, v in consolidation_map_mirror.items():
+					target_path = v['target']
+					target_norm = os.path.normcase(os.path.abspath(target_path))
+					
+					# Case 1: Key is in exact consolidation map (already being remapped)
+					if k in consolidation_map:
+						keys_to_remove.append(k)
+					# Case 2: Target is being remapped by exact consolidation (avoid chaining)
+					elif target_norm in consolidation_map:
+						keys_to_remove.append(k)
+				
+				for k in keys_to_remove:
+					del consolidation_map_mirror[k]
+			
+			# Reporting
+			if duplicate_groups:
+				if consolidate_duplicates:
+					self.info_panel.append(f"<span style='color:#DAA520; font-weight:bold;'>Consolidating {len(duplicate_groups)} duplicate group(s)...</span>")
+					# Log sample
+					count = 0
+					for group in duplicate_groups:
+						if count < 3:
+							replacements = [os.path.basename(p) for p in group[1:]]
+							self.info_panel.append(f"  <font color='#DAA520'>Remap {', '.join(replacements)} -> {os.path.basename(group[0])}</font>")
+						count += 1
+					if count > 3: self.info_panel.append(f"  ... and {count-3} more.")
+				else:
+					self.info_panel.append(f"Found {len(duplicate_groups)} duplicate groups (Consolidation OFF).")
+					if all_file_stats: all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups # Save for report
+
+			if near_duplicate_groups:
+				self.info_panel.append(f"<span style='color:#4CAF50; font-weight:bold;'>Consolidating {len(near_duplicate_groups)} similar-image group(s) ({similarity_mode.title()} mode)...</span>")
+				count = 0
+				for group in near_duplicate_groups:
+					if count < 3:
+						replacements = [os.path.basename(p) for p in group[1:]]
+						self.info_panel.append(f"  <font color='#4CAF50'>Similar remap {', '.join(replacements)} -> {os.path.basename(group[0])}</font>")
+					count += 1
+				if count > 3:
+					self.info_panel.append(f"  ... and {count-3} more similar groups.")
+
+			if consolidation_map_mirror:
+				self.info_panel.append(f"<span style='color:#9C27B0; font-weight:bold;'>Found {len(consolidation_map_mirror)} mirrored images!</span>")
+				count = 0
+				for k, v in consolidation_map_mirror.items():
+					if count < 5:
+						msg = f"  <font color='#9C27B0'>Mirror: {os.path.basename(k)} -> {os.path.basename(v['target'])} ({v['transform']})</font>"
+						self.info_panel.append(msg)
+					count += 1
+				if count > 5: self.info_panel.append(f"  <font color='#9C27B0'>... and {count-5} more.</font>")
+			
+			# DEBUG: Write comprehensive consolidation report
+			try:
+				debug_report_path = os.path.join(result_dir, f"consolidation_debug_report_{name}.txt")
+				with open(debug_report_path, "w") as f:
+					f.write("=" * 80 + "\n")
+					f.write(f"CONSOLIDATION DEBUG REPORT FOR: {name}\n")
+					f.write("=" * 80 + "\n\n")
+					
+					f.write(f"THRESHOLD SETTINGS (Mode: {similarity_mode.title()}):\n")
+					f.write(f"  alpha_diff: {th['alpha_diff']}\n")
+					f.write(f"  d_max: {th['d_max']}\n")
+					f.write(f"  a_max: {th['a_max']}\n")
+					f.write(f"  sum_max: {th['sum_max']}\n\n")
+					
+					f.write(f"FILES ANALYZED: {len(resolved)} total\n\n")
+					
+					f.write("EXACT DUPLICATE GROUPS:\n")
+					for i, group in enumerate(duplicate_groups):
+						f.write(f"  Group {i+1}:\n")
+						for p in group:
+							bn = os.path.basename(p)
+							is_key = os.path.normcase(os.path.abspath(p)) in consolidation_map
+							marker = " (KEY - REMAPPED)" if is_key else " (primary)"
+							f.write(f"    - {bn}{marker}\n")
+					
+					f.write(f"\nNEAR-DUPLICATE GROUPS: {len(near_duplicate_groups)}\n")
+					for i, group in enumerate(near_duplicate_groups):
+						f.write(f"  Group {i+1}:\n")
+						for p in group:
+							bn = os.path.basename(p)
+							is_key = os.path.normcase(os.path.abspath(p)) in consolidation_map
+							marker = " (KEY - REMAPPED)" if is_key else " (primary)"
+							f.write(f"    - {bn}{marker}\n")
+					
+					f.write(f"\nCONSOLIDATION MAP ({len(consolidation_map)} entries):\n")
+					for k, v in sorted(consolidation_map.items()):
+						f.write(f"  {os.path.basename(k)} -> {os.path.basename(v)}\n")
+					
+					f.write(f"\nMIRROR MAP ({len(consolidation_map_mirror)} entries):\n")
+					for k, v in sorted(consolidation_map_mirror.items()):
+						f.write(f"  {os.path.basename(k)} -> {os.path.basename(v['target'])} ({v.get('transform', 'unknown')})\n")
+			except Exception as e:
+				self.info_panel.append(f"Failed to write consolidation debug report: {e}")
+
 		except Exception as e:
 			self.info_panel.append(f"Duplicate check failed: {e}")
+			import traceback
+			traceback.print_exc()
 
 		try:
 			# Naming conventions: lowercase, no spaces, only a-z0-9._- allowed for filenames
@@ -3395,8 +4251,7 @@ class MainWindow(QMainWindow):
 							# small curated wordlist + workspace-derived words could be added later
 							_common_words = set((
 								'idle','walk','run','jump','attack','hit','death','spawn','intro',
-								'anticipation','anticipate','land','fall','shoot','throw','cast',
-								'open','close','blink','idle','walk','run','slide','push','pull'
+								'anticipation','anticipate','land','fall','shoot','throw','cast'
 							))
 							# split into alpha tokens
 							for tok in re.split(r'[^a-zA-Z]+', name):
@@ -3493,38 +4348,41 @@ class MainWindow(QMainWindow):
 								for v in item.values():
 									if isinstance(v, dict):
 										ALL_SKIN_DICTS.append(v)
+				
+				# Pre-calculate attachment -> slots mapping to avoid massive loop
+				ATTACHMENT_SLOT_MAP = {}
+				for s_dict in ALL_SKIN_DICTS:
+					if isinstance(s_dict, dict):
+						for s_name, s_val in s_dict.items():
+							if isinstance(s_val, dict):
+								for att_key in s_val:
+									if att_key not in ATTACHMENT_SLOT_MAP:
+										ATTACHMENT_SLOT_MAP[att_key] = []
+									ATTACHMENT_SLOT_MAP[att_key].append(s_name)
+
 				# Global Scan Data (for pre-scan pass)
 				SCAN_SLOT_USAGE = {} # path -> set(slots)
 				PRECALC_DESTINATIONS = {} # path -> 'jpeg' or 'png'
 				EXPORTED_UNIQUE_IMAGES = set()  # will record only actually exported (or placeholder) source paths
 				TOTAL_ATTACHMENTS_COUNT = 0
+				CONSOLIDATED_IMAGES_COUNT = 0
 				UNIQUE_COPIED_PATHS = set()
 
 				# helper to process a single skin dict (slot -> attachments)
 				def process_skin_dict(skin_dict, skin_name=None, scan_mode=False):
 					nonlocal TOTAL_ATTACHMENTS_COUNT
+					nonlocal CONSOLIDATED_IMAGES_COUNT
 					if not isinstance(skin_dict, dict):
 						return skin_dict
 					
-					# Debug: track first attachment processed
-					first_attachment_debug = False
-					
 					for slot_name, attachments in list(skin_dict.items()):
 						if not isinstance(attachments, dict):
+
 							self.info_panel.append(f"Skipping slot {slot_name}: unexpected attachments type {type(attachments)}")
 							continue
 						for attach_name, attach_val in list(attachments.items()):
 							if not scan_mode:
 								TOTAL_ATTACHMENTS_COUNT += 1
-
-							# Debug: log first attachment details
-							if not first_attachment_debug:
-								try:
-									if not scan_mode:
-										self.info_panel.append(f"Debug Attachment '{attach_name}': {json.dumps(attach_val)}")
-									first_attachment_debug = True
-								except Exception:
-									pass
 
 							# determine referenced image name
 							if isinstance(attach_val, dict):
@@ -3537,6 +4395,312 @@ class MainWindow(QMainWindow):
 							
 							# find real source file
 							src = find_source_image(ref, skin_context=skin_name)
+							
+							# DEBUG: Trace consolidation
+							if src and isinstance(src, str):
+								fname = os.path.basename(src)
+								if fname in ['clubs.png', 'flipy.png', 'rotator.png', 'ddd.png']:
+									norm_src = os.path.normcase(os.path.abspath(src))
+									in_mirror = norm_src in consolidation_map_mirror
+									if not in_mirror and consolidated_mirrored:
+										# If not found, check if keys exist with different case?
+										self.info_panel.append(f"<font color='orange'>DEBUG: {fname} found at {src}</font>")
+										self.info_panel.append(f"&nbsp;&nbsp;Key: {norm_src}")
+										self.info_panel.append(f"&nbsp;&nbsp;In Map: {norm_src in consolidation_map}, In Mirror: {norm_src in consolidation_map_mirror}")
+										# Check if ANY key ends with this filename
+										for k in consolidation_map_mirror:
+											if k.endswith(os.path.normcase(fname)):
+												self.info_panel.append(f"&nbsp;&nbsp;Partial match found in keys: {k}")
+
+							
+							# Consolidation State
+							consolidation_occurred = False
+							# Keep backup of original src for later reference
+							src_list = src if isinstance(src, (list, tuple)) else ([src] if src else [])
+
+							# Applies Consolidation Logic (if map exists and has entries)
+							try:
+								# 1. Exact Consolidation
+								if src and consolidation_map:
+									if isinstance(src, (list, tuple)):
+										# For sequences, we need to map each frame
+										new_src = []
+										for p in src:
+											norm_p = os.path.normcase(os.path.abspath(p))
+											if norm_p in consolidation_map:
+												new_src.append(consolidation_map[norm_p])
+												consolidation_occurred = True
+												if not scan_mode:
+													CONSOLIDATED_IMAGES_COUNT += 1
+											else:
+												new_src.append(p)
+										# CRITICAL: Deduplicate the list after consolidation
+										# If consolidation mapped multiple files to the same primary, we still only want to copy once
+										if new_src and consolidation_occurred:
+											seen_files = {}
+											dedup_src = []
+											for f in new_src:
+												norm_f = os.path.normcase(os.path.abspath(f))
+												if norm_f not in seen_files:
+													seen_files[norm_f] = True
+													dedup_src.append(f)
+											src = dedup_src
+										else:
+											src = new_src
+									else:
+										# Single file consolidation
+										norm_p = os.path.normcase(os.path.abspath(src))
+										if norm_p in consolidation_map:
+											src = consolidation_map[norm_p]
+											consolidation_occurred = True
+											if not scan_mode:
+												CONSOLIDATED_IMAGES_COUNT += 1
+								
+								# 2. Mirror Consolidation (independent check)
+								if src and consolidation_map_mirror:
+									common_transform = None
+									new_src_list = []
+									all_mapped = True
+									
+									src_check = src if isinstance(src, (list, tuple)) else [src]
+									for s_path in src_check:
+										norm_p = os.path.normcase(os.path.abspath(s_path))
+										if norm_p in consolidation_map_mirror:
+											entry = consolidation_map_mirror[norm_p]
+											# Check transform consistency
+											if common_transform is None:
+												common_transform = entry
+											elif common_transform['transform'] != entry['transform']:
+												all_mapped = False
+												break
+											new_src_list.append(entry['target'])
+										else:
+											all_mapped = False
+											break
+									
+									if all_mapped and common_transform:
+										# Strict Safety Check: Do NOT apply to Meshes or complex attachments
+										is_complex = False
+										if 'type' in attach_val and attach_val['type'] in ('mesh', 'linkedmesh', 'path', 'boundingbox', 'clipping'):
+											is_complex = True
+										# Check for mesh data keys just in case type is omitted
+										if 'uvs' in attach_val or 'triangles' in attach_val or 'vertices' in attach_val:
+											is_complex = True
+											
+										if not is_complex:
+											# Apply replacement
+											src = new_src_list if isinstance(src, (list, tuple)) else new_src_list[0]
+											
+											if not scan_mode:
+												CONSOLIDATED_IMAGES_COUNT += len(src_check)
+												consolidation_occurred = True
+												
+												# Update JSON Attachment Data
+												# We need to flip scale.
+												# If scale not present, default is 1.0.
+												
+												# Rename 'name' or 'path' in the attachment to match the new target
+												# so we don't rely solely on the file copying loop to fix the reference.
+												# Actually, the file copying loop below will determine the new path based on 'src'.
+												# BUT, if we have a "rename" effect which the user complains about, maybe we should
+												# ensure the JSON path is updated to point to the EXISTING target file's location/name.
+												
+												# The loop below handles:
+												# 1. Calculates destination path based on `src` (which is now the Target file)
+												# 2. Copies file (if not exists)
+												# 3. Updates `attach_val['path']`
+												
+												# The issue "just renamed image" might mean:
+												# The exported JSON now points to "TargetImage.png" instead of "SourceImage.png".
+												# This IS the intended behavior: we want to reuse the existing image.
+												# If the user sees "SourceImage.png" in the export folder but with Target content, that would be weird.
+												# But here we change `src` to `TargetImage.png`.
+												# So the script will copy `TargetImage.png` to the export folder.
+												# And the JSON will point to `TargetImage.png` (or wherever it ends up).
+												
+												# If the user wants to KEEP the original name "SourceImage" but use the CONTENT of "TargetImage",
+												# then we should NOT change `src`, but we should change... wait.
+												# If we want consolidation (reuse), we MUST point to the shared asset.
+												# If we keep the old name, we are duplicating the file on disk (just with copied content).
+												# That is NOT consolidation. Consolidation means 1 file on disk, multiple references.
+												# So "renamed image" in JSON is correct.
+												
+												# Perhaps the user means they saw a file "SourceImage.png" in the output that was actually "TargetImage"?
+												# No, if we change `src`, the copier uses `os.path.basename(src)` as the filename.
+												# So it will output `TargetImage.png`.
+												
+												# Parse transform type
+												import math
+												t_type = common_transform.get('transform')
+												
+												# 1. Get Current Transform Values
+												cur_x = attach_val.get('x', 0.0)
+												cur_y = attach_val.get('y', 0.0)
+												cur_rot = attach_val.get('rotation', 0.0)
+												cur_sx = attach_val.get('scaleX', 1.0)
+												cur_sy = attach_val.get('scaleY', 1.0)
+
+												# 2. Determine New Transform Values (Rotation/Scale)
+												new_rot = cur_rot
+												new_sx = cur_sx
+												new_sy = cur_sy
+												
+												if t_type == 'flipX':
+													new_sx *= -1.0
+												elif t_type == 'flipY':
+													new_sy *= -1.0
+												elif t_type in ('rotate90', 'rotate180', 'rotate270'):
+													angle = common_transform.get('angle', 0)
+													new_rot += angle
+
+												# 3. Apply Transform Updates
+												attach_val['scaleX'] = new_sx
+												attach_val['scaleY'] = new_sy
+												attach_val['rotation'] = new_rot
+												
+												# 4. Handle Trim Compensation (Offset Adjustment)
+												# We need the ORIGINAL src path (before renaming) to lookup trim data.
+												original_path_ref = src_list[0]
+												target_path_ref = new_src_list[0]
+												
+												# KEY: Normalize paths for lookup
+												op_norm = os.path.normcase(os.path.abspath(original_path_ref))
+												tp_norm = os.path.normcase(os.path.abspath(target_path_ref))
+												
+												if trim_data and op_norm in trim_data and tp_norm in trim_data:
+													o_dat = trim_data[op_norm]
+													t_dat = trim_data[tp_norm]
+													
+													# Update dimensions to match TARGET (visual correctness)
+													attach_val['width'] = t_dat['original_w']
+													attach_val['height'] = t_dat['original_h']
+													
+													# Calculate Center in Pixel Space (Top-Left Origin)
+													# trim_l + trim_w/2
+													o_cx = o_dat['trim_l'] + o_dat['trim_w'] / 2.0
+													o_cy = o_dat['trim_t'] + o_dat['trim_h'] / 2.0
+													
+													t_cx = t_dat['trim_l'] + t_dat['trim_w'] / 2.0
+													t_cy = t_dat['trim_t'] + t_dat['trim_h'] / 2.0
+													
+													# Convert to Offset from Image Center (Y-Up for Spine)
+													# Spine Offset X = Content_CX - Image_W/2
+													# Spine Offset Y = Image_H/2 - Content_CY
+													
+													ox = o_cx - (o_dat['original_w'] / 2.0)
+													oy = (o_dat['original_h'] / 2.0) - o_cy
+													
+													tx = t_cx - (t_dat['original_w'] / 2.0)
+													ty = (t_dat['original_h'] / 2.0) - t_cy
+													
+													# Transform Logic:
+													# Visual Center of Content relative to Bone = 
+													# (att_x, att_y) + Rotate(att_rot) * Scale(att_scale) * (Content_Offset_From_Image_Center)
+													
+													def rotate_point(px, py, angle_deg):
+														rad = math.radians(angle_deg)
+														cos_a = math.cos(rad)
+														sin_a = math.sin(rad)
+														return px * cos_a - py * sin_a, px * sin_a + py * cos_a
+													
+													# Calculate original visual content position relative to bone
+													# Start with Bone -> Attachment Center (cur_x, cur_y)
+													# Add Attachment Center -> Content Center vector (ox, oy), transformed by attachment transform
+													
+													# 1. Scale content offset
+													sox = ox * cur_sx
+													soy = oy * cur_sy
+													
+													# 2. Rotate content offset
+													rox, roy = rotate_point(sox, soy, cur_rot)
+													
+													# 3. Add to attachment position
+													vis_x = cur_x + rox
+													vis_y = cur_y + roy
+													
+													# Now we want the new attachment to have its content at (vis_x, vis_y)
+													# New Attachment Position (new_att_x, new_att_y) + Transformed New Content Offset = (vis_x, vis_y)
+													# (new_att_x, new_att_y) = (vis_x, vis_y) - Transformed New Content Offset
+													
+													# 1. Scale target content offset
+													stx = tx * new_sx
+													sty = ty * new_sy
+													
+													# 2. Rotate target content offset
+													rtx, rty = rotate_point(stx, sty, new_rot)
+													
+													# 3. Calculate new attachment position
+													new_att_x = vis_x - rtx
+													new_att_y = vis_y - rty
+													
+													# Check if significant change (avoid noise)
+													if abs(new_att_x - cur_x) > 0.001 or abs(new_att_y - cur_y) > 0.001:
+														attach_val['x'] = new_att_x
+														attach_val['y'] = new_att_y
+												
+												# Handle Trim Offset Adjustment (for whitespace consolidation)
+												# Check if src was part of a trimmed match
+												# We need the original path to lookup trim data. We have `s_path` (original src)
+												# BUT `src` variable has already been updated to `new_src_list`.
+												
+												# We need the ORIGINAL src path to calculate the offset relative to the TARGET.
+												# Let's iterate over `src_list` (original versions)
+												if trim_data:
+													# Find corresponding trim data for the consolidated target
+													target_key = src_list[0] if isinstance(src_list, (list, tuple)) else src_list
+													# Wait, `src_list` is the ORIGINAL list before mapping. Correct.
+													# The TARGET is `new_src_list[0]`.
+													
+													target_path = new_src_list[0]
+													original_path = s_path # from loop above
+													
+													# Only adjust if both have trim data
+													if target_path in trim_data and original_path in trim_data:
+														t_dat = trim_data[target_path]
+														o_dat = trim_data[original_path]
+														
+														# Calculate center offset relative to image center
+														# X: (trim_l + w/2) - orig_w/2
+														# Y: (orig_h/2) - (trim_t + h/2)  <-- Y is up, pixel Y is down
+														
+														def get_center_offset(d):
+															cx = d['trim_l'] + d['trim_w'] / 2.0
+															cy = d['trim_t'] + d['trim_h'] / 2.0
+															
+															off_x = cx - (d['original_w'] / 2.0)
+															off_y = (d['original_h'] / 2.0) - cy
+															return off_x, off_y
+
+														tx, ty = get_center_offset(t_dat)
+														ox, oy = get_center_offset(o_dat)
+														
+														# We want visual consistency.
+														# The attachment was at position (ax, ay) pointing to Original Image center.
+														# Its content was offset by (ox, oy).
+														# The New Image has content offset by (tx, ty).
+														# We need to move attachment by (ox - tx, oy - ty)
+														
+														diff_x = ox - tx
+														diff_y = oy - ty
+														
+														if abs(diff_x) > 0.01 or abs(diff_y) > 0.01:
+															attach_val['x'] = attach_val.get('x', 0.0) + diff_x
+															attach_val['y'] = attach_val.get('y', 0.0) + diff_y
+															# Ensure we update width/height so Spine centers it correctly relative to new image center
+															attach_val['width'] = t_dat['original_w']
+															attach_val['height'] = t_dat['original_h']
+														elif t_dat['original_w'] != attach_val.get('width') or t_dat['original_h'] != attach_val.get('height'):
+															# Even if center offset is zero, dimensions might differ (symmetric padding)
+															attach_val['width'] = t_dat['original_w']
+															attach_val['height'] = t_dat['original_h']
+									
+							except Exception as e:
+								# Log the error
+								try:
+									with open(os.path.join(result_dir, "consolidation_debug.txt"), "a") as f:
+										f.write(f"Consolidation ERROR: {e}\n")
+								except: pass
+							
 							
 							# Note: do NOT record candidate matches here — we only want to count
 							# source files that were actually exported/copied or placeholders created.
@@ -3586,25 +4750,18 @@ class MainWindow(QMainWindow):
 											break
 									
 									vals.append(val)
-								# require all frames/matches to be opaque to treat as opaque
-								is_opaque = all(vals) if vals else False
 							
 							# If attachment appears in slots, collect those slots and their blends
-							slots_found = []
-							for skin2 in ALL_SKIN_DICTS:
-								for slot2, slot_val in skin2.items():
-									try:
-										if attach_name in slot_val:
-											slots_found.append(slot2)
-									except Exception:
-										continue
-
+							# Optimization: use pre-calculated map instead of iterating all skins
+							slots_found = ATTACHMENT_SLOT_MAP.get(attach_name, [])
+							
 							# decide destination:
 							# - If attachment appears in one or more slots and ALL such slots use a non-normal blend,
 							#   then put the image in `jpeg`.
 							# - Otherwise, if the current slot's blend is normal, none of the appearing slots are non-normal,
 							#   and the image is opaque, put in `jpeg`.
 							# - Otherwise put in `png`.
+							
 							base_dest = None
 							appears_only_in_non_normal = False
 							if slots_found:
@@ -3628,8 +4785,8 @@ class MainWindow(QMainWindow):
 							if is_reference:
 								# For references, we want to keep them separate but still organized.
 								# Place them in the global images folder (not under skeleton subfolder).
-								base_dest = os.path.join(output_root, 'images')
-								reason.append("reference")
+								# base_dest is already set to global images root.
+								pass
 							else:
 								forced_decision = None
 								if src:
@@ -3674,32 +4831,79 @@ class MainWindow(QMainWindow):
 							# copy file(s) if found
 							if src:
 								matches = src if isinstance(src, (list, tuple)) else [src]
+								
+								# Additional filter: Remove any files that are marked as duplicates in consolidation_map
+								# This prevents accidentally copying both the duplicate and its consolidated primary
+								if consolidation_map:
+									filtered_matches = []
+									skipped_duplicates = []
+									for f in matches:
+										norm_f = os.path.normcase(os.path.abspath(f))
+										# Only include files that are NOT consolidation targets (keys in consolidation_map)
+										if norm_f not in consolidation_map:
+											filtered_matches.append(f)
+										else:
+											skipped_duplicates.append(f)
+									
+									if skipped_duplicates and len(matches) > 1:
+										# Log which duplicates are being skipped for this attachment
+										try:
+											primary = consolidation_map.get(os.path.normcase(os.path.abspath(skipped_duplicates[0])))
+											if primary:
+												self.info_panel.append(f"<font color='#4CAF50'>Skipped duplicate(s) for '{attach_name}': {[os.path.basename(d) for d in skipped_duplicates]} → {os.path.basename(primary)}</font>")
+										except Exception:
+											pass
+									
+									# CRITICAL FIX: If all matches were consolidated, use the primary file instead
+									if filtered_matches:
+										matches = filtered_matches
+									elif skipped_duplicates:
+										# All source files were consolidated - use the primary file
+										primary = consolidation_map.get(os.path.normcase(os.path.abspath(skipped_duplicates[0])))
+										if primary:
+											matches = [primary]
+										# else: if primary is not found, keep the first skipped file as fallback
+								
 								if isinstance(matches, (list, tuple)) and len(matches) > 1:
 									try:
 										self.info_panel.append(f"Copying sequence of {len(matches)} frames for '{attach_name}' to {base_dest}")
 									except Exception:
 										pass
+
+								base_name = None
 								
-								# Detect if this is a sequence: multiple matches OR explicit sequence metadata
-								is_sequence = False
-								try:
-									if isinstance(attach_val, dict) and 'sequence' in attach_val:
-										is_sequence = True
-									elif len(matches) > 1:
-										# Only treat as sequence if filenames are different (i.e. frames), not just duplicates of the same file
-										filenames = set(os.path.basename(m) for m in matches)
-										if len(filenames) > 1:
-											is_sequence = True
-									elif str(attach_name).endswith('_'):
-										is_sequence = True
-								except Exception:
-									pass
-								
+								# -- CONSOLIDATION LOGIC --
+								# If consolidation occurred, we replace the attachment path (ref) with the consolidated source file logic.
+								if consolidation_occurred and src:
+									s_path = src[0] if isinstance(src, (list, tuple)) else src
+									if s_path:
+										s_parent = os.path.basename(os.path.dirname(s_path))
+										s_name = os.path.basename(s_path)
+										s_base = os.path.splitext(s_name)[0]
+										
+										# Check parent folder for structure preservation
+										if s_parent.lower() not in ('images', 'root', 'source') and s_parent != os.path.basename(final_skeleton_dir):
+											ref = f"{s_parent}/{s_base}"
+										else:
+											ref = s_base
+										
+										# Update base_name (without extension) for downstream logic
+										base_name = s_base
+
 								# Extract nested folder structure from REFERENCE PATH (the source of truth)
 								# We use 'ref' because attach_name might just be an alias/key, while ref contains the path
 								attach_name_str = str(ref).replace('\\', '/')
+								
+								# Clean up attach_name_str (remove extension if present)
+								if attach_name_str.lower().endswith('.png') or attach_name_str.lower().endswith('.jpg'):
+									attach_name_str = os.path.splitext(attach_name_str)[0]
+									
 								nested_folders_str = ""
-								base_name = os.path.basename(str(ref))
+								if not base_name: base_name = os.path.basename(str(ref))
+								
+								# Ensure base_name logic doesn't carry extension into sequence detection
+								if base_name.lower().endswith('.png') or base_name.lower().endswith('.jpg'):
+									base_name = os.path.splitext(base_name)[0]
 								
 								# Check if the attachment belongs to another skeleton
 								# Default to the CURRENT processed skeleton (final_skeleton_dir), NOT the project name
@@ -3751,6 +4955,7 @@ class MainWindow(QMainWindow):
 										src_path_check = src[0] if isinstance(src, (list, tuple)) else src
 										if src_path_check:
 											src_parts = os.path.dirname(src_path_check).replace('\\', '/').split('/')
+											src_parts_lower = [p.lower() for p in src_parts]
 											
 											# Check against known skeletons
 											if all_skeleton_names:
@@ -3765,7 +4970,6 @@ class MainWindow(QMainWindow):
 														potential_skeleton = s
 														is_other_skeleton = True
 														break
-													
 													# 2. Relaxed match (folder "symbols" matches skeleton "symbols_v6")
 													for p in src_parts_lower:
 														if len(p) < 3 or p in ['jpeg', 'png', 'images', 'assets', 'source', 'common', 'root', 'backup']:
@@ -3889,13 +5093,24 @@ class MainWindow(QMainWindow):
 														nested_folders_str = p
 												# Do NOT break, so we can capture multiple levels of owned folders
 
+								# Initialize sequence/placeholder flags BEFORE using them
+								is_sequence = False
+								try:
+									if isinstance(attach_val, dict) and 'sequence' in attach_val:
+										is_sequence = True
+									elif str(attach_name).endswith('_'):
+										is_sequence = True
+								except Exception:
+									pass
+								
+								is_placeholder = 'placeholder' in os.path.basename(str(attach_name)).lower()
+
 								# Ensure sequence subfolder exists
 								if is_sequence:
 									seq_name = re.sub(r'[_\-]?\d+$', '', base_name)
 									# Strip trailing underscore so we don't duplicate folder names like "name_" inside "name"
 									seq_name = seq_name.rstrip('_')
 									
-									# If seq_name is empty (e.g. file was just "00.png"), fallback to base_name
 									if not seq_name: seq_name = base_name
 									
 									if seq_name:
@@ -3943,19 +5158,22 @@ class MainWindow(QMainWindow):
 									
 									# Copy the file
 									try:
-										if not export_json_only:
-											import shutil
-											shutil.copy2(m, dst)
+										import shutil
+										norm_dst = os.path.normpath(dst).lower()
 										
-										# Mark as succeeded regardless of whether we actually copied or just calculated paths
-										copy_succeeded = True
-										
-										# Update stats
-										if all_file_stats:
-											# Check uniqueness of destination path
-											norm_dst = os.path.normpath(dst).lower()
-											if norm_dst not in UNIQUE_COPIED_PATHS:
-												UNIQUE_COPIED_PATHS.add(norm_dst)
+										# Skip copy if destination already exists/processed in this run
+										if norm_dst in UNIQUE_COPIED_PATHS:
+											copy_succeeded = True
+										else:
+											if not export_json_only:
+												shutil.copy2(m, dst)
+											
+											# Mark as succeeded regardless of whether we actually copied or just calculated paths
+											copy_succeeded = True
+											UNIQUE_COPIED_PATHS.add(norm_dst)
+											
+											# Update stats
+											if all_file_stats:
 												stats = all_file_stats[-1]
 												stats['total'] += 1
 												if 'jpeg' in base_dest.lower():
@@ -3975,6 +5193,9 @@ class MainWindow(QMainWindow):
 									if first_rel is None:
 										family = os.path.basename(base_dest)
 										
+										# Update base_name to reflect the ACTUAL file name being used (for consolidation)
+										start_base_name = os.path.basename(m) # Use the remapped file name
+										
 										# If it's a reference, we don't want the 'family' (which is just 'images' or skeleton name) in the path
 										# if we are already at the root.
 										# However, base_dest for references is images_root (e.g. .../images/skeleton).
@@ -3983,7 +5204,7 @@ class MainWindow(QMainWindow):
 										
 										if is_sequence:
 											# For sequences: use basename without digits and add trailing underscore
-											base_no_digits = re.sub(r"\d+$", "", base_name)
+											base_no_digits = re.sub(r"\d+$", "", start_base_name)
 											if base_no_digits and not base_no_digits.endswith('_'):
 												base_no_digits = base_no_digits + '_'
 											# Build JSON path with nested structure
@@ -4000,21 +5221,21 @@ class MainWindow(QMainWindow):
 												else:
 													first_rel = f"{target_skeleton}/{family}/{base_no_digits}".replace('\\', '/')
 										else:
-											# For static: use basename WITHOUT extension
-											name_no_ext = os.path.splitext(os.path.basename(m))[0]
+											# Single image logic
 											if nested_folders_str:
 												if is_reference:
-													first_rel = f"{nested_folders_str}/{name_no_ext}".replace('\\', '/')
+													first_rel = f"{nested_folders_str}/{start_base_name}".replace('\\', '/')
 												else:
-													first_rel = f"{target_skeleton}/{family}/{nested_folders_str}/{name_no_ext}".replace('\\', '/')
+													first_rel = f"{target_skeleton}/{family}/{nested_folders_str}/{start_base_name}".replace('\\', '/')
 											else:
 												if is_reference:
-													first_rel = f"{name_no_ext}".replace('\\', '/')
+													first_rel = f"{start_base_name}".replace('\\', '/')
 												else:
-													first_rel = f"{target_skeleton}/{family}/{name_no_ext}".replace('\\', '/')
-										
+													first_rel = f"{target_skeleton}/{family}/{start_base_name}".replace('\\', '/')
+
 										# Clean up any duplicate family tokens
-										first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
+										if first_rel:
+											first_rel = first_rel.replace('/jpeg/jpeg/', '/jpeg/').replace('/png/png/', '/png/')
 										
 										# Update JSON with the path if ANY file was successfully copied
 										if first_rel and copy_succeeded:
@@ -4022,18 +5243,6 @@ class MainWindow(QMainWindow):
 												attach_val['path'] = first_rel
 											else:
 												attachments[attach_name] = {'path': first_rel}
-								# src is None: no files found, but check if this is a declared sequence OR a placeholder
-								is_sequence = False
-								try:
-									if isinstance(attach_val, dict) and 'sequence' in attach_val:
-										is_sequence = True
-									elif str(attach_name).endswith('_'):
-										is_sequence = True
-								except Exception:
-									pass
-								
-								# Also treat as placeholder if the name contains 'placeholder'
-								is_placeholder = 'placeholder' in os.path.basename(str(attach_name)).lower()
 
 								# Only create placeholder if NO source files were found
 								if not src and (is_sequence or is_placeholder):
@@ -4058,8 +5267,8 @@ class MainWindow(QMainWindow):
 									# 	if part_lower not in ['jpeg', 'png', 'images', 'symbols', 'skeleton'] and part_lower.rstrip('s') != target_skeleton.lower().rstrip('s'):
 									# 		filtered_parts.append(part)
 									
-									# if filtered_parts:
-									# 	nested_folders_str = '/'.join(filtered_parts)
+									if filtered_parts:
+										nested_folders_str = '/'.join(filtered_parts)
 									
 									# If we have no nested folders from attachment name (which is disabled above),
 									# we rely ONLY on sequence logic below or explicit structure from skin/etc.
@@ -4329,6 +5538,7 @@ class MainWindow(QMainWindow):
 
 					# Use the actually copied/created destinations for exported counts
 					stats['total_attachments'] = TOTAL_ATTACHMENTS_COUNT
+					stats['consolidated_count'] = CONSOLIDATED_IMAGES_COUNT
 
 					# total_spine_used: best-effort estimate = number of unique source paths discovered
 					# fall back to TOTAL_ATTACHMENTS_COUNT if we have no EXPORTED_UNIQUE_IMAGES
@@ -4537,7 +5747,8 @@ class MainWindow(QMainWindow):
 
 				# create a .spine package using Spine CLI (binary format)
 				if hasattr(self, 'status_label'): self.status_label.setText(f"Creating .spine: {ui_label_text}")
-				spine_pkg = os.path.join(output_root, os.path.splitext(name)[0] + '.spine')
+				# Use input_path (source .spine filename) so multiple skeletons merge into one .spine file
+				spine_pkg = os.path.join(output_root, os.path.splitext(os.path.basename(input_path))[0] + '.spine')
 				if spine_exe and os.path.exists(spine_exe):
 					self.info_panel.append(f"Converting JSON to binary .spine using: {spine_exe}")
 					try:
@@ -4763,6 +5974,7 @@ class MainWindow(QMainWindow):
 		errors = []
 		
 		for i, item_data in enumerate(to_process):
+			result_dir = None
 			if self.stop_requested:
 				self.info_panel.append("Process stopped by user.")
 				break
@@ -4815,11 +6027,32 @@ class MainWindow(QMainWindow):
 				selected_launcher_ver = self.launcher_version_combo.currentText().strip()
 				if selected_launcher_ver:
 					self.info_panel.append(f"Using Launcher Version Override: {selected_launcher_ver}")
-					extra_cli_args = ["--update", selected_launcher_ver]
 					detected_ver = selected_launcher_ver
 					using_launcher_version = True
+					# Prefer to avoid forcing the Spine Launcher to download a version that doesn't exist.
+					# Check local updates folder first; only use --update if version is present locally.
+					try:
+						user_home = os.path.expanduser('~')
+						updates_folder = None
+						if os.name == 'nt':
+							user_profile = os.environ.get('USERPROFILE') or user_home
+							if user_profile:
+								updates_folder = os.path.join(user_profile, 'Spine', 'updates')
+						elif sys.platform == 'darwin':
+							updates_folder = os.path.join(user_home, 'Library', 'Application Support', 'Spine', 'updates')
+						else:
+							updates_folder = os.path.join(user_home, '.spine', 'updates')
+						if updates_folder and os.path.isdir(os.path.join(updates_folder, selected_launcher_ver)):
+							extra_cli_args = ["--update", selected_launcher_ver]
+						else:
+							self.info_panel.append(f"Launcher version {selected_launcher_ver} not found locally; skipping '--update' to avoid download errors.")
+							# Leave extra_cli_args empty so we don't trigger a launcher download attempt
+							extra_cli_args = []
+					except Exception:
+						# On unexpected errors, fall back to previous behavior to avoid blocking user
+						extra_cli_args = ["--update", selected_launcher_ver]
 					
-					# When using launcher version, we usually prefer Spine.com if the base was Spine.exe, 
+					# When using launcher version, we usually prefer Spine.com if the base was Spine.exe,
 					# because CLI args work better with .com on Windows
 					if os.name == 'nt' and str(current_runnable_spine_exe).lower().endswith('.exe'):
 						candidate_com = str(current_runnable_spine_exe)[:-4] + ".com"
@@ -4970,7 +6203,7 @@ class MainWindow(QMainWindow):
 									j_idx += 1
 									continue
 								
-								# Break if we hit another Header (e.g. "Skins:", "Bones:", "Skeleton:", "Size:")
+								# Break if we hit another Header (e.g. "Skins:", "Bones:", "Slots:", "Events:", "Skeleton:", "Size:", "Spine")
 								# Note: "Skeleton" and "Size" might appear after Animations in some output formats
 								if re.search(r"^\s*(?:Skins|Bones|Slots|Events|(?:Ik|Transform|Path)?\s*Constraints|Skeleton|Size|Spine)\s*(?:\(\d+\))?:", next_line, re.IGNORECASE):
 									break
@@ -5015,15 +6248,10 @@ class MainWindow(QMainWindow):
 							self.info_panel.append("CLI Analysis (SOURCE): No 'Skeleton:' lines detected in Spine info output.")
 					except Exception:
 						pass
-					else:
-						if header_found:
-							self.info_panel.append("CLI Analysis: 'Animations:' section found but no animations detected inside.")
-						else:
-							self.info_panel.append("CLI Analysis: 'Animations:' section NOT found in Spine info output.")
-							# Log first few lines of output
-							self.info_panel.append(f"CLI Output Head: {info_out[:500]}")
 				else:
 					self.info_panel.append(f"CLI Info command failed (Code {i_proc.returncode})")
+					# Cannot check header_found or info_out as they are undefined if command failed
+
 			except Exception as e:
 				self.log_error(f"Failed to run info command: {e}")
 
@@ -5039,7 +6267,7 @@ class MainWindow(QMainWindow):
 					settings_json = (
 						'{"class": "export-json", "name": "JSON", "extension": ".json", "format": "JSON", '
 						'"prettyPrint": false, "nonessential": true, "cleanUp": false, '
-						'"packAtlas": { "flattenPaths": false, "maxWidth": 8192, "maxHeight": 8192, "combineSubdirectories": false }, '
+						'"packAtlas": null, '
 						'"packSource": "attachments", "warnings": true}'
 					)
 					f.write(settings_json)
@@ -5057,9 +6285,6 @@ class MainWindow(QMainWindow):
 			# User explicitly asked for -n (clean=false/no-clean)
 			# Note: -n in some Spine versions might mean --name. But we will follow user instruction.
 			# To be safe against version differences, we rely primarily on export_settings "cleanUp": false.
-			# But I will append it as a separate flag check? No, standard CLI: -c is clean.
-			# There is no --no-clean.
-			# I will rely on the export settings which I set to cleanUp: false.
 			
 			self.info_panel.append(f"Running export with cleanUp=false via settings.")
 			self.status_label.setText(f"Exporting raw data: {name}")
@@ -5148,7 +6373,7 @@ class MainWindow(QMainWindow):
 				
 				# Regex for missing images (Spine CLI Warning)
 				# Example: Image for attachment [region: path/to/img, slot: slotName] not found: path/to/img
-				missing_image_pattern = re.compile(r"Image\s+for\s+attachment\s+\[region:.+?\]\s+not\s+found:\s*(.+)", re.IGNORECASE)
+				missing_image_pattern = re.compile(r"Image\s+for\s+attachment\s+\[region:\s*([^,\]]+)\s*,\s*slot:\s*([^,\]]+)\]\s+not\s+found:\s*(.+)", re.IGNORECASE)
 				spine_export_missing = []
 				spine_export_log_warnings = []
 
@@ -5380,18 +6605,7 @@ class MainWindow(QMainWindow):
 				# But we want the final structure to be hierarchical.
 				# Solution: We append it to all_file_stats, let the function populate it, 
 				# and then we keep it linked in file_stats['skeletons'].
-				# Wait, if we append to all_file_stats, the outer loop reporting logic will see it as a top-level file entry
-				# unless we change the reporting logic to ignore 'non-container' entries OR handle flat lists.
-				# The user requested "separate final reports for each included skeleton", so a flat list of skeletons per file IS actually fine for reporting,
-				# provided we label them meaningfully.
-				#
-				# However, to preserve the "clean" structure, I will:
-				# 1. Append skeleton_stats to all_file_stats
-				# 2. Let the function run
-				# 3. (Optional) Later in reporting, we can group them if needed, but flat reporting is what was asked (separate reports).
-				#
-				# BUT our 'file_stats' init above line 3167 is now a "container" (is_container=True).
-				# If we append skeletal stats to all_file_stats, we will have: [ContainerForFile1, Skel1, Skel2]
+				# Wait, if we append to all_file_stats, we will have: [ContainerForFile1, Skel1, Skel2]
 				# We should probably REMOVE the ContainerForFile1 from the reporting list or make the reporting list smarter.
 				#
 				# Let's adjust:
@@ -5426,7 +6640,10 @@ class MainWindow(QMainWindow):
 					spine_export_unchecked_anims=spine_export_unchecked_anims,
 					extra_cli_args=extra_cli_args,
 					spine_export_missing=spine_export_missing,
-					spine_export_log_warnings=spine_export_log_warnings
+					spine_export_log_warnings=spine_export_log_warnings,
+					consolidate_duplicates=self.consolidate_duplicates_cb.isChecked(),
+					consolidate_mirrored=self.consolidate_duplicates_cb.isChecked(),
+					similarity_mode=self.similarity_strictness_combo.currentText().strip().lower()
 				)
 
 
@@ -5456,6 +6673,8 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total Attachments: {stats.get('total_attachments', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total used images in Spine: {stats.get('total_spine_used', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
+				if 'consolidated_count' in stats and stats['consolidated_count'] > 0:
+					self.info_panel.append(f"<font color='#DAA520'>  Consolidated duplicates: {stats['consolidated_count']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
 				
@@ -5480,6 +6699,7 @@ class MainWindow(QMainWindow):
 						self.info_panel.append(f"    - {v['basename']}: {', '.join(v['reasons'])}")
 				else:
 					self.info_panel.append(f"  Naming violations: none")
+			
 			elif stats['total'] > 0: # Fallback for old stats format if any
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images copied: {stats['total']}</font>")
@@ -5507,7 +6727,7 @@ class MainWindow(QMainWindow):
 				any_warnings = True
 				self.info_panel.append("<br>")
 				count = len(stats['missing_files_reported'])
-				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>Spine Export reported {count} MISSING images:</span>")
+				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:red;'>{count} images likely checked off for export (found in logs or Atlas but not JSON): {', '.join(stats['missing_files_reported'])}</span>")
 				for i, m in enumerate(stats['missing_files_reported']):
 					if i < 15:
 						self.info_panel.append(f"<font color='red'>    - {m}</font>")
@@ -5520,7 +6740,7 @@ class MainWindow(QMainWindow):
 				any_warnings = True
 				self.info_panel.append("<br>")
 				count = len(stats['log_warnings_reported'])
-				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:orange;'>Spine Export Log reported {count} additional issues:</span>")
+				self.info_panel.append(f"<span style='color:#FF0000; font-weight:bold;'>CRITICAL:</span> <span style='color:orange;'>{count} additional issues (Hidden/Not Exported):</span>")
 				for i, m in enumerate(stats['log_warnings_reported']):
 					# Use orange for these specific log messages as requested ("red and orange letters")
 					# Actually usage was "Critical errors found... check for report" in red, and 
@@ -5573,7 +6793,7 @@ class MainWindow(QMainWindow):
 			
 			if source_analysis_failed:
 				anim_color = 'orange'
-				self.info_panel.append(f"<font color='orange'>  Detected Animations: {anim_total} (Exported: {anim_exported})</font>")
+				self.info_panel.append(f"Detected Animations: {anim_total} (Exported: {anim_exported})")
 				self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:orange;'>Source analysis found 0 animations (but {anim_exported} exported). Cannot verify unchecked animations.</span>")
 			else:
 				# Normal reporting
@@ -5762,7 +6982,7 @@ class MainWindow(QMainWindow):
 						for cat in ('slots_summary', 'bones_summary', 'constraints_summary'):
 							c = n.get(cat, {})
 							if c and c.get('count', 0) > 0:
-								report_lines.append(f" - {cat.split('_')[0].capitalize()} issues (recommendation): {c.get('count')}")
+								report_lines.append(f" - {cat.split('_')[0].capitalize()} issues: {c.get('count')}")
 								for ex in c.get('examples', []):
 									reasons = ', '.join(ex.get('reasons', []))
 									report_lines.append(f"    - {ex.get('name')} -> {reasons}")
@@ -5816,10 +7036,24 @@ class MainWindow(QMainWindow):
 
 			per_file_recs = []
 			for name, groups in dup_by_file.items():
-				per_file_recs.append(f"Identical images detected in file: {name}")
-				for g in groups:
-					per_file_recs.append(" - " + " | ".join(g))
-				per_file_recs.append("")
+				# Only add header if we actually have groups (though loop implies we do)
+				if groups:
+					per_file_recs.append(f"Identical images detected in file: {name}")
+					for g in groups:
+						# Ensure g is iterable of strings
+						if isinstance(g, list) or isinstance(g, tuple):
+							basenames = [os.path.basename(f) for f in g]
+							# If all basenames are unique, use them (cleaner report)
+							if len(set(basenames)) == len(basenames):
+								display_names = basenames
+							else:
+								# If duplicates in basenames (different folders), show full paths providing context
+								display_names = g 
+							
+							per_file_recs.append(" - " + " | ".join(display_names))
+						else:
+							per_file_recs.append(f" - {g} (Error: unexpected group format)")
+					per_file_recs.append("")
 
 			if per_file_recs:
 				report_lines.append("\nRECOMMENDATIONS:")
