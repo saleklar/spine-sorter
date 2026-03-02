@@ -1529,12 +1529,17 @@ class MainWindow(QMainWindow):
 		else:
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #AA0000; font-weight: bold; }")
 
-	def open_help(self):
-		manual_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USER_MANUAL.txt")
-		if os.path.exists(manual_path):
-			QDesktopServices.openUrl(QUrl.fromLocalFile(manual_path))
+	def open_manual(self):
+		# Look for PDF manual first, then TXT
+		manual_pdf = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"Spine_Sorter_v{self.APP_VERSION}_Artist_Guide.pdf")
+		manual_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USER_MANUAL.txt")
+		
+		target = manual_pdf if os.path.exists(manual_pdf) else manual_txt
+		
+		if os.path.exists(target):
+			QDesktopServices.openUrl(QUrl.fromLocalFile(target))
 		else:
-			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_path}")
+			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_pdf}\nor\n{manual_txt}")
 
 
 	def _check_version_lock(self):
