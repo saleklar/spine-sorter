@@ -181,7 +181,7 @@ def create_pdf(filename):
                 "• <b>Cleanup:</b> Duplicate logic gate removed from image similarity fallback path.",
                 "<br/>",
                 "<b>v5.71:</b>",
-                "• <b>New:</b> 'Consolidate Duplicate Images' checkbox — merges identical images to save space.",
+                "• <b>New:</b> 'Consolidate Duplicate Images' checkbox — merges visually identical images to save space. <i>Note: detection works at a confidence level, not 100% — always review the report.</i>",
                 "• <b>New:</b> 'Check for Errors Only' checkbox — validation scan without any export.",
                 "• <b>Fix:</b> Multi-skeleton export now merges correctly into one .spine file.",
                 "• <b>Fix:</b> Consolidated images now update JSON paths correctly (no missing image errors).",

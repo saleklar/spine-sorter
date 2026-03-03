@@ -200,7 +200,7 @@ v5.72 (Current)
 *   FIX: Cleaned up duplicate logic in the image similarity no-OpenCV fallback path.
 
 v5.71
-*   NEW: 'Consolidate Duplicate Images' checkbox — merges exact-duplicate images to save space.
+*   NEW: 'Consolidate Duplicate Images' checkbox — merges visually identical images to save space. Note: detection works at a confidence level (not 100%) — always review the report to verify results.
 *   NEW: 'Check for Errors Only' checkbox — validation scan without any export.
 *   FIX: Multi-skeleton export now merges correctly into one .spine file.
 *   FIX: Consolidation now correctly updates JSON paths (no more missing image errors).
