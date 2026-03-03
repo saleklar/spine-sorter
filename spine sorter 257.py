@@ -1555,16 +1555,28 @@ class MainWindow(QMainWindow):
 		self.open_manual()
 
 	def open_manual(self):
-		# Look for PDF manual first, then TXT
-		manual_pdf = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"Spine_Sorter_v{self.APP_VERSION}_Artist_Guide.pdf")
-		manual_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USER_MANUAL.txt")
-		
-		target = manual_pdf if os.path.exists(manual_pdf) else manual_txt
-		
+		# Use _MEIPASS when running as a frozen PyInstaller EXE, else use script directory
+		if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+			base_dir = sys._MEIPASS
+		else:
+			base_dir = os.path.dirname(os.path.abspath(__file__))
+
+		# Fixed PDF name (used by bundled EXE); also check versioned name for dev/source runs
+		manual_pdf_fixed = os.path.join(base_dir, "Spine_Sorter_Artist_Guide.pdf")
+		manual_pdf_versioned = os.path.join(base_dir, f"Spine_Sorter_v{self.APP_VERSION}_Artist_Guide.pdf")
+		manual_txt = os.path.join(base_dir, "USER_MANUAL.txt")
+
+		if os.path.exists(manual_pdf_fixed):
+			target = manual_pdf_fixed
+		elif os.path.exists(manual_pdf_versioned):
+			target = manual_pdf_versioned
+		else:
+			target = manual_txt
+
 		if os.path.exists(target):
 			QDesktopServices.openUrl(QUrl.fromLocalFile(target))
 		else:
-			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_pdf}\nor\n{manual_txt}")
+			QMessageBox.warning(self, "Manual Not Found", f"Could not find manual at:\n{manual_pdf_fixed}\nor\n{manual_txt}")
 
 
 	def _check_version_lock(self):

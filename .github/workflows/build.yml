@@ -41,15 +41,41 @@ jobs:
           echo "VERSION=dev" >> $GITHUB_OUTPUT
         fi
 
+    - name: Copy manual PDF to fixed name
+      shell: bash
+      run: |
+        # Find the versioned PDF and copy it to a fixed name for bundling
+        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | head -1)
+        if [ -n "$PDF" ]; then
+          cp "$PDF" "Spine_Sorter_Artist_Guide.pdf"
+          echo "Copied $PDF -> Spine_Sorter_Artist_Guide.pdf"
+        else
+          echo "Warning: no versioned PDF found, USER_MANUAL.txt will be used as fallback"
+        fi
+
     - name: Build with PyInstaller (Windows)
       if: matrix.os == 'windows-latest'
+      shell: bash
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" "spine sorter 257.py"
+        EXTRA=""
+        [ -f "Spine_Sorter_Artist_Guide.pdf" ] && EXTRA="--add-data 'Spine_Sorter_Artist_Guide.pdf;.'"
+        pyinstaller --noconfirm --onefile --windowed \
+          --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" \
+          --add-data "USER_MANUAL.txt;." \
+          $EXTRA \
+          "spine sorter 257.py"
 
     - name: Build with PyInstaller (macOS)
       if: matrix.os == 'macos-latest'
+      shell: bash
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" "spine sorter 257.py"
+        EXTRA=""
+        [ -f "Spine_Sorter_Artist_Guide.pdf" ] && EXTRA="--add-data 'Spine_Sorter_Artist_Guide.pdf:.'"
+        pyinstaller --noconfirm --onefile --windowed \
+          --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" \
+          --add-data "USER_MANUAL.txt:." \
+          $EXTRA \
+          "spine sorter 257.py"
 
     - name: Rename Windows EXE to fixed filename
       if: matrix.os == 'windows-latest'
