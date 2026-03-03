@@ -3,8 +3,6 @@ SPINE SORTER v5.72 - ARTIST GUIDE
 
 LATEST UPDATES (v5.72)
 ----------------------------------------
-- Fixed: Sequence frames (e.g. "walk_01.png", "walk_02.png") were not being copied when Consolidate Duplicates was enabled. Frame files could match visually similar non-sequence images in the consolidation pass and get silently removed. Sequences are now fully exempt from this filter.
-- Fixed: Sequences referenced with a trailing underscore path (e.g. "ambient/png/folder/guaranteed_win_") were not resolved to their frame files. The file resolver now expands trailing-underscore references into all numbered variants during the initial scan.
 - Fixed: Cleaned up duplicate logic gate in the image similarity check (no-OpenCV fallback path had a redundant check and a misplaced comment in dead code).
 
 
@@ -199,8 +197,6 @@ CHANGELOG (v5.0 - v5.72)
 ========================================
 
 v5.72 (Current)
-*   FIX: Sequence frames no longer disappear when Consolidate Duplicates is enabled — sequences are now exempt from the duplicate filter.
-*   FIX: Sequences with trailing-underscore paths (e.g. "anim/png/folder/name_") now correctly resolve all numbered frame files.
 *   FIX: Cleaned up duplicate logic in the image similarity no-OpenCV fallback path.
 
 v5.71

@@ -71,8 +71,6 @@ def create_pdf(filename):
                 "<br/>",
                 "<br/>",
                 "<b>WHAT'S NEW IN THIS EDITION (v5.72):</b>",
-                "• <b>Sequence Copy Fix:</b> Sequence frames are now always copied correctly, even when Consolidate Duplicates is enabled.",
-                "• <b>Sequence Resolution Fix:</b> Paths ending in underscore (e.g. 'folder/anim_') now correctly expand to all numbered frame files.",
                 "• <b>Internal Cleanup:</b> Removed duplicate logic gate in image similarity checks for more reliable matching."
             ],
             "is_cover": True
@@ -180,8 +178,6 @@ def create_pdf(filename):
             "title": "Changelog",
              "body": [
                 "<b>v5.72 (current):</b>",
-                "• <b>Fix:</b> Sequence frames no longer silently dropped when Consolidate Duplicates is enabled.",
-                "• <b>Fix:</b> Trailing-underscore sequence paths now correctly resolve all numbered frames.",
                 "• <b>Cleanup:</b> Duplicate logic gate removed from image similarity fallback path.",
                 "<br/>",
                 "<b>v5.71:</b>",
