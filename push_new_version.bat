@@ -1,3 +1,4 @@
+
 @echo off
 echo ========================================================
 echo PUBLISHING NEW VERSION TO GITHUB

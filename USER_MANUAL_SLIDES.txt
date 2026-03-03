@@ -1,14 +1,14 @@
-GOOGLE SLIDES COPY-PASTE SCRIPT (PROFESSIONAL EDITION) v5.67
+GOOGLE SLIDES COPY-PASTE SCRIPT (PROFESSIONAL EDITION) v5.71
 ============================================================
 
 --- SLIDE 1 ---
-TITLE: Spine Sorter v5.67
+TITLE: Spine Sorter v5.71
 SUBTITLE: Automated Asset Optimization & Pipeline Integrity
 BODY:
 *   Technical Artist / Animator Workflow
 *   Runtime Optimization (VRAM/Disk)
 *   Automated QC & Integrity Verification
-*   **NEW:** Version Management & Launcher
+*   **NEW:** Multi-Skeleton Support & Consolidation Fixes
 
 --- SLIDE 2 ---
 TITLE: Pipeline Objective

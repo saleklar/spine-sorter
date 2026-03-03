@@ -1,0 +1,22 @@
+VERSION HISTORY:
+----------------------------------------
+
+v5.71 (Feb 2026)
+----------------
+- Fix: Multi-skeleton export from a single Spine file now correctly merges all skeletons into one output .spine file when re-importing.
+- Fix: Corrected "Total used images in Spine" report to count unique paths (excluding duplicates and unused files).
+- Improved: Duplicate image consolidation now updates JSON paths correctly, preventing "Missing Image" errors in Spine editor.
+- Improved: Suppressed duplicate image warnings in the final report when consolidation is enabled.
+- Cleaned up debug logging logic.
+
+v5.70
+-----
+- Fix: "Fetch All" now correctly handles "-beta" versions.
+
+v5.69
+-----
+- Feature: Added "Fetch All" button to Spine Version Launcher.
+
+v5.68
+-----
+- Fix: Resolved issue where Spine Version Launcher would show only limited versions on macOS laptops.
