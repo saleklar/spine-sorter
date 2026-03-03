@@ -1,22 +1,17 @@
 name: Build & Release Spine Sorter
 
 on:
-  # Trigger on version tags like v5.72, v5.73, etc.
   push:
     tags:
       - 'v*'
-  # Also allow manual runs from the Actions tab
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
     permissions:
-      contents: write  # Required to create releases and upload assets
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -31,87 +26,109 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Get version from tag
-      id: version
+    - name: Generate PDF manual
       shell: bash
-      run: |
-        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        else
-          echo "VERSION=dev" >> $GITHUB_OUTPUT
-        fi
+      run: python generate_pdf_manual.py
 
-    - name: Copy manual PDF to fixed name
+    - name: Copy PDF to fixed name
       shell: bash
       run: |
-        # Find the versioned PDF and copy it to a fixed name for bundling
         PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | head -1)
         if [ -n "$PDF" ]; then
           cp "$PDF" "Spine_Sorter_Artist_Guide.pdf"
-          echo "Copied $PDF -> Spine_Sorter_Artist_Guide.pdf"
+          echo "Bundling: $PDF"
         else
-          echo "Warning: no versioned PDF found, USER_MANUAL.txt will be used as fallback"
+          echo "No PDF found - falling back to USER_MANUAL.txt only"
         fi
 
-    - name: Build with PyInstaller (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Build with PyInstaller
       shell: bash
       run: |
-        EXTRA=""
-        [ -f "Spine_Sorter_Artist_Guide.pdf" ] && EXTRA="--add-data 'Spine_Sorter_Artist_Guide.pdf;.'"
-        pyinstaller --noconfirm --onefile --windowed \
-          --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" \
-          --add-data "USER_MANUAL.txt;." \
-          $EXTRA \
-          "spine sorter 257.py"
+        ARGS=(
+          --noconfirm --onefile --windowed
+          --name "SpineSorter-Windows"
+          --add-data "USER_MANUAL.txt;."
+        )
+        if [ -f "Spine_Sorter_Artist_Guide.pdf" ]; then
+          ARGS+=(--add-data "Spine_Sorter_Artist_Guide.pdf;.")
+        fi
+        pyinstaller "${ARGS[@]}" "spine sorter 257.py"
 
-    - name: Build with PyInstaller (macOS)
-      if: matrix.os == 'macos-latest'
-      shell: bash
-      run: |
-        EXTRA=""
-        [ -f "Spine_Sorter_Artist_Guide.pdf" ] && EXTRA="--add-data 'Spine_Sorter_Artist_Guide.pdf:.'"
-        pyinstaller --noconfirm --onefile --windowed \
-          --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" \
-          --add-data "USER_MANUAL.txt:." \
-          $EXTRA \
-          "spine sorter 257.py"
-
-    - name: Rename Windows EXE to fixed filename
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        mv "dist/Spine Sorter ${{ steps.version.outputs.VERSION }}.exe" "dist/SpineSorter-Windows.exe"
-
-    - name: Upload Windows EXE to Release
-      if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
         files: dist/SpineSorter-Windows.exe
 
-    - name: Zip macOS App
-      if: matrix.os == 'macos-latest'
+    - name: Upload Artifact (manual run)
+      if: "!startsWith(github.ref, 'refs/tags/')"
+      uses: actions/upload-artifact@v4
+      with:
+        name: Spine-Sorter-Windows
+        path: dist/SpineSorter-Windows.exe
+
+
+  build-macos:
+    name: Build macOS App
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Generate PDF manual
+      run: python generate_pdf_manual.py
+
+    - name: Copy PDF to fixed name
+      shell: bash
+      run: |
+        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | head -1)
+        if [ -n "$PDF" ]; then
+          cp "$PDF" "Spine_Sorter_Artist_Guide.pdf"
+          echo "Bundling: $PDF"
+        else
+          echo "No PDF found - falling back to USER_MANUAL.txt only"
+        fi
+
+    - name: Build with PyInstaller
+      shell: bash
+      run: |
+        ARGS=(
+          --noconfirm --onefile --windowed
+          --name "SpineSorter-Mac"
+          --add-data "USER_MANUAL.txt:."
+        )
+        if [ -f "Spine_Sorter_Artist_Guide.pdf" ]; then
+          ARGS+=(--add-data "Spine_Sorter_Artist_Guide.pdf:.")
+        fi
+        pyinstaller "${ARGS[@]}" "spine sorter 257.py"
+
+    - name: Zip macOS app
       shell: bash
       run: |
         cd dist
-        zip -r "SpineSorter-Mac.zip" "Spine Sorter ${{ steps.version.outputs.VERSION }}.app"
+        zip -r "SpineSorter-Mac.zip" "SpineSorter-Mac.app"
 
-    - name: Upload macOS ZIP to Release
-      if: matrix.os == 'macos-latest' && startsWith(github.ref, 'refs/tags/')
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
         files: dist/SpineSorter-Mac.zip
 
-    - name: Upload Windows Artifact (manual run)
-      if: matrix.os == 'windows-latest' && !startsWith(github.ref, 'refs/tags/')
-      uses: actions/upload-artifact@v4
-      with:
-        name: Spine-Sorter-Windows
-        path: dist/*.exe
-
-    - name: Upload macOS Artifact (manual run)
-      if: matrix.os == 'macos-latest' && !startsWith(github.ref, 'refs/tags/')
+    - name: Upload Artifact (manual run)
+      if: "!startsWith(github.ref, 'refs/tags/')"
       uses: actions/upload-artifact@v4
       with:
         name: Spine-Sorter-macOS
-        path: "dist/Spine Sorter ${{ steps.version.outputs.VERSION }} Mac.zip"
+        path: dist/SpineSorter-Mac.zip

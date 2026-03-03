@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.72 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.73 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.72"
+	APP_VERSION = "5.73"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"

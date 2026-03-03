@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.73] - 2026-03-03
+### Fixed
+- **Build:** Fixed GitHub Actions workflow — PDF manual is now generated fresh in CI and correctly bundled into the EXE via `--add-data`. Fixed broken `EXTRA` variable pattern that caused PyInstaller to receive malformed arguments.
+- **Help File:** Fixed "Manual Not Found" error in distributed EXE. App now uses `sys._MEIPASS` (correct PyInstaller temp dir) to locate the bundled manual instead of `__file__`.
+
 ## [v5.72] - 2026-03-03
 ### Fixed
 - **Sequence Copy:** Fixed sequence frames not being copied when consolidation was enabled. Sequence frames could incorrectly appear in the consolidation map (as near-duplicates of other images), causing them to be silently filtered out before the copy step. Sequences are now always exempt from this filter.
