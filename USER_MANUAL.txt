@@ -8,7 +8,7 @@ LATEST UPDATES (v5.72)
 
 PREVIOUS UPDATES (v5.71)
 ----------------------------------------
-- New: "Consolidate Duplicate Images" checkbox. Merges identical images (by content/SHA1) into one file and remaps JSON references to optimize space.
+- New: "Consolidate Duplicate Images" checkbox. Merges visually identical images into one file and remaps JSON references to save space. Note: detection works at a confidence level, not 100% — always review the report to verify results.
 - New: "Check for Errors Only" checkbox. Analyze your projects for integrity issues without generating any exports or modifying files.
 - Fixed: Consolidated multi-skeleton export (Spine source files with multiple skeletons) now merges them into ONE single .spine project file.
 - Fixed: "Total used images in Spine" report now correctly counts unique paths used after consolidation.
