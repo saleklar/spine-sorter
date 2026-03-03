@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Spine Sorter v5.71 - PySide6 UI for managing Spine Animation Files
+Spine Sorter v5.72 - PySide6 UI for managing Spine Animation Files
 
 This application allows users to:
 1. Locate and configure the Spine executable.
@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.71"
+	APP_VERSION = "5.72"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -1083,19 +1083,41 @@ class MainWindow(QMainWindow):
 		self.consolidate_duplicates_cb.setChecked(True)
 		actions_layout.addWidget(self.consolidate_duplicates_cb)
 
-		self.similarity_strictness_combo = QComboBox()
-		self.similarity_strictness_combo.addItems(["Safe", "Balanced", "Aggressive"])
-		self.similarity_strictness_combo.setToolTip(
-			"Controls near-duplicate matching sensitivity.\n"
-			"Safe: very strict, lowest false merges.\n"
-			"Balanced: recommended default.\n"
-			"Aggressive: catches more similar images."
-		)
-		_saved_mode = str(self.config.get("similarity_strictness", "balanced")).strip().lower()
-		_mode_to_index = {"safe": 0, "balanced": 1, "aggressive": 2}
-		self.similarity_strictness_combo.setCurrentIndex(_mode_to_index.get(_saved_mode, 1))
-		self.similarity_strictness_combo.currentTextChanged.connect(self._save_similarity_strictness_config)
-		actions_layout.addWidget(self.similarity_strictness_combo)
+		# Similarity Confidence Slider
+		conf_layout = QHBoxLayout()
+		conf_label = QLabel("Match %:")
+		conf_label.setToolTip("Minimum similarity percentage required to merge two images.\nHigher = Stricter (Fewer merges).\nLower = Looser (More merges).")
+		
+		self.similarity_slider = QSlider(Qt.Horizontal)
+		self.similarity_slider.setRange(0, 100) # 0% to 100%
+		self.similarity_slider.setSingleStep(1)
+		# Default to 95%
+		init_conf = int(self.config.get("similarity_confidence", 95))
+		self.similarity_slider.setValue(init_conf)
+		
+		self.similarity_spin = QSpinBox()
+		self.similarity_spin.setRange(0, 100)
+		self.similarity_spin.setValue(init_conf)
+		# Suffix for spinbox
+		self.similarity_spin.setSuffix("%")
+
+		# Sync
+		self.similarity_slider.valueChanged.connect(lambda v: self.similarity_spin.setValue(v))
+		self.similarity_spin.valueChanged.connect(lambda v: self.similarity_slider.setValue(v))
+		
+		# Save
+		self.similarity_slider.valueChanged.connect(self._save_similarity_confidence_config)
+
+		conf_layout.addWidget(conf_label)
+		conf_layout.addWidget(self.similarity_slider)
+		conf_layout.addWidget(self.similarity_spin)
+		
+		# Add a container widget for the layout so we can add it to actions_layout
+		conf_container = QWidget()
+		conf_container.setLayout(conf_layout)
+		conf_container.setFixedWidth(200) # Limit width so it doesn't take over
+		
+		actions_layout.addWidget(conf_container)
 
 		# Validate / Analyze Only option (Main Frame)
 		self.validate_only_cb = QCheckBox("Check for Errors Only (No Export)")
@@ -1529,6 +1551,9 @@ class MainWindow(QMainWindow):
 		else:
 			self.force_local_cb.setStyleSheet("QCheckBox { color: #AA0000; font-weight: bold; }")
 
+	def open_help(self):
+		self.open_manual()
+
 	def open_manual(self):
 		# Look for PDF manual first, then TXT
 		manual_pdf = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"Spine_Sorter_v{self.APP_VERSION}_Artist_Guide.pdf")
@@ -1831,12 +1856,10 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
-	def _save_similarity_strictness_config(self, mode_text):
+
+	def _save_similarity_confidence_config(self, v):
 		try:
-			mode = str(mode_text).strip().lower()
-			if mode not in ('safe', 'balanced', 'aggressive'):
-				mode = 'balanced'
-			self.config["similarity_strictness"] = mode
+			self.config["similarity_confidence"] = int(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -2374,7 +2397,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_mode='balanced'):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -2835,6 +2858,20 @@ class MainWindow(QMainWindow):
 				# Add all exact matches found
 				for m in matches:
 					resolved.add(m)
+
+			# 4. Sequence expansion: if ref ends with _ or - (Spine sequence indicator), scan file_map
+			# for all numbered variants (e.g. guaranteed_win_ -> guaranteed_win_01, guaranteed_win_02, ...)
+			# This is critical — the JSON only stores the base path, not the individual frame filenames.
+			if not matches and (base_noext.endswith('_') or base_noext.endswith('-')):
+				base_core_seq = base_noext.rstrip('_-')
+				if base_core_seq:
+					seq_re_scan = re.compile(r'^' + re.escape(base_core_seq) + r'[_\-]?\d+$')
+					for k, v in file_map.items():
+						# k is the basename-without-extension key in file_map
+						k_noext = os.path.splitext(k)[0] if '.' in k else k
+						if seq_re_scan.match(k_noext):
+							for m in v:
+								resolved.add(m)
 			
 		# convert to list for further processing and log resolved files
 		resolved = list(resolved)
@@ -2848,23 +2885,55 @@ class MainWindow(QMainWindow):
 			pass
 
 		# --- Additional Checks: Duplicate content and naming conventions ---
-		similarity_mode = str(similarity_mode or 'balanced').strip().lower()
-		if similarity_mode not in ('safe', 'balanced', 'aggressive'):
-			similarity_mode = 'balanced'
-		# Note: ahash is now 192-bit (3x 64-bit for R,G,B channels) so thresholds are adjusted
-		# The distances are roughly 3x the original 64-bit distances
-		# UPDATE: User reported NOTHING consolidating, so we need to be MORE lenient.
-		# Original balanced d_max=5, a_max=6, sum=9
-		# New ahash is 3 separate 64-bit hashes.
-		# Since we now have STRONG verification via OpenCV (Histogram/SSIM), we can be VERY lenient with the initial hash filter.
-		# The hash filter's job is now just to group "potential" candidates.
-		similarity_thresholds = {
-			'safe': {'alpha_diff': 0.05, 'd_max': 10, 'a_max': 30, 'sum_max': 40},
-			'balanced': {'alpha_diff': 0.10, 'd_max': 15, 'a_max': 45, 'sum_max': 60}, 
-			'aggressive': {'alpha_diff': 0.20, 'd_max': 20, 'a_max': 60, 'sum_max': 80},
-		}
-		th = similarity_thresholds[similarity_mode]
+		# Calculate dynamic thresholds based on similarity_confidence (80-100)
+		try:
+			# Ensure it's treated as float for math, int for display
+			conf_val = float(similarity_confidence) if similarity_confidence is not None else 95.0
+		except:
+			conf_val = 95.0
+		# Clamp to valid range
+		conf_val = max(0.0, min(100.0, conf_val))
 		
+		# --- REDESIGNED THRESHOLD SYSTEM ---
+		# Root problem: previously ALL thresholds (hash filter + SSIM + color) scaled together
+		# from the same slider. This created a deadlock: tightening one tightened all,
+		# causing misses at high confidence and false positives at low confidence.
+		#
+		# NEW DESIGN: Two separate stages with independent thresholds:
+		#   Stage 1 - Candidate Selection (Hash pre-filter): ALWAYS generous.
+		#             Goal: catch ALL potential matches. Never miss a real duplicate.
+		#             A generous hash filter only costs some extra OpenCV comparisons.
+		#   Stage 2 - Final Validation (SSIM + ORB + Color): ALWAYS strict fixed values.
+		#             Goal: reject ALL false positives. Both SSIM and ORB must agree.
+		#
+		# The confidence slider now ONLY affects size/alpha tolerance (edge cases).
+		
+		t_factor = (100.0 - conf_val) / 100.0
+		
+		# --- Stage 1: Hash pre-filter (generous fixed values - candidate selection only) ---
+		# These are intentionally loose. OpenCV validation below does the real work.
+		th_alpha = 0.08  # Fixed: quick reject if alpha ratio differs by >8%
+		th_dmax  = 60    # Fixed: generous dHash distance limit (candidate selection)
+		th_amax  = 150   # Fixed: generous aHash distance limit (candidate selection)
+		th_sum   = 200   # Fixed: generous combined limit
+		
+		# --- Stage 2: Final validation thresholds (ALL fixed - slider has NO effect on match quality) ---
+		# SSIM + ORB dual-gate. Both must agree. No slider influence.
+		th_ssim  = 0.97  # Hard minimum structural similarity
+		th_color = 0.90  # Color histogram must be >= 90% correlated
+		th_size_diff = 0  # Size must be identical - no tolerance, no slider influence
+
+		th = {
+			'alpha_diff': th_alpha,
+			'd_max': th_dmax,
+			'a_max': th_amax,
+			'sum_max': th_sum,
+			'ssim_min': th_ssim,
+			'color_min': th_color,
+			'size_diff': th_size_diff,
+			'conf_val': conf_val # Passed for logging context
+		}
+
 		# Initialize consolidation maps
 		# consolidation_map: path -> target_path (For EXACT duplicates)
 		# consolidation_map_mirror: path -> {'target': target_path, 'axis': 'x'|'y'} (For FLIPPED duplicates)
@@ -2874,6 +2943,15 @@ class MainWindow(QMainWindow):
 		try:
 			# Duplicate image content detection (SHA1)
 			import hashlib
+			
+			# DEBUG LOG START
+			self.info_panel.append(f"<span style='color:cyan'>--- Duplicate Analysis (Confidence: {int(conf_val)}%) ---</span>")
+			msg_th = f"Thresholds: SSIM > {th_ssim:.2f}, Color > {th_color:.2f}, HashDist < {th_dmax}"
+			if th_size_diff > 0: msg_th += f", SizeTol: {th_size_diff}px"
+			self.info_panel.append(f"<span style='color:#AAAAAA; font-size:10px'>{msg_th}</span>")
+			self.info_panel.append(f"Analyzing {len(resolved)} resolved files for duplicates...")
+			# DEBUG LOG END
+
 			def _sha1_for_file(p):
 				h = hashlib.sha1()
 				with open(p, 'rb') as fh:
@@ -2898,8 +2976,9 @@ class MainWindow(QMainWindow):
 						im = im_pil.convert('RGBA')
 
 						# Remove alpha dust/noise.
+						# Increased threshold to 15 to catch compression artifacts in alpha
 						r, g, b, a = im.split()
-						lut = [0 if i < 5 else i for i in range(256)]
+						lut = [0 if i < 15 else i for i in range(256)]
 						a = a.point(lut)
 						im.putalpha(a)
 
@@ -2984,14 +3063,67 @@ class MainWindow(QMainWindow):
 				except Exception as e:
 					return None
 
-			def _is_near_duplicate(sig_a, sig_b, th):
+
+			def _reverse_bits_8(n):
+				n = ((n & 0xF0) >> 4) | ((n & 0x0F) << 4)
+				n = ((n & 0xCC) >> 2) | ((n & 0x33) << 2)
+				n = ((n & 0xAA) >> 1) | ((n & 0x55) << 1)
+				return n
+
+			def _flip_hash_h_64(h):
+				res = 0
+				for i in range(8):
+					shift = (7 - i) * 8
+					byte_val = (h >> shift) & 0xFF
+					rev = _reverse_bits_8(byte_val)
+					res |= (rev << shift)
+				return res
+
+			def _flip_ahash_h(h):
+				mask = 0xFFFFFFFFFFFFFFFF
+				b = h & mask
+				g = (h >> 64) & mask
+				r = (h >> 128) & mask
+				return (_flip_hash_h_64(r) << 128) | (_flip_hash_h_64(g) << 64) | _flip_hash_h_64(b)
+
+			def _flip_dhash_h(h):
+				res = 0
+				for i in range(8):
+					shift = (7 - i) * 8
+					byte_val = (h >> shift) & 0xFF
+					rev = _reverse_bits_8(byte_val)
+					inv = (~rev) & 0xFF
+					res |= (inv << shift)
+				return res
+
+			def _is_near_duplicate(sig_a, sig_b, th, flip_mode=None):
 				# Advanced OpenCV check for robust validation
 				# If basic criteria are met, we verify with histogram/SSIM if available
 				# This is the "Judge" phase.
 				
 				if not sig_a or not sig_b:
 					return False
-				if sig_a['trim_w'] != sig_b['trim_w'] or sig_a['trim_h'] != sig_b['trim_h']:
+				
+				# Handle Virtual Flipping for Fuzzy Mirror Check
+				dhash_b, ahash_b = sig_b['dhash'], sig_b['ahash']
+				
+				if flip_mode == 'x':
+					# Apply transformation to B's hashes
+					ahash_b = _flip_ahash_h(sig_b['ahash'])
+					dhash_b = _flip_dhash_h(sig_b['dhash'])
+				
+				# Allow flexible size tolerance
+				w_diff = abs(sig_a['trim_w'] - sig_b['trim_w'])
+				h_diff = abs(sig_a['trim_h'] - sig_b['trim_h'])
+				size_tol = th.get('size_diff', 0)
+				
+				if w_diff > size_tol or h_diff > size_tol:
+					# Debug logging for potential misses
+					# Only log if hashes are very close (meaning they look similar but size blocked it)
+					d_close = _hamming_distance_int(sig_a['dhash'], sig_b['dhash'])
+					if d_close < 5 and (w_diff < 10 or h_diff < 10):
+						pass
+						# self.info_panel.append(f"<span style='color:orange'>Reject Size ({w_diff}x{h_diff}): {os.path.basename(sig_a['path'])} vs {os.path.basename(sig_b['path'])}</span>")
 					return False
 				
 				# 1. Quick Alpha/Aspect Ratio Check
@@ -2999,73 +3131,151 @@ class MainWindow(QMainWindow):
 					return False
 
 				# 2. Hash Distance Check (Candidate Selection)
-				d_dist = _hamming_distance_int(sig_a['dhash'], sig_b['dhash'])
-				a_dist = _hamming_distance_int(sig_a['ahash'], sig_b['ahash'])
+				d_dist = _hamming_distance_int(sig_a['dhash'], dhash_b)
+				a_dist = _hamming_distance_int(sig_a['ahash'], ahash_b)
 				
 				# Allow candidate if within relaxed bounds
 				is_hash_candidate = (d_dist <= th['d_max'] and a_dist <= th['a_max'] and (d_dist + a_dist) <= th['sum_max'])
 				
-				if not is_hash_candidate:
-					return False
+				# Hash pre-filter gates are already generous (Stage 1).
+				# If we passed is_hash_candidate, always attempt full OpenCV validation (Stage 2).
+				if OPENCV_AVAILABLE:
+					# Any hash candidate goes to OpenCV - it will make the final call
+					is_opencv_candidate = is_hash_candidate
 					
-				# 3. ADVANCED CHECK: OpenCV Histogram & SSIM
-				# If we have OpenCV, use it to confirm the match aggressively
-				if OPENCV_AVAILABLE and 'path' in sig_a and 'path' in sig_b:
-					try:
-						# Load images
-						img1 = cv2.imread(sig_a['path'])
-						img2 = cv2.imread(sig_b['path'])
-						
-						if img1 is None or img2 is None:
-							return False # Fallback to strict hash? Or fail safe?
+					# Only proceed if plausible candidate
+					if is_opencv_candidate and 'path' in sig_a and 'path' in sig_b:
+						try:
+							# Load images with Alpha to mask transparency (Fix for 'forgot to check colors')
+							# We need to mask transparent areas so they don't dominate the histogram
+							img1_raw = cv2.imread(sig_a['path'], cv2.IMREAD_UNCHANGED)
+							img2_raw = cv2.imread(sig_b['path'], cv2.IMREAD_UNCHANGED)
 							
-						# Standardize size (img1 is source, resize img2 to match)
-						if img1.shape != img2.shape:
-							img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
-						
-						# A. Hue/Saturation Histogram Check (The "Color Family" check)
-						# This solves Red vs Blue chest
-						hsv1 = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
-						hsv2 = cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)
-						
-						hist1 = cv2.calcHist([hsv1], [0, 1], None, [180, 256], [0, 180, 0, 256])
-						hist2 = cv2.calcHist([hsv2], [0, 1], None, [180, 256], [0, 180, 0, 256])
-						cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
-						cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
-						
-						color_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-						
-						# If color distributions are very different (e.g. Red vs Blue), score will be low (< 0.9)
-						# Identical images usually > 0.99
-						if color_score < 0.95: 
-							return False # Reject different colors
+							if img1_raw is None or img2_raw is None:
+								return is_hash_candidate 
 							
-						# B. Structural Similarity (SSIM)
-						# This confirms the "Drawing" is the same
-						gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-						gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-						
-						s = ssim(gray1, gray2)
-						
-						if s < 0.90: # 90% structural similarity required
+							# Apply Flip if requested
+							if flip_mode == 'x':
+								img2_raw = cv2.flip(img2_raw, 1) # 1 = Horizontal Flip
+
+							# Helper: Extract BGR + Mask
+							def _get_bgr_mask(im):
+								if len(im.shape) == 3 and im.shape[2] == 4:
+									# BGRA -> BGR + Alpha Mask
+									return im[:,:,:3], (im[:,:,3] > 10).astype(np.uint8) * 255
+								elif len(im.shape) == 3 and im.shape[2] == 3:
+									# BGR -> BGR + Full Mask
+									return im, np.ones(im.shape[:2], dtype=np.uint8) * 255
+								elif len(im.shape) == 2:
+									# Gray -> BGR + Full Mask
+									return cv2.cvtColor(im, cv2.COLOR_GRAY2BGR), np.ones(im.shape, dtype=np.uint8) * 255
+								return None, None
+
+							bgr1, mask1 = _get_bgr_mask(img1_raw)
+							bgr2, mask2 = _get_bgr_mask(img2_raw)
+
+							if bgr1 is None or bgr2 is None: return is_hash_candidate
+
+							# Standardize size (Match img2 to img1)
+							if bgr1.shape[:2] != bgr2.shape[:2]:
+								bgr2 = cv2.resize(bgr2, (bgr1.shape[1], bgr1.shape[0]))
+								mask2 = cv2.resize(mask2, (bgr1.shape[1], bgr1.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+							# Apply mask to BGR to clean up transparent noise for SSIM/Color checks
+							bgr1 = cv2.bitwise_and(bgr1, bgr1, mask=mask1)
+							bgr2 = cv2.bitwise_and(bgr2, bgr2, mask=mask2)
+							
+							# Update main image vars for downstream SSIM
+							img1 = bgr1
+							img2 = bgr2
+
+							# A. Hue/Saturation Histogram Check with Masking
+							hsv1 = cv2.cvtColor(bgr1, cv2.COLOR_BGR2HSV)
+							hsv2 = cv2.cvtColor(bgr2, cv2.COLOR_BGR2HSV)
+							
+							# Use mask to ignore transparent background
+							hist1 = cv2.calcHist([hsv1], [0, 1], mask1, [180, 256], [0, 180, 0, 256])
+							hist2 = cv2.calcHist([hsv2], [0, 1], mask2, [180, 256], [0, 180, 0, 256])
+							
+							cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
+							cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
+							
+							color_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+							
+							# If color distributions are very different (e.g. Red vs Blue), score will be low (< 0.9)
+							# Identical images usually > 0.99
+							if color_score < th.get('color_min', 0.95): 
+								# DEBUG LOG
+								# self.info_panel.append(f"<font color='orange'>Rejecting candidate (color): {color_score:.2f} (Needs > {th.get('color_min', 0.95):.2f})</font>")
+								# self.info_panel.append(f"  {os.path.basename(sig_a['path'])} vs {os.path.basename(sig_b['path'])}")
+								return False # Reject different colors
+								
+							# B. Structural Similarity (SSIM)
+							# This confirms the "Drawing" is the same
+							gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+							gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+							
+							s = ssim(gray1, gray2)
+							
+							# C. Feature Matching (ORB) - "Sophisticated" Object Recognition
+							# This acts like "face recognition" for sprites, identifying key features
+							# regardless of minor shifts, noise, or scale differences.
+							orb_score = 0.0
+							try:
+								# Initialize ORB (Oriented FAST and Rotated BRIEF)
+								orb = cv2.ORB_create(nfeatures=500)
+								kp1, des1 = orb.detectAndCompute(img1, None)
+								kp2, des2 = orb.detectAndCompute(img2, None)
+								
+								if des1 is not None and des2 is not None and len(des1) > 4 and len(des2) > 4:
+									# Brute-Force Matcher with Hamming distance (efficient for binary descriptors)
+									bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+									matches = bf.match(des1, des2)
+									
+									if matches:
+										# Filter for "good" matches (low distance = high similarity)
+										# Distance < 50 is usually a very strong match
+										good_matches = [m for m in matches if m.distance < 50]
+										
+										# Calculate robust score: Ratio of good matches to total keypoints
+										# If > 50% of keypoints match perfectly, it's the same object
+										orb_score = len(good_matches) / min(len(kp1), len(kp2))
+							except Exception:
+								pass # Feature matching can fail on featureless images (smooth gradients), which SSIM handles better
+							
+							# --- FINAL DECISION LOGIC (Dual-Gate, fixed thresholds, slider-independent) ---
+							# Gate A: Near pixel-perfect (SSIM >= 0.99) - same image, possibly re-saved
+							if s >= 0.99:
+								return True
+							
+							# Gate B: Both SSIM >= 0.97 AND ORB >= 0.65 must agree
+							# Requiring BOTH eliminates palette-swaps and similar-but-different images.
+							if s >= 0.97 and orb_score >= 0.65:
+								return True
+							
+							# Everything else: hard reject
 							return False
 							
-						return True # Confirmed match!
-						
-					except Exception:
-						pass # Fallback to basic logic if CV fails
+						except Exception as e:
+							# self.info_panel.append(f"OpenCV check failed: {e}")
+							pass # Fallback to basic logic if CV fails
+				# Not a viable OpenCV candidate — fall through to strict hash fallback below
+				if not is_hash_candidate:
+					return False
 
-				# Standard Fallback: Hash Validation Only
-				# If we reached here, either OpenCV is missing or crashed. Use strict hash rules.
-				# OR we use the mean color check for safety
+				# Strict no-OpenCV fallback: require very tight hash distances (no false positives)
+				if d_dist > 8 or a_dist > 20:
+					return False
+
+				# Also require very similar mean colors (reject palette swaps)
 				if 'mean_colors' in sig_a and 'mean_colors' in sig_b:
 					mc_a = sig_a['mean_colors']
 					mc_b = sig_b['mean_colors']
 					color_dist = sum(abs(mc_a[i] - mc_b[i]) for i in range(3))
-					if color_dist > 60: 
+					if color_dist > 15:
 						return False
 
-				return is_hash_candidate
+				return True  # Near-identical hashes AND near-identical colors = safe match
 
 			# Store trim offsets for later compensation
 			trim_data = {}
@@ -3149,6 +3359,15 @@ class MainWindow(QMainWindow):
 					dhf.write(f"Hash Statistics for {name}\n")
 					dhf.write("=" * 80 + "\n")
 					dhf.write(f"Total files hashed: {len(real_file_entries)}\n")
+					
+					# DEBUG LOG
+					self.info_panel.append(f"  Hashed {len(real_file_entries)} files.")
+					collision_count_debug = sum(1 for entries in content_registry.values() if len(entries) > 1)
+					if collision_count_debug > 0:
+						self.info_panel.append(f"  <font color='cyan'>Found {collision_count_debug} unique hashes with multiple files (Potential Exact Duplicates)</font>")
+					else:
+						self.info_panel.append(f"  No initial exact duplicates found (SHA1).")
+
 					dhf.write(f"Unique SHA1 hashes: {len(content_registry)}\n")
 					dhf.write(f"Image signatures computed: {len(image_signatures)}\n")
 					dhf.write(f"consolidate_duplicates enabled: {consolidate_duplicates}\n")
@@ -3405,58 +3624,70 @@ class MainWindow(QMainWindow):
 			# Phase 3b: Near-duplicate matching using perceptual signatures.
 			near_duplicate_groups = []
 			if consolidate_duplicates and image_signatures:
-				sig_buckets = {}
+				# Use windowed search sorted by height to allow size tolerance
+				# Create flat list of (path, sig)
+				sig_list = []
 				for p, sig in image_signatures.items():
-					bucket_key = (sig['trim_w'], sig['trim_h'])
-					if bucket_key not in sig_buckets:
-						sig_buckets[bucket_key] = []
-					sig_buckets[bucket_key].append(p)
-
-				for _, paths in sig_buckets.items():
-					if len(paths) < 2:
+					if sig and 'trim_h' in sig:
+						sig_list.append((p, sig))
+				
+				# Sort by height
+				sig_list.sort(key=lambda x: x[1]['trim_h'])
+				
+				size_tol = th.get('size_diff', 0)
+				
+				for i in range(len(sig_list)):
+					p1, sig1 = sig_list[i]
+					
+					source_norm = os.path.normcase(os.path.abspath(p1))
+					if source_norm in consolidation_map:
 						continue
-					paths.sort(key=lambda x: (len(x), x))
-					for idx, source_path in enumerate(paths):
-						source_norm = os.path.normcase(os.path.abspath(source_path))
-						if source_norm in consolidation_map:
+						
+					group = [p1]
+					
+					# Look ahead
+					for j in range(i + 1, len(sig_list)):
+						p2, sig2 = sig_list[j]
+						
+						# Stop scanning if height difference > tolerance (list is sorted by height)
+						h_diff = sig2['trim_h'] - sig1['trim_h']
+						if h_diff > size_tol:
+							break
+							
+						# Check width difference
+						w_diff = abs(sig2['trim_w'] - sig1['trim_w'])
+						if w_diff > size_tol:
+							continue
+							
+						target_norm = os.path.normcase(os.path.abspath(p2))
+						if target_norm in consolidation_map:
 							continue
 
-						source_sig = image_signatures.get(source_path)
-						if not source_sig:
-							continue
+						if _is_near_duplicate(sig1, sig2, th):
+							consolidation_map[target_norm] = p1
+							group.append(p2)
+						elif consolidate_mirrored:
+							# Check Horizontal Flip (Fuzzy Match)
+							if _is_near_duplicate(sig1, sig2, th, flip_mode='x'):
+								# Prioritize exact name based sorting? logic handled later, but we need to set map
+								# If p1 < p2 name wise?
+								# The existing mirror logic prioritizes alphabetically.
+								# 'target' is the one being removed. 
+								# Here p1 is source, p2 is candidate.
+								# If p2 is a flipped version of p1.
+								# We map p2 -> p1
+								
+								# Check if we already have a mirror map for this?
+								if target_norm not in consolidation_map_mirror:
+									consolidation_map_mirror[target_norm] = {'target': p1, 'transform': 'flipX', 'axis': 'x'}
+						
+						# Debug logging omitted for performance
+						
+					if len(group) > 1:
+						near_duplicate_groups.append(group)
 
-						group = [source_path]
-						for target_path in paths[idx + 1:]:
-							target_norm = os.path.normcase(os.path.abspath(target_path))
-							if target_norm in consolidation_map:
-								continue
-							target_sig = image_signatures.get(target_path)
-							if not target_sig:
-								continue
-
-							if _is_near_duplicate(source_sig, target_sig):
-								consolidation_map[target_norm] = source_path
-								group.append(target_path)
-							else:
-								# Optional: Log strictly why it failed if close
-								# This helps debug "why didn't these match?"
-								try:
-									d_dist = _hamming_distance_int(source_sig['dhash'], target_sig['dhash'])
-									a_dist = _hamming_distance_int(source_sig['ahash'], target_sig['ahash'])
-									if d_dist <= (th['d_max'] * 2) and a_dist <= (th['a_max'] * 2):
-										# Use a dedicated debug log for near-misses
-										debug_miss_path = os.path.join(result_dir, f"debug_missed_dupes_{name}.text")
-										with open(debug_miss_path, "a") as f:
-											f.write(f"Miss: {os.path.basename(source_path)} vs {os.path.basename(target_path)}\n")
-											f.write(f"  d_dist={d_dist}/{th['d_max']}, a_dist={a_dist}/{th['a_max']}, sum={d_dist+a_dist}/{th['sum_max']}\n")
-								except:
-									pass
-
-						if len(group) > 1:
-							near_duplicate_groups.append(group)
-
-			# Case B: Mirror Duplicates (Processed via Normalized Hashes)
-			# (Logic moved to Phase 2 to ensure clean alpha handling, but we filter against exact dups here)
+			# Case B: Mirror Duplicates (Processed via Normalized Hashes AND Fuzzy Search)
+			# (Exact Hashes done in Phase 2. Fuzzy Hashes done in Phase 3 just above.)
 			# Prune any mirror mappings where the source or target has been consolidated as an exact duplicate
 			if consolidate_mirrored and consolidation_map_mirror:
 				# Remove mirror entries if:
@@ -3478,6 +3709,9 @@ class MainWindow(QMainWindow):
 					del consolidation_map_mirror[k]
 			
 			# Reporting
+			self.info_panel.append(f"  Exact Groups: {len(duplicate_groups)}, Near-Dup Groups: {len(near_duplicate_groups)}, Mirrors: {len(consolidation_map_mirror)}")
+			self.info_panel.append(f"  Total Remappings Active: {len(consolidation_map)}")
+			
 			if duplicate_groups:
 				if consolidate_duplicates:
 					self.info_panel.append(f"<span style='color:#DAA520; font-weight:bold;'>Consolidating {len(duplicate_groups)} duplicate group(s)...</span>")
@@ -4420,13 +4654,40 @@ class MainWindow(QMainWindow):
 							
 							# Consolidation State
 							consolidation_occurred = False
+							
 							# Keep backup of original src for later reference
 							src_list = src if isinstance(src, (list, tuple)) else ([src] if src else [])
+							
+							# Debug log if src is found and MAP is active
+							# if src and consolidation_map and not scan_mode:
+							# 	# Only log if one of our srcs is actually a target
+							# 	# self.info_panel.append(f"Checking consolidation for: {src}")
+							# 	pass
+							
+							# Check if likely a sequence to optionally skip consolidation
+							is_sequence_check = False
+							if isinstance(attach_val, dict) and 'sequence' in attach_val:
+								is_sequence_check = True
+							elif str(attach_name).endswith('_'):
+								is_sequence_check = True
+							elif isinstance(src, (list, tuple)) and len(src) > 1:
+								is_sequence_check = True
 
+							# Check if source is in 'png' folder (user requirement: consolidation only for png folder)
+							is_png_folder_check = False
+							if src:
+								s_p = src[0] if isinstance(src, (list, tuple)) else src
+								# Normalize separators and check path components
+								try:
+									parts = os.path.dirname(s_p).replace('\\', '/').lower().split('/')
+									if 'png' in parts:
+										is_png_folder_check = True
+								except: pass
+									
 							# Applies Consolidation Logic (if map exists and has entries)
 							try:
 								# 1. Exact Consolidation
-								if src and consolidation_map:
+								if src and consolidation_map and not is_sequence_check and is_png_folder_check:
 									if isinstance(src, (list, tuple)):
 										# For sequences, we need to map each frame
 										new_src = []
@@ -4462,7 +4723,7 @@ class MainWindow(QMainWindow):
 												CONSOLIDATED_IMAGES_COUNT += 1
 								
 								# 2. Mirror Consolidation (independent check)
-								if src and consolidation_map_mirror:
+								if src and consolidation_map_mirror and not is_sequence_check and is_png_folder_check:
 									common_transform = None
 									new_src_list = []
 									all_mapped = True
@@ -4839,7 +5100,8 @@ class MainWindow(QMainWindow):
 								
 								# Additional filter: Remove any files that are marked as duplicates in consolidation_map
 								# This prevents accidentally copying both the duplicate and its consolidated primary
-								if consolidation_map:
+								# NEVER apply this filter to sequences — all frames must be preserved as-is
+								if consolidation_map and not is_sequence_check:
 									filtered_matches = []
 									skipped_duplicates = []
 									for f in matches:
@@ -5099,10 +5361,12 @@ class MainWindow(QMainWindow):
 												# Do NOT break, so we can capture multiple levels of owned folders
 
 								# Initialize sequence/placeholder flags BEFORE using them
-								is_sequence = False
+								is_sequence = False # General heuristic for folder organization
+								is_spine_sequence = False # Strict JSON definition for file pathing
 								try:
 									if isinstance(attach_val, dict) and 'sequence' in attach_val:
 										is_sequence = True
+										is_spine_sequence = True
 									elif str(attach_name).endswith('_'):
 										is_sequence = True
 								except Exception:
@@ -5207,11 +5471,16 @@ class MainWindow(QMainWindow):
 										# So family is 'skeleton'.
 										# But the JSON path expects: skeleton/path/to/image
 										
-										if is_sequence:
+										if is_spine_sequence:
 											# For sequences: use basename without digits and add trailing underscore
-											base_no_digits = re.sub(r"\d+$", "", start_base_name)
+											# FIX: Handle extension correctly (strip it before regex)
+											s_root, s_ext = os.path.splitext(start_base_name)
+											base_no_digits = re.sub(r"[_\-]?\d+$", "", s_root)
+											
+											# Ensure it ends with underscore for standard sequence prefixing
 											if base_no_digits and not base_no_digits.endswith('_'):
 												base_no_digits = base_no_digits + '_'
+											
 											# Build JSON path with nested structure
 											if nested_folders_str:
 												if is_reference:
@@ -5227,16 +5496,21 @@ class MainWindow(QMainWindow):
 													first_rel = f"{target_skeleton}/{family}/{base_no_digits}".replace('\\', '/')
 										else:
 											# Single image logic
+											# If extension is .png, we can strip it for cleaner Spine paths
+											final_name = start_base_name
+											if final_name.lower().endswith('.png'):
+												final_name = os.path.splitext(final_name)[0]
+											
 											if nested_folders_str:
 												if is_reference:
-													first_rel = f"{nested_folders_str}/{start_base_name}".replace('\\', '/')
+													first_rel = f"{nested_folders_str}/{final_name}".replace('\\', '/')
 												else:
-													first_rel = f"{target_skeleton}/{family}/{nested_folders_str}/{start_base_name}".replace('\\', '/')
+													first_rel = f"{target_skeleton}/{family}/{nested_folders_str}/{final_name}".replace('\\', '/')
 											else:
 												if is_reference:
-													first_rel = f"{start_base_name}".replace('\\', '/')
+													first_rel = f"{final_name}".replace('\\', '/')
 												else:
-													first_rel = f"{target_skeleton}/{family}/{start_base_name}".replace('\\', '/')
+													first_rel = f"{target_skeleton}/{family}/{final_name}".replace('\\', '/')
 
 										# Clean up any duplicate family tokens
 										if first_rel:
@@ -6648,7 +6922,7 @@ class MainWindow(QMainWindow):
 					spine_export_log_warnings=spine_export_log_warnings,
 					consolidate_duplicates=self.consolidate_duplicates_cb.isChecked(),
 					consolidate_mirrored=self.consolidate_duplicates_cb.isChecked(),
-					similarity_mode=self.similarity_strictness_combo.currentText().strip().lower()
+					similarity_confidence=self.similarity_slider.value()
 				)
 
 
@@ -7169,4 +7443,4 @@ def main():
 		traceback.print_exc()
 
 if __name__ == "__main__":
-	main()
+	main()    

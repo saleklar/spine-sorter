@@ -2,29 +2,35 @@
 echo ========================================================
 echo PUBLISHING NEW VERSION TO GITHUB
 echo ========================================================
-echo This will bump the version, update version.txt, and lock out old clients.
+echo This will commit all changes, create a version tag, and push.
+echo GitHub Actions will then automatically build Windows EXE + Mac .app
+echo and attach them to a new GitHub Release.
 echo.
-echo If you just want to save work without releasing,
-echo please use 'git add .', 'git commit', 'git push' instead.
+echo Make sure APP_VERSION in spine sorter 257.py is updated first!
+echo.
+
+:: Read version from the Python file
+for /f "tokens=3 delims= " %%a in ('findstr "APP_VERSION = " "spine sorter 257.py"') do set RAW_VERSION=%%a
+:: Strip surrounding quotes
+set VERSION=%RAW_VERSION:"=%
+set TAG=v%VERSION%
+
+echo Detected version: %VERSION%  (will tag as %TAG%)
 echo.
 pause
 
-echo Bumping version...
-python tools/bump_version.py
+echo Committing...
+git add "spine sorter 257.py" "CHANGELOG.md" ".github/workflows/build.yml" "build_mac.sh"
+git commit -m "RELEASE: %TAG%"
 
-echo Committing version bump...
-git add "spine sorter 257.py" "Spine Sorter 257.spec" "build_mac.sh" "version.txt"
-git commit -m "RELEASE: Auto-bump version"
+echo Creating tag %TAG%...
+git tag %TAG%
 
-echo Pushing...
+echo Pushing commits and tag...
 git push
-
-rem We no longer need to copy to Z: drive since clients check GitHub directly
-rem if exist "Z:\spine sorter v257" (
-rem     echo Copying version.txt to Z:\spine sorter v257...
-rem     copy /Y "version.txt" "Z:\spine sorter v257\version.txt"
-rem )
+git push origin %TAG%
 
 echo.
-echo DONE. Version is live on GitHub.
+echo DONE. GitHub Actions will now build Windows + Mac and attach to Release %TAG%.
+echo Check progress at: https://github.com/[your-repo]/actions
 pause

@@ -1,8 +1,11 @@
-name: Build Spine Sorter v5.55
+name: Build & Release Spine Sorter
 
 on:
+  # Trigger on version tags like v5.72, v5.73, etc.
   push:
-    branches: [ "main", "master", "fix/export-counts" ]
+    tags:
+      - 'v*'
+  # Also allow manual runs from the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -19,33 +22,62 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' 
+        python-version: '3.11'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Build with PyInstaller
+    - name: Get version from tag
+      id: version
+      shell: bash
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter 257" "spine sorter 257.py"
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=dev" >> $GITHUB_OUTPUT
+        fi
 
-    - name: Upload Windows Artifact
+    - name: Build with PyInstaller (Windows)
       if: matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" "spine sorter 257.py"
+
+    - name: Build with PyInstaller (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "Spine Sorter ${{ steps.version.outputs.VERSION }}" "spine sorter 257.py"
+
+    - name: Upload Windows EXE to Release
+      if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
       with:
-        name: Spine Sorter Windows
-        path: dist/*.exe
+        files: dist/*.exe
 
     - name: Zip macOS App
       if: matrix.os == 'macos-latest'
+      shell: bash
       run: |
         cd dist
-        zip -r "Spine Sorter 257 Mac.zip" "Spine Sorter 257.app"
+        zip -r "Spine Sorter ${{ steps.version.outputs.VERSION }} Mac.zip" "Spine Sorter ${{ steps.version.outputs.VERSION }}.app"
 
-    - name: Upload macOS Artifact
-      if: matrix.os == 'macos-latest'
+    - name: Upload macOS ZIP to Release
+      if: matrix.os == 'macos-latest' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: "dist/Spine Sorter ${{ steps.version.outputs.VERSION }} Mac.zip"
+
+    - name: Upload Windows Artifact (manual run)
+      if: matrix.os == 'windows-latest' && !startsWith(github.ref, 'refs/tags/')
       uses: actions/upload-artifact@v4
       with:
-        name: Spine Sorter macOS
-        path: dist/Spine Sorter 257 Mac.zip
+        name: Spine-Sorter-Windows
+        path: dist/*.exe
+
+    - name: Upload macOS Artifact (manual run)
+      if: matrix.os == 'macos-latest' && !startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: Spine-Sorter-macOS
+        path: "dist/Spine Sorter ${{ steps.version.outputs.VERSION }} Mac.zip"
