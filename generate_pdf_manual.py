@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v5.70",
+            "title": "Spine Sorter v5.72",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -70,15 +70,10 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.70):</b>",
-                "• <b>Beta Version Fix:</b> 'Fetch All' now correctly handles versions with '-beta' suffix (e.g. 4.2.xx-beta).",
-                "• <b>Fetch All Versions:</b> New button to grab the complete list of historical Spine patches from the web.",
-                "• <b>Mac Support:</b> Fixed Spine version detection for macOS users.",
-                "• <b>Active Version Switcher:</b> Dropdown to select and lock the Spine version used for processing.",
-                "• <b>Quick Launch:</b> 'LAUNCH SPINE' button to open the specific selected version immediately.",
-                "• <b>Smart Open:</b> 'Open after export' now uses the specific version you selected.",
-                "• <b>Duplicate-image detection:</b> SHA1-based grouping and RECOMMENDATIONS to dedupe identical attachments.",
-                "• <b>Naming-convention checks:</b> Per-skeleton animation/skeleton checks plus summarized slot/bone/constraint examples."
+                "<b>WHAT'S NEW IN THIS EDITION (v5.72):</b>",
+                "• <b>Sequence Copy Fix:</b> Sequence frames are now always copied correctly, even when Consolidate Duplicates is enabled.",
+                "• <b>Sequence Resolution Fix:</b> Paths ending in underscore (e.g. 'folder/anim_') now correctly expand to all numbered frame files.",
+                "• <b>Internal Cleanup:</b> Removed duplicate logic gate in image similarity checks for more reliable matching."
             ],
             "is_cover": True
         },
@@ -184,19 +179,26 @@ def create_pdf(filename):
         {
             "title": "Changelog",
              "body": [
+                "<b>v5.72 (current):</b>",
+                "• <b>Fix:</b> Sequence frames no longer silently dropped when Consolidate Duplicates is enabled.",
+                "• <b>Fix:</b> Trailing-underscore sequence paths now correctly resolve all numbered frames.",
+                "• <b>Cleanup:</b> Duplicate logic gate removed from image similarity fallback path.",
+                "<br/>",
+                "<b>v5.71:</b>",
+                "• <b>New:</b> 'Consolidate Duplicate Images' checkbox — merges identical images to save space.",
+                "• <b>New:</b> 'Check for Errors Only' checkbox — validation scan without any export.",
+                "• <b>Fix:</b> Multi-skeleton export now merges correctly into one .spine file.",
+                "• <b>Fix:</b> Consolidated images now update JSON paths correctly (no missing image errors).",
+                "<br/>",
                 "<b>v5.69:</b>",
                 "• <b>New:</b> 'Fetch All' button to retrieve all historical versions from Esoteric Software.",
                 "<br/>",
                 "<b>v5.68:</b>",
                 "• <b>Fix:</b> Resolved Spine version detection issues on macOS.",
-                "• <b>Platform:</b> Improved cross-platform compatibility for version launcher.",
                 "<br/>",
                 "<b>v5.67:</b>",
                 "• <b>Feature:</b> Active Version Switcher (Dropdown) & Quick Launcher.",
-                "• <b>fix:</b> 'Open after export' now respects the selected version.",
-                "• <b>Improvement:</b> Automatic version detection sync between launcher mode and processing.",
-                "• <b>UI:</b> Added dedicated version controls and status labels.",
-                "• <b>Docs:</b> Updated manual and PDF guide with version management instructions.",
+                "• <b>Fix:</b> 'Open after export' now respects the selected version.",
                 "<br/>",
                 "<b>v5.54:</b> Added duplicate-image recommendations, fuzzy naming checks, skeleton/animation name warnings, validate-only temp-cleanup, and misc fixes.",
                 "<b>v5.52:</b> Unchecked Animations detection. Multiple skeletons support.",
@@ -271,4 +273,4 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.70_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_v5.72_Artist_Guide.pdf")
