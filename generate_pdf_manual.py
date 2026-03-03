@@ -61,7 +61,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v5.72",
+            "title": "Spine Sorter v5.73",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -70,8 +70,9 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.72):</b>",
-                "• <b>Internal Cleanup:</b> Removed duplicate logic gate in image similarity checks for more reliable matching."
+                "<b>WHAT'S NEW IN THIS EDITION (v5.73):</b>",
+                "• <b>Help Fixed:</b> Help button now works correctly in the distributed EXE — manual is bundled and always accessible.",
+                "• <b>Build Fixed:</b> Resolved GitHub Actions build failures caused by broken shell argument quoting."
             ],
             "is_cover": True
         },
@@ -177,7 +178,11 @@ def create_pdf(filename):
         {
             "title": "Changelog",
              "body": [
-                "<b>v5.72 (current):</b>",
+                "<b>v5.73 (current):</b>",
+                "• <b>Fix:</b> Help button now works in distributed EXE — manual is bundled via --add-data.",
+                "• <b>Fix:</b> GitHub Actions build failures resolved (broken shell quoting in PyInstaller step).",
+                "<br/>",
+                "<b>v5.72:</b>",
                 "• <b>Cleanup:</b> Duplicate logic gate removed from image similarity fallback path.",
                 "<br/>",
                 "<b>v5.71:</b>",

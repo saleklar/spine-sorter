@@ -1,7 +1,13 @@
-SPINE SORTER v5.72 - ARTIST GUIDE
+SPINE SORTER v5.73 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.72)
+LATEST UPDATES (v5.73)
+----------------------------------------
+- Fixed: Help button now works correctly in the distributed EXE. Manual PDF and USER_MANUAL.txt are now bundled inside the EXE and opened correctly using sys._MEIPASS.
+- Fixed: GitHub Actions build failures caused by broken shell argument quoting in the PyInstaller step.
+
+
+PREVIOUS UPDATES (v5.72)
 ----------------------------------------
 - Fixed: Cleaned up duplicate logic gate in the image similarity check (no-OpenCV fallback path had a redundant check and a misplaced comment in dead code).
 
