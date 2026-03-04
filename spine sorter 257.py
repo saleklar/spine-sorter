@@ -1727,6 +1727,7 @@ class MainWindow(QMainWindow):
 		lbl_link.setAlignment(Qt.AlignCenter)
 
 		lbl_stats = QLabel("📦  Fetching download stats...")
+		lbl_stats.setTextFormat(Qt.RichText)
 		lbl_stats.setAlignment(Qt.AlignCenter)
 		lbl_stats.setStyleSheet("color: #888; font-size: 12px;")
 
@@ -1770,7 +1771,6 @@ class MainWindow(QMainWindow):
 					f"&nbsp;&nbsp;|&nbsp;&nbsp;"
 					f"Latest release{tag_str}: <b>{latest_count:,}</b>"
 				)
-				lbl_stats.setTextFormat(Qt.RichText)
 
 		sig.ready.connect(_apply)
 		self._fetch_release_stats(_on_stats)
