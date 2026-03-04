@@ -6845,18 +6845,33 @@ class MainWindow(QMainWindow):
 			# Check if any skeleton in source is missing from export
 			# We store this in the 'container' file_stats so skeletons can access it
 			file_stats['unchecked_skeletons'] = []
-			
+
+			# Always build exported_skel_names from found_jsons (used for multiple checks below)
+			exported_skel_names = set()
+			for f_json in found_jsons:
+				exported_skel_names.add(os.path.splitext(os.path.basename(f_json))[0])
+
 			if cli_source_skeletons:
-				exported_skel_names = set()
-				for f_json in found_jsons:
-					# Assuming filename is skeleton name
-					fname = os.path.splitext(os.path.basename(f_json))[0]
-					exported_skel_names.add(fname)
-				
 				missing_skeletons = cli_source_skeletons - exported_skel_names
 				if missing_skeletons:
 					# Store in parent container so skeletons inherit it
 					file_stats['unchecked_skeletons'] = sorted(list(missing_skeletons))
+
+			# REF Skeleton Check: detect skeletons named like "ref", "reference", "ref_pose", etc.
+			# Such skeletons are typically reference/helper skeletons that should NOT be exported.
+			#   - If a REF skeleton IS in the export output -> likely an error, report as WARNING.
+			#   - If a REF skeleton exists in the source but is turned off for export -> report as NOTE.
+			_ref_skel_re = re.compile(
+				r'^ref(?:s|erence|erences)?$'
+				r'|^ref[_\-]'
+				r'|[_\-]ref$',
+				re.IGNORECASE
+			)
+			all_known_skels = set(cli_source_skeletons) | exported_skel_names
+			ref_skels_exported = sorted([s for s in all_known_skels if _ref_skel_re.match(s) and s in exported_skel_names])
+			ref_skels_off      = sorted([s for s in all_known_skels if _ref_skel_re.match(s) and s not in exported_skel_names])
+			file_stats['ref_skeletons_exported'] = ref_skels_exported
+			file_stats['ref_skeletons_off']      = ref_skels_off
 
 
 			# Process each skeleton
@@ -6882,6 +6897,8 @@ class MainWindow(QMainWindow):
 					# Per-skeleton animations (set) for accurate comparisons
 					'source_anims_defined': per_skel_anims,
 					'unchecked_skeletons': file_stats.get('unchecked_skeletons', []),
+					'ref_skeletons_exported': file_stats.get('ref_skeletons_exported', []),
+					'ref_skeletons_off': file_stats.get('ref_skeletons_off', []),
 					'spine_version_source': file_stats.get('spine_version_source', 'Unknown'),
 					'spine_exe_used': file_stats.get('spine_exe_used', 'Unknown')
 				}
@@ -7056,6 +7073,31 @@ class MainWindow(QMainWindow):
 					else:
 						self.info_panel.append(f"<font color='orange'>    - ... and {n_skel - 10} more</font>")
 						break
+
+			# Report REF skeletons that are exported (ERROR - should not be exported)
+			if stats.get('ref_skeletons_exported'):
+				any_warnings = True
+				self.info_panel.append("<br>")
+				ref_exp = stats['ref_skeletons_exported']
+				self.info_panel.append(
+					f"  <span style='color:#FF0000; font-weight:bold;'>ERROR:</span> "
+					f"<span style='color:red;'>{len(ref_exp)} reference/REF skeleton(s) "
+					f"are checked ON for export — this is likely a mistake:</span>"
+				)
+				for skel in ref_exp:
+					self.info_panel.append(f"<font color='red'>    - '{skel}' (REF skeleton exported)</font>")
+
+			# Report REF skeletons that exist but are turned OFF for export (NOTE - expected / OK)
+			if stats.get('ref_skeletons_off'):
+				self.info_panel.append("<br>")
+				ref_off = stats['ref_skeletons_off']
+				self.info_panel.append(
+					f"  <span style='color:#5599FF; font-weight:bold;'>NOTE:</span> "
+					f"<span style='color:#5599FF;'>{len(ref_off)} reference/REF skeleton(s) "
+					f"found in project but are turned OFF for export (expected):</span>"
+				)
+				for skel in ref_off:
+					self.info_panel.append(f"<font color='#5599FF'>    - '{skel}' (REF skeleton, not exported)</font>")
 
 			# Report Unchecked Attachments (Explicit Spine Warnings)
 			if 'unchecked' in stats and stats['unchecked']:
