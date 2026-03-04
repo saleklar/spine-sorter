@@ -1683,21 +1683,99 @@ class MainWindow(QMainWindow):
 		about_action.triggered.connect(self.show_about_dialog)
 		help_menu.addAction(about_action)
 
+	def _fetch_release_stats(self, callback):
+		"""Fetch download counts from GitHub Releases API in a background thread."""
+		import threading, urllib.request, json as _json
+		def _worker():
+			try:
+				api_url = "https://api.github.com/repos/saleklar/spine-sorter/releases"
+				req = urllib.request.Request(api_url, headers={"User-Agent": "SpineSorter"})
+				with urllib.request.urlopen(req, timeout=5) as r:
+					releases = _json.loads(r.read().decode('utf-8'))
+				total = 0
+				latest_count = 0
+				latest_tag = ""
+				for i, rel in enumerate(releases):
+					for asset in rel.get("assets", []):
+						cnt = asset.get("download_count", 0)
+						total += cnt
+						if i == 0:
+							latest_count += cnt
+					if i == 0:
+						latest_tag = rel.get("tag_name", "")
+				callback(total, latest_count, latest_tag, None)
+			except Exception as e:
+				callback(0, 0, "", str(e))
+		threading.Thread(target=_worker, daemon=True).start()
+
 	def show_about_dialog(self):
-		msg = QMessageBox(self)
-		msg.setWindowTitle("About Spine Sorter")
-		msg.setText(f"Spine Sorter v{self.APP_VERSION}")
-		msg.setInformativeText(f"Share this app via:\n{self.DOWNLOAD_URL}")
-		
-		# Copy Link Button
-		btn_copy = msg.addButton("Copy Link", QMessageBox.ActionRole)
-		btn_ok = msg.addButton(QMessageBox.Ok)
-		
-		msg.exec()
-		
-		if msg.clickedButton() == btn_copy:
-			QApplication.clipboard().setText(self.DOWNLOAD_URL)
+		from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+		from PyQt5.QtCore import pyqtSignal, QObject
+
+		dlg = QDialog(self)
+		dlg.setWindowTitle("About Spine Sorter")
+		dlg.setMinimumWidth(360)
+		vlay = QVBoxLayout(dlg)
+		vlay.setSpacing(8)
+
+		lbl_title = QLabel(f"<b>Spine Sorter v{self.APP_VERSION}</b>")
+		lbl_title.setAlignment(Qt.AlignCenter)
+		lbl_title.setStyleSheet("font-size: 15px;")
+
+		lbl_link = QLabel(f"<a href='{self.DOWNLOAD_URL}'>{self.DOWNLOAD_URL}</a>")
+		lbl_link.setOpenExternalLinks(True)
+		lbl_link.setAlignment(Qt.AlignCenter)
+
+		lbl_stats = QLabel("📦  Fetching download stats...")
+		lbl_stats.setAlignment(Qt.AlignCenter)
+		lbl_stats.setStyleSheet("color: #888; font-size: 12px;")
+
+		vlay.addWidget(lbl_title)
+		vlay.addWidget(lbl_link)
+		vlay.addSpacing(4)
+		vlay.addWidget(lbl_stats)
+		vlay.addSpacing(8)
+
+		hlay = QHBoxLayout()
+		btn_copy = QPushButton("Copy Link")
+		btn_ok   = QPushButton("OK")
+		btn_ok.setDefault(True)
+		hlay.addWidget(btn_copy)
+		hlay.addStretch()
+		hlay.addWidget(btn_ok)
+		vlay.addLayout(hlay)
+
+		btn_ok.clicked.connect(dlg.accept)
+		btn_copy.clicked.connect(lambda: (
+			QApplication.clipboard().setText(self.DOWNLOAD_URL),
 			QMessageBox.information(self, "Copied", "Download link copied to clipboard!")
+		))
+
+		# Fetch stats and update label from the main thread via a small signal trick
+		class _Sig(QObject):
+			ready = pyqtSignal(int, int, str, str)
+		sig = _Sig()
+
+		def _on_stats(total, latest_count, latest_tag, err):
+			sig.ready.emit(total, latest_count, latest_tag or "", err or "")
+
+		def _apply(total, latest_count, latest_tag, err):
+			if err:
+				lbl_stats.setText(f"📦  Download stats unavailable ({err})")
+			else:
+				tag_str = f"  ({latest_tag})" if latest_tag else ""
+				lbl_stats.setStyleSheet("color: #4CAF50; font-size: 12px; font-weight: bold;")
+				lbl_stats.setText(
+					f"📦  Total downloads: <b>{total:,}</b>"
+					f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+					f"Latest release{tag_str}: <b>{latest_count:,}</b>"
+				)
+				lbl_stats.setTextFormat(Qt.RichText)
+
+		sig.ready.connect(_apply)
+		self._fetch_release_stats(_on_stats)
+
+		dlg.exec()
 
 
 	def diagnose_file(self):
