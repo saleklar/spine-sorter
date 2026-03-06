@@ -3,8 +3,25 @@ from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+import os
+import re
+
+
+def get_app_version():
+    default_version = "5.73"
+    main_file = os.path.join(os.path.dirname(__file__), "spine sorter 257.py")
+    try:
+        with open(main_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        match = re.search(r'APP_VERSION\s*=\s*"([0-9]+(?:\.[0-9]+)*)"', content)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return default_version
 
 def create_pdf(filename):
+    app_version = get_app_version()
     doc = SimpleDocTemplate(filename, pagesize=landscape(letter))
     styles = getSampleStyleSheet()
     
@@ -61,7 +78,7 @@ def create_pdf(filename):
     # Content Data
     slides = [
         {
-            "title": "Spine Sorter v5.73",
+            "title": f"Spine Sorter v{app_version}",
             "subtitle": "The Animator's Survival Guide",
             "body": [
                 "<b>No more manual sorting. No more missing files.</b>",
@@ -70,7 +87,7 @@ def create_pdf(filename):
                 "It thinks like an engineer so you can work like an artist.",
                 "<br/>",
                 "<br/>",
-                "<b>WHAT'S NEW IN THIS EDITION (v5.73):</b>",
+                f"<b>WHAT'S NEW IN THIS EDITION (v{app_version}):</b>",
                 "• <b>Help Fixed:</b> Help button now works correctly in the distributed EXE — manual is bundled and always accessible.",
                 "• <b>Build Fixed:</b> Resolved GitHub Actions build failures caused by broken shell argument quoting."
             ],
@@ -178,7 +195,7 @@ def create_pdf(filename):
         {
             "title": "Changelog",
              "body": [
-                "<b>v5.73 (current):</b>",
+                f"<b>v{app_version} (current):</b>",
                 "• <b>Fix:</b> Help button now works in distributed EXE — manual is bundled via --add-data.",
                 "• <b>Fix:</b> GitHub Actions build failures resolved (broken shell quoting in PyInstaller step).",
                 "<br/>",
@@ -211,7 +228,7 @@ def create_pdf(filename):
         {
             "title": "All Features By Version",
             "body": [
-                "<b>v5.68 (current):</b>",
+                f"<b>v{app_version} (current):</b>",
                 "• Mac Support fix for version launcher",
                 "<br/>",
                 "<b>v5.67:</b>",
@@ -274,4 +291,6 @@ def create_pdf(filename):
     print(f"PDF generated: {filename}")
 
 if __name__ == "__main__":
-    create_pdf("Spine_Sorter_v5.73_Artist_Guide.pdf")
+    version = get_app_version()
+    create_pdf(f"Spine_Sorter_v{version}_Artist_Guide.pdf")
+    create_pdf("Spine_Sorter_Artist_Guide.pdf")
