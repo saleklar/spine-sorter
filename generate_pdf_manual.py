@@ -88,6 +88,7 @@ def create_pdf(filename):
                 "<br/>",
                 "<br/>",
                 f"<b>WHAT'S NEW IN THIS EDITION (v{app_version}):</b>",
+                "• <b>Dead Weight Detection:</b> The Tool now reports unused attachments that exist in your skins but lack any animation key or setup pose data.",
                 "• <b>Help Fixed:</b> Help button now works correctly in the distributed EXE — manual is bundled and always accessible.",
                 "• <b>Build Fixed:</b> Resolved GitHub Actions build failures caused by broken shell argument quoting."
             ],
@@ -100,7 +101,8 @@ def create_pdf(filename):
                 "<b>2. Safety Checks:</b> Finds files you forgot to export.",
                 "<b>3. Broken Link Detector:</b> Finds images that are missing from your computer.",
                 "<b>4. Animation Guardian:</b> Counts your animations to make sure none were left behind.",
-                "<b>5. Visibility Police:</b> Finds invisible or hidden slots that shouldn't be there."
+                "<b>5. Visibility Police:</b> Finds invisible or hidden slots that shouldn't be there.",
+                "<b>6. Dead Weight Detection:</b> Finds attachments that are never animated or used in setup."
             ]
         },
         {
@@ -196,6 +198,7 @@ def create_pdf(filename):
             "title": "Changelog",
              "body": [
                 f"<b>v{app_version} (current):</b>",
+                "• <b>New:</b> Unused attachment (dead weight) instances are now reported safely.",
                 "• <b>Fix:</b> Help button now works in distributed EXE — manual is bundled via --add-data.",
                 "• <b>Fix:</b> GitHub Actions build failures resolved (broken shell quoting in PyInstaller step).",
                 "<br/>",
@@ -229,6 +232,7 @@ def create_pdf(filename):
             "title": "All Features By Version",
             "body": [
                 f"<b>v{app_version} (current):</b>",
+                "• Added Unused Attachments check per slot/instance",
                 "• Mac Support fix for version launcher",
                 "<br/>",
                 "<b>v5.67:</b>",
