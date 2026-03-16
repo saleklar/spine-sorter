@@ -774,9 +774,9 @@ class MainWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setWindowTitle(f"Spine Sorter v{self.APP_VERSION}")
-		
-		# Check for updates immediately (if online)
-		self._check_version_lock()
+
+		# Run version lock check after initial UI paint to avoid startup appearing frozen/hidden
+		QTimer.singleShot(0, self._check_version_lock)
 
 		self._setup_icons()
 		self._setup_menu()
@@ -1597,7 +1597,7 @@ class MainWindow(QMainWindow):
 				
 				# Tolerance for float comparison issues
 				if master_ver > local_ver + 0.001:
-					msg = QMessageBox()
+					msg = QMessageBox(self)
 					msg.setIcon(QMessageBox.Critical)
 					msg.setWindowTitle("Update Required")
 					msg.setText(f"A new version ({master_version_str}) is published.\n")
@@ -2600,6 +2600,72 @@ class MainWindow(QMainWindow):
 					# Run collection immediately
 					collect_from_json(obj)
 					collect_keys(obj)
+					
+					# ================= NEW LOGIC: FIND UNUSED ATTACHMENTS =================
+					try:
+						# Gather all defined attachments by (slot, attachment)
+						defined_instances = set()
+						skins = obj.get('skins', [])
+						
+						# Standardize skins into a single format of slot -> attachment dicts
+						temp_skin_dicts = []
+						if isinstance(skins, dict):
+							for _, sdict in skins.items():
+								if isinstance(sdict, dict):
+									temp_skin_dicts.append(sdict)
+						elif isinstance(skins, list):
+							for item in skins:
+								if isinstance(item, dict):
+									if 'attachments' in item and isinstance(item.get('attachments'), dict):
+										temp_skin_dicts.append(item.get('attachments'))
+									else:
+										for k, v in item.items():
+											if k not in ('name', 'attachments') and isinstance(v, dict):
+												temp_skin_dicts.append(v)
+
+						for skin_dict in temp_skin_dicts:
+							for slot_name, slot_data in skin_dict.items():
+								if isinstance(slot_data, dict):
+									for att_name in slot_data.keys():
+										defined_instances.add((slot_name, att_name))
+						
+						# Gather setup pose attachments
+						setup_instances = set()
+						for slot in obj.get('slots', []):
+							if isinstance(slot, dict) and 'name' in slot and 'attachment' in slot and slot['attachment']:
+								setup_instances.add((slot['name'], slot['attachment']))
+						
+						# Gather attachments used in animations
+						anim_instances = set()
+						anims = obj.get('animations', {})
+						if isinstance(anims, dict):
+							for aname, aobj in anims.items():
+								if not isinstance(aobj, dict): continue
+								aslots = aobj.get('slots', {})
+								if isinstance(aslots, dict):
+									for sname, stimelines in aslots.items():
+										if isinstance(stimelines, dict) and 'attachment' in stimelines:
+											frames = stimelines['attachment']
+											if isinstance(frames, list):
+												for frame in frames:
+													if isinstance(frame, dict) and frame.get('name'):
+														anim_instances.add((sname, frame['name']))
+								adeform = aobj.get('deform', {})
+								if isinstance(adeform, dict):
+									for skin_name, skin_slots in adeform.items():
+										if isinstance(skin_slots, dict):
+											for slot_name, slot_atts in skin_slots.items():
+												if isinstance(slot_atts, dict):
+													for att_name in slot_atts.keys():
+														anim_instances.add((slot_name, att_name))
+						
+						# Calculate unused attachments
+						unused_instances = defined_instances - setup_instances - anim_instances
+						if unused_instances:
+							all_file_stats[-1]['unused_attachments'] = sorted([f"{att_name} (in slot: {slot_name})" for slot_name, att_name in unused_instances])
+					except Exception as e:
+						self.log_warning(f"Could not analyze unused attachments: {e}")
+					# =========================================================================
 
 
 					# -------------------------------------------------------------------------
@@ -7177,6 +7243,23 @@ class MainWindow(QMainWindow):
 				for skel in ref_off:
 					self.info_panel.append(f"<font color='#5599FF'>    - '{skel}' (REF skeleton, not exported)</font>")
 
+			# Report Unused Attachments (Defined in skins but NO animation key and NOT in setup pose)
+			if stats.get('unused_attachments'):
+				any_warnings = True
+				self.info_panel.append("<br>")
+				unused_atts = stats['unused_attachments']
+				n_unused = len(unused_atts)
+				self.info_panel.append(
+					f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> "
+					f"<span style='color:orange;'>{n_unused} attachments exist in skins but have NO animation keys and are NOT in the setup pose (they might be dead weight):</span>"
+				)
+				for i, u in enumerate(unused_atts):
+					if i < 10:
+						self.info_panel.append(f"<font color='orange'>    - {u}</font>")
+					else:
+						self.info_panel.append(f"<font color='orange'>    - ... and {n_unused - 10} more</font>")
+						break
+
 			# Report Unchecked Attachments (Explicit Spine Warnings)
 			if 'unchecked' in stats and stats['unchecked']:
 				any_warnings = True
@@ -7344,6 +7427,10 @@ class MainWindow(QMainWindow):
 					report_lines.append(f"Source Version: {stats.get('spine_version_source', 'Unknown')}")
 					report_lines.append(f"Processed with: {stats.get('spine_exe_used', 'Unknown')}")
 					
+					if stats.get('unused_attachments'):
+						report_lines.append("Unused attachments (no animation key):")
+						for u in stats.get('unused_attachments'):
+							report_lines.append(f" - {u}")
 					if stats.get('unchecked'):
 						report_lines.append("Unchecked attachments:")
 						for u in stats.get('unchecked'):
