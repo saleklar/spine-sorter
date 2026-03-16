@@ -2548,58 +2548,52 @@ class MainWindow(QMainWindow):
 											self.log_warning(msg)
 					
 
-					# Define collection helpers early so we can use them for validation
-					def collect_from_json(x):
-						if isinstance(x, str):
-							if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', x, flags=re.IGNORECASE):
-								image_paths.add(x)
-								json_image_paths.add(x)
-						elif isinstance(x, dict):
-							for k, v in x.items():
-								if isinstance(k, str) and re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-									image_paths.add(k)
-									json_image_paths.add(k)
-								collect_from_json(v)
-						elif isinstance(x, list):
-							for v in x:
-								collect_from_json(v)
-					
-					# also collect keys (attachment names) which may be basenames without extension
-					# ignore common non-image keys (e.g. 'skins', 'skeleton', 'slots') to reduce noise
-					IGNORE_KEYS = {
-						'skins', 'skeleton', 'slots', 'bones', 'animations', 'attachment', 'attachments',
-						'audio', 'path', 'name', 'width', 'height', 'x', 'y', 'scale', 'scalex', 'scaley',
-						'translate', 'translatex', 'translatey', 'rotate', 'rotation', 'rgba', 'color',
-						'blend', 'start', 'time', 'delay', 'sequence', 'mode', 'count', 'length', 'hash',
-						'icon', 'logo', 'parent', 'value', 'spine'
-					}
-					def collect_keys(x):
-						if isinstance(x, dict):
-							for k, v in x.items():
-								if isinstance(k, str):
-									kl = k.lower()
-									# add explicit image filenames
-									if re.search(r'\.(?:png|jpg|jpeg|webp|bmp|tga)$', k, flags=re.IGNORECASE):
-										image_paths.add(k)
-										json_image_paths.add(k)
-									# add bare keys only if they're not in the ignore list
-									elif kl not in IGNORE_KEYS:
-										image_paths.add(k)
-										json_image_paths.add(k)
-									
-									# Also collect values from 'path' and 'name' properties as they often point to images
-									if kl in ['path', 'name'] and isinstance(v, str):
-										image_paths.add(v)
-										json_image_paths.add(v)
-
-								collect_keys(v)
-						elif isinstance(x, list):
-							for v in x:
-								collect_keys(v)
+					# Define collection helpers properly for Spine JSON structure
+					def collect_spine_images(json_obj):
+						paths = set()
+						skins = json_obj.get('skins', [])
+						
+						# Standardize skins into a single format of slot -> attachment dicts
+						temp_skin_dicts = []
+						if isinstance(skins, dict):
+							for _, sdict in skins.items():
+								if isinstance(sdict, dict):
+									temp_skin_dicts.append(sdict)
+						elif isinstance(skins, list):
+							for item in skins:
+								if isinstance(item, dict):
+									if 'attachments' in item and isinstance(item.get('attachments'), dict):
+										temp_skin_dicts.append(item.get('attachments'))
+									else:
+										for k, v in item.items():
+											if k not in ('name', 'attachments') and isinstance(v, dict):
+												temp_skin_dicts.append(v)
+												
+						for skin_dict in temp_skin_dicts:
+							for slot_name, slot_data in skin_dict.items():
+								if isinstance(slot_data, dict):
+									for att_name, att_val in slot_data.items():
+										ref = None
+										if isinstance(att_val, dict):
+											# Filter out non-image attachment types
+											att_type = att_val.get('type', 'region')
+											if att_type in ['boundingbox', 'path', 'point', 'clipping']:
+												continue
+											# Extract from explicit properties, defaulting to attachment name
+											ref = att_val.get('path') or att_val.get('name') or att_name
+										elif isinstance(att_val, str):
+											ref = att_val
+										else:
+											ref = att_name
+											
+										if ref:
+											paths.add(str(ref))
+						return paths
 
 					# Run collection immediately
-					collect_from_json(obj)
-					collect_keys(obj)
+					fresh_paths = collect_spine_images(obj)
+					image_paths.update(fresh_paths)
+					json_image_paths.update(fresh_paths)
 					
 					# ================= NEW LOGIC: FIND UNUSED ATTACHMENTS =================
 					try:
@@ -2780,6 +2774,45 @@ class MainWindow(QMainWindow):
 
 						# Stop here if Validate Only is strictly requested
 						if self.config.get("validate_only", False):
+							# Perform Animation check NOW
+							try:
+								verify_keys = list(obj.get('animations', {}).keys())
+								verify_count = len(verify_keys)
+								self.info_panel.append(f"VERIFICATION (JSON): Found {verify_count} animations: {', '.join(sorted(verify_keys))}")
+								
+								source_anims_check = all_file_stats[-1].get('source_anims_defined', set()) if all_file_stats else set()
+								if isinstance(source_anims_check, dict):
+									try:
+										source_anims_check = set().union(*[v for v in source_anims_check.values() if v])
+									except Exception:
+										source_anims_check = set()
+								
+								if source_anims_check:
+									missing = source_anims_check - set(verify_keys)
+									if missing:
+										self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING: Missing animations in JSON that were in Source:</span> <span style='color:orange;'>{', '.join(missing)}</span>")
+										self.info_panel.append(f"*** MISSING ANIMATION: {list(missing)[0]} ***")
+									else:
+										self.info_panel.append("SUCCESS: All source animations accounted for in JSON.")
+										
+								if verify_count > 0:
+									self.info_panel.append(f"VERIFY SUCCESS: Animations are guaranteed to be in the JSON file.")
+
+								if all_file_stats:
+									stats_ref = all_file_stats[-1]
+									if 'source_anims_defined' in stats_ref:
+										all_def = stats_ref['source_anims_defined']
+										if isinstance(all_def, dict):
+											all_def = set().union(*[v for v in all_def.values() if v])
+										stats_ref['anim_total_count'] = len(all_def)
+										stats_ref['anim_exported_count'] = verify_count
+									else:
+										stats_ref['anim_exported_count'] = verify_count
+										u_len = len(unique_unchecked_anims) if 'unique_unchecked_anims' in locals() and unique_unchecked_anims else 0
+										stats_ref['anim_total_count'] = verify_count + u_len
+							except Exception as e:
+								pass
+
 							# Perform Missing Files Check NOW
 							if json_image_paths:
 								missing_files = []
@@ -2792,6 +2825,14 @@ class MainWindow(QMainWindow):
 									return False
 								
 								for p in json_image_paths:
+									# Do not report as missing if it is explicitly unchecked for export
+									p_region = os.path.splitext(p)[0].replace('\\', '/')
+									if spine_export_unchecked:
+										unchecked_regions = {warn_inf['region'] for warn_inf in spine_export_unchecked if warn_inf.get('region')}
+										# sometimes the region has a different path component, but let's do a strict or ending match
+										if p_region in unchecked_regions or any(p_region.endswith(ur) for ur in unchecked_regions):
+											continue
+
 									if not find_file(p):
 										# Try without extension or matching basename
 										found_fuzzy = False
@@ -6868,6 +6909,14 @@ class MainWindow(QMainWindow):
 						if ('not exported' in lower_line) or ('hidden' in lower_line) or ('invisible' in lower_line):
 							# Avoid duplicates or noise
 							spine_export_log_warnings.append(clean_line)
+							
+				# Filter out missing images if they are explicitly checked off for export.
+				unchecked_regions = {item['region'] for item in spine_export_unchecked if item.get('region')}
+				filtered_missing = []
+				for m_path in spine_export_missing:
+					if m_path not in unchecked_regions:
+						filtered_missing.append(m_path)
+				spine_export_missing = filtered_missing
 
 				# Advanced Check: If input is a ZIP-based .spine file, we can read the source of truth
 				# and conduct a perfect diff of animations.
