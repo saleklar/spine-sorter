@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.77] - 2026-03-18
+### Test
+- Version lock verification release — confirms v5.76 EXE correctly blocks on outdated version check.
+
 ## [v5.76] - 2026-03-18
 ### Fixed
 - **Version Lock (Critical):** The update check was silently skipped in PyInstaller EXEs due to SSL certificate errors (common on Windows/Mac when CA certs aren't bundled). The check now retries without SSL verification as a fallback, and blocks launch entirely if GitHub cannot be reached — preventing stale versions from running undetected.
