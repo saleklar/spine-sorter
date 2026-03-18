@@ -88,9 +88,9 @@ def create_pdf(filename):
                 "<br/>",
                 "<br/>",
                 f"<b>WHAT'S NEW IN THIS EDITION (v{app_version}):</b>",
-                "• <b>Dead Weight Detection:</b> The Tool now reports unused attachments that exist in your skins but lack any animation key or setup pose data.",
-                "• <b>Help Fixed:</b> Help button now works correctly in the distributed EXE — manual is bundled and always accessible.",
-                "• <b>Build Fixed:</b> Resolved GitHub Actions build failures caused by broken shell argument quoting."
+                "• <b>Version Lock Fixed:</b> The update check now works correctly in the distributed EXE — SSL certificate errors no longer silently bypass the version gate.",
+                "• <b>Auto Version Gatekeeper:</b> version.txt is now automatically updated on every release, ensuring outdated EXEs are always prompted to update.",
+                "• <b>Dead Weight Detection:</b> Reports unused attachments that exist in skins but lack any animation key or setup pose data.",
             ],
             "is_cover": True
         },
