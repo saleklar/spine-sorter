@@ -20,8 +20,11 @@ echo Detected version: %VERSION%  (will tag as %TAG%)
 echo.
 pause
 
+echo Updating version.txt gatekeeper to %VERSION%...
+echo %VERSION%> version.txt
+
 echo Committing...
-git add "spine sorter 257.py" "CHANGELOG.md" ".github/workflows/build.yml" "build_mac.sh"
+git add "spine sorter 257.py" "CHANGELOG.md" ".github/workflows/build.yml" "build_mac.sh" "version.txt"
 git commit -m "RELEASE: %TAG%"
 
 echo Creating tag %TAG%...
