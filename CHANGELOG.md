@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.76] - 2026-03-18
+### Fixed
+- **Version Lock (Critical):** The update check was silently skipped in PyInstaller EXEs due to SSL certificate errors (common on Windows/Mac when CA certs aren't bundled). The check now retries without SSL verification as a fallback, and blocks launch entirely if GitHub cannot be reached — preventing stale versions from running undetected.
+
+## [v5.75] - 2026-03-18
+### Fixed
+- **Version Gatekeeper:** `version.txt` is now automatically updated by `push_new_version.bat` on every release, ensuring users on outdated versions are always prompted to update.
+- **Version Lock:** Fixed a gap where versions 5.73 and 5.74 could launch without an update prompt because `version.txt` was never bumped after publishing.
+
+## [v5.74] - 2026-03-18
+### Changed
+- Internal version bump.
+
 ## [v5.73] - 2026-03-03
 ### Fixed
 - **Build:** Fixed GitHub Actions workflow — PDF manual is now generated fresh in CI and correctly bundled into the EXE via `--add-data`. Fixed broken `EXTRA` variable pattern that caused PyInstaller to receive malformed arguments.
