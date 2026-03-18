@@ -1,4 +1,4 @@
-# Spine Sorter v5.73
+# Spine Sorter v5.77
 
 **A smart automation tool for Spine 2D animation projects.**  
 Sorts images, detects missing files, validates animations, and ensures your exports are game-ready.
@@ -39,6 +39,18 @@ Click the **`?`** button in the app to open the full manual.
 ---
 
 ## Changelog
+
+### v5.77
+- Test: Version lock verification release
+
+### v5.76
+- Fixed: Version lock now works correctly in PyInstaller EXE — SSL cert errors no longer silently bypass the update check
+
+### v5.75
+- Fixed: Version gatekeeper now correctly blocks outdated versions — `version.txt` is auto-updated on every release via `push_new_version.bat`
+
+### v5.74
+- Internal version bump
 
 ### v5.73
 - Fixed: Help button now works in the distributed EXE — manual is bundled and always accessible

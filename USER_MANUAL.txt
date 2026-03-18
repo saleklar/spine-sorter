@@ -1,7 +1,19 @@
-SPINE SORTER v5.73 - ARTIST GUIDE
+SPINE SORTER v5.77 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.73)
+LATEST UPDATES (v5.77)
+----------------------------------------
+- Test: Version lock verification release — confirms v5.76 EXE correctly blocks on outdated version check.
+
+PREVIOUS UPDATES (v5.76)
+----------------------------------------
+- Fixed: Version lock now works correctly in distributed EXE. SSL certificate errors in PyInstaller builds no longer silently bypass the update check.
+
+PREVIOUS UPDATES (v5.75)
+----------------------------------------
+- Fixed: version.txt gatekeeper is now auto-updated on every release.
+
+PREVIOUS UPDATES (v5.73)
 ----------------------------------------
 - Fixed: Help button now works correctly in the distributed EXE. Manual PDF and USER_MANUAL.txt are now bundled inside the EXE and opened correctly using sys._MEIPASS.
 - Fixed: GitHub Actions build failures caused by broken shell argument quoting in the PyInstaller step.
