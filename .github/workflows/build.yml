@@ -33,7 +33,8 @@ jobs:
     - name: Copy PDF to fixed name
       shell: bash
       run: |
-        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | head -1)
+        # Sort by version number descending, pick the newest PDF
+        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | sort -t'v' -k2 -V | tail -1)
         if [ -n "$PDF" ]; then
           cp "$PDF" "Spine_Sorter_Artist_Guide.pdf"
           echo "Bundling: $PDF"
@@ -93,7 +94,8 @@ jobs:
     - name: Copy PDF to fixed name
       shell: bash
       run: |
-        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | head -1)
+        # Sort by version number descending, pick the newest PDF
+        PDF=$(ls Spine_Sorter_v*_Artist_Guide.pdf 2>/dev/null | sort -t'v' -k2 -V | tail -1)
         if [ -n "$PDF" ]; then
           cp "$PDF" "Spine_Sorter_Artist_Guide.pdf"
           echo "Bundling: $PDF"
