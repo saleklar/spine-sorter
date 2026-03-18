@@ -1582,41 +1582,66 @@ class MainWindow(QMainWindow):
 	def _check_version_lock(self):
 		"""
 		Checks the GitHub lock file to ensure the running version is current.
-		Blocks execution if local version is outdated compared to Published GitHub version.
+		Blocks execution if local version is outdated compared to published GitHub version.
 		"""
-		try:
-			import urllib.request
-			# Set a short timeout so we don't hang if GitHub is down/slow
-			with urllib.request.urlopen(self.MASTER_VERSION_URL, timeout=3) as response:
-				master_version_str = response.read().decode('utf-8').strip()
-			
-			# Parse simple floats for version comparison
+		import urllib.request
+		import ssl
+
+		master_version_str = None
+
+		# Try fetching version.txt — first with SSL verification, then without (handles
+		# missing CA certs in PyInstaller EXEs on Windows/Mac).
+		for verify_ssl in (True, False):
 			try:
-				local_ver = float(self.APP_VERSION)
-				master_ver = float(master_version_str)
-				
-				# Tolerance for float comparison issues
-				if master_ver > local_ver + 0.001:
-					msg = QMessageBox(self)
-					msg.setIcon(QMessageBox.Critical)
-					msg.setWindowTitle("Update Required")
-					msg.setText(f"A new version ({master_version_str}) is published.\n")
-					msg.setInformativeText(f"You are running version {self.APP_VERSION}. Access works only on the latest published version.\n\nPlease update from GitHub or your team lead.")
-					
-					# Add buttons
-					btn_download = msg.addButton("Download Update", QMessageBox.AcceptRole)
-					btn_exit = msg.addButton("Exit", QMessageBox.RejectRole)
-					
-					msg.exec()
-					
-					if msg.clickedButton() == btn_download:
-						QDesktopServices.openUrl(QUrl(self.DOWNLOAD_URL))
-					
-					sys.exit(0) # Terminate app immediately
-			except ValueError:
-				pass # Version strings might be complex
-		except Exception as e:
-			print(f"Online version check skipped: {e}")
+				ctx = ssl.create_default_context() if verify_ssl else ssl._create_unverified_context()
+				req = urllib.request.Request(self.MASTER_VERSION_URL, headers={"Cache-Control": "no-cache"})
+				with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+					master_version_str = response.read().decode('utf-8').strip()
+				break  # success
+			except Exception:
+				continue  # try without SSL verification next
+
+		if master_version_str is None:
+			# Could not reach GitHub at all — block launch to prevent running stale versions
+			msg = QMessageBox(self)
+			msg.setIcon(QMessageBox.Critical)
+			msg.setWindowTitle("Version Check Failed")
+			msg.setText("Could not verify your version with the server.")
+			msg.setInformativeText(
+				"Please check your internet connection and try again.\n\n"
+				"If this persists, download the latest version from GitHub."
+			)
+			btn_download = msg.addButton("Download Latest", QMessageBox.AcceptRole)
+			msg.addButton("Exit", QMessageBox.RejectRole)
+			msg.exec()
+			if msg.clickedButton() == btn_download:
+				QDesktopServices.openUrl(QUrl(self.DOWNLOAD_URL))
+			sys.exit(0)
+			return
+
+		try:
+			local_ver = float(self.APP_VERSION)
+			master_ver = float(master_version_str)
+
+			# Tolerance for float comparison issues
+			if master_ver > local_ver + 0.001:
+				msg = QMessageBox(self)
+				msg.setIcon(QMessageBox.Critical)
+				msg.setWindowTitle("Update Required")
+				msg.setText(f"A new version ({master_version_str}) is available.\n")
+				msg.setInformativeText(
+					f"You are running version {self.APP_VERSION}. "
+					f"Access works only on the latest published version.\n\n"
+					f"Please update from GitHub or your team lead."
+				)
+				btn_download = msg.addButton("Download Update", QMessageBox.AcceptRole)
+				msg.addButton("Exit", QMessageBox.RejectRole)
+				msg.exec()
+				if msg.clickedButton() == btn_download:
+					QDesktopServices.openUrl(QUrl(self.DOWNLOAD_URL))
+				sys.exit(0)  # Terminate app immediately
+		except ValueError:
+			pass  # Non-float version strings — skip check
 
 	def _setup_icons(self):
 		# Create icons for different states
