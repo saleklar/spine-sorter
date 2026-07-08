@@ -8,7 +8,7 @@ import re
 
 
 def get_app_version():
-    default_version = "5.78"
+    default_version = "5.79"
     main_file = os.path.join(os.path.dirname(__file__), "spine sorter 257.py")
     try:
         with open(main_file, "r", encoding="utf-8") as f:

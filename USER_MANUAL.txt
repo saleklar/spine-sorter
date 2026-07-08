@@ -1,7 +1,11 @@
-SPINE SORTER v5.78 - ARTIST GUIDE
+SPINE SORTER v5.79 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.78)
+LATEST UPDATES (v5.79)
+----------------------------------------
+- Changed: "Fix attachment names" option is now enabled by default.
+
+PREVIOUS UPDATES (v5.78)
 ----------------------------------------
 - New: "Fix attachment names" option in Settings. Renames attachments whose names differ from their image paths so the name exactly matches the path (prevents runtime issues in game engines). Works for regions, meshes AND sequences. All references (setup pose, animation timelines, deforms, sequence timelines, linked-mesh parents) are updated automatically. Unsafe renames (conflicts/ambiguity) are skipped with a warning.
 - Fixed: Crash during similar-image consolidation (internal error) that could abort processing.
