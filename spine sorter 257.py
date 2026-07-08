@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.77"
+	APP_VERSION = "5.78"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -930,6 +930,17 @@ class MainWindow(QMainWindow):
 		threshold_layout.addWidget(alpha_label)
 		threshold_layout.addWidget(self.alpha_cutoff_spin)
 		threshold_layout.addWidget(reset_btn)
+		
+		# Fix attachment names option (rename attachments to match their image paths)
+		self.fix_attachment_names_cb = QCheckBox("Fix attachment names (rename to match image path)")
+		self.fix_attachment_names_cb.setToolTip(
+			"If checked, attachments whose names differ from their image paths will be renamed\n"
+			"so the attachment name exactly matches the path (prevents runtime issues in games).\n"
+			"All references (slot defaults, animation timelines, deforms, linked meshes) are updated automatically."
+		)
+		self.fix_attachment_names_cb.setChecked(bool(self.config.get("fix_attachment_names", False)))
+		self.fix_attachment_names_cb.stateChanged.connect(lambda v: self._save_fix_attachment_names_config(v))
+		settings_layout.addWidget(self.fix_attachment_names_cb)
 		
 		# Dev options container
 		self.dev_options_cb = QCheckBox("Dev options")
@@ -1964,6 +1975,166 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
+	def _save_fix_attachment_names_config(self, v):
+		try:
+			self.config["fix_attachment_names"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _fix_attachment_names_to_paths(self, j):
+		"""
+		Renames attachments so that the attachment name equals its image path.
+		Updates all references: skin attachment keys, slot default attachments,
+		animation attachment timelines, deform/ffd timelines and linked mesh parents.
+		Returns the number of renamed attachments.
+		"""
+		skins = j.get('skins')
+		if not skins:
+			return 0
+
+		renameable_types = ('region', 'mesh', 'linkedmesh')
+
+		def iter_slot_dicts():
+			"""Yields (slot_name, attachments_dict) for every skin, handling both 3.x and 4.x JSON formats."""
+			if isinstance(skins, dict):
+				# 3.x format: {skinName: {slot: {att: data}}}
+				for skin_val in skins.values():
+					if isinstance(skin_val, dict):
+						for slot_name, atts in skin_val.items():
+							if isinstance(atts, dict):
+								yield slot_name, atts
+			elif isinstance(skins, list):
+				# 4.x format: [{name:..., attachments: {slot: {att: data}}}] or [{skinName: {...}}]
+				for item in skins:
+					if not isinstance(item, dict):
+						continue
+					if isinstance(item.get('attachments'), dict):
+						for slot_name, atts in item['attachments'].items():
+							if isinstance(atts, dict):
+								yield slot_name, atts
+					else:
+						for k, v in item.items():
+							if k == 'name' or not isinstance(v, dict):
+								continue
+							for slot_name, atts in v.items():
+								if isinstance(atts, dict):
+									yield slot_name, atts
+
+		# --- Pass 1: collect renames per (slot, old_name) -> new_name ---
+		renames = {}
+		conflicts = set()
+		for slot_name, atts in iter_slot_dicts():
+			for att_name, att_data in atts.items():
+				if not isinstance(att_data, dict):
+					continue
+				if str(att_data.get('type', 'region')).lower() not in renameable_types:
+					continue
+				# Note: sequence attachments are supported too — their 'path' is the
+				# frame prefix (e.g. 'folder/coin_'), and renaming the attachment to it
+				# is valid as long as all timeline references are updated (done below).
+				path = att_data.get('path')
+				if not path or path == att_name:
+					continue
+				key = (slot_name, str(att_name))
+				if key in renames and renames[key] != path:
+					conflicts.add(key)
+				else:
+					renames[key] = path
+
+		# Drop ambiguous renames (same attachment name maps to different paths across skins)
+		for key in conflicts:
+			renames.pop(key, None)
+			self.log_warning(f"Attachment name fix: skipping '{key[1]}' in slot '{key[0]}' (different paths across skins).")
+
+		# Drop renames whose target name collides with an existing different attachment in the same slot
+		for slot_name, atts in iter_slot_dicts():
+			for att_name in list(atts.keys()):
+				key = (slot_name, str(att_name))
+				new_name = renames.get(key)
+				if new_name and new_name != att_name and new_name in atts:
+					renames.pop(key, None)
+					self.log_warning(f"Attachment name fix: skipping '{att_name}' in slot '{slot_name}' (an attachment named '{new_name}' already exists).")
+
+		if not renames:
+			return 0
+
+		renamed_count = 0
+
+		# --- Pass 2: apply renames inside skins (rebuild dicts preserving key order) ---
+		for slot_name, atts in iter_slot_dicts():
+			changed = False
+			new_atts = {}
+			for att_name, att_data in atts.items():
+				# Fix linked mesh parent references first
+				if isinstance(att_data, dict) and str(att_data.get('type', '')).lower() == 'linkedmesh':
+					parent = att_data.get('parent')
+					if parent and (slot_name, str(parent)) in renames:
+						att_data['parent'] = renames[(slot_name, str(parent))]
+				key = (slot_name, str(att_name))
+				new_name = renames.get(key)
+				if new_name and new_name != att_name and isinstance(att_data, dict):
+					# Name now matches the path, so the redundant 'path' key can be dropped
+					att_data.pop('path', None)
+					new_atts[new_name] = att_data
+					renamed_count += 1
+					changed = True
+				else:
+					new_atts[att_name] = att_data
+			if changed:
+				atts.clear()
+				atts.update(new_atts)
+
+		# --- Update slot default attachments (setup pose) ---
+		for slot in j.get('slots', []) or []:
+			if isinstance(slot, dict) and slot.get('attachment'):
+				key = (slot.get('name'), str(slot['attachment']))
+				if key in renames:
+					slot['attachment'] = renames[key]
+
+		# --- Update animations (attachment timelines + deform/ffd timelines) ---
+		anims = j.get('animations', {})
+		if isinstance(anims, dict):
+			for anim_data in anims.values():
+				if not isinstance(anim_data, dict):
+					continue
+				# Attachment swap timelines
+				a_slots = anim_data.get('slots', {})
+				if isinstance(a_slots, dict):
+					for slot_name, stimelines in a_slots.items():
+						if isinstance(stimelines, dict) and isinstance(stimelines.get('attachment'), list):
+							for frame in stimelines['attachment']:
+								if isinstance(frame, dict) and frame.get('name'):
+									key = (slot_name, str(frame['name']))
+									if key in renames:
+										frame['name'] = renames[key]
+				# Deform / FFD / Sequence timelines (attachment names are dict keys)
+				# 3.x uses 'deform'/'ffd'; 4.x uses 'attachments' ({skin: {slot: {attachment: timelines}}})
+				for deform_key in ('deform', 'ffd', 'attachments'):
+					adeform = anim_data.get(deform_key, {})
+					if not isinstance(adeform, dict):
+						continue
+					for skin_name, skin_slots in adeform.items():
+						if not isinstance(skin_slots, dict):
+							continue
+						for slot_name, slot_atts in skin_slots.items():
+							if not isinstance(slot_atts, dict):
+								continue
+							new_slot_atts = {}
+							d_changed = False
+							for att_name, timeline in slot_atts.items():
+								key = (slot_name, str(att_name))
+								if key in renames:
+									new_slot_atts[renames[key]] = timeline
+									d_changed = True
+								else:
+									new_slot_atts[att_name] = timeline
+							if d_changed:
+								slot_atts.clear()
+								slot_atts.update(new_slot_atts)
+
+		return renamed_count
+
 	def _save_validate_only_config(self, v):
 		try:
 			self.config["validate_only"] = bool(v)
@@ -2542,6 +2713,11 @@ class MainWindow(QMainWindow):
 						for slot in obj['slots']:
 							s_name = slot.get('name', 'unknown')
 							
+							# Check if slot uses Multiply blend mode (unsupported in games)
+							if slot.get('blend', 'normal').lower() == 'multiply':
+								msg_blend = f"Slot '{s_name}' uses MULTIPLY blend mode"
+								all_file_stats[-1].setdefault('multiply_blend_slots', []).append(msg_blend)
+							
 							# Check if slot is explicitly hidden (visible: false)
 							if 'visible' in slot and slot['visible'] is False:
 								att_str = f" (attachment: {slot['attachment']})" if slot.get('attachment') else " (empty)"
@@ -2794,7 +2970,19 @@ class MainWindow(QMainWindow):
 								else:
 									self.info_panel.append(f"<font color='#CD5C5C'>    - ... and {n_hidden - 10} more</font>")
 									break
-									
+
+						# Report Multiply Blend Mode (Warning)
+						if 'multiply_blend_slots' in stats and stats['multiply_blend_slots']:
+							self.info_panel.append("<br>")
+							n_blend = len(stats['multiply_blend_slots'])
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode (not supported in game):</span>")
+							for i, msg in enumerate(stats['multiply_blend_slots']):
+								if i < 15:
+									self.info_panel.append(f"<font color='#FF8C00'>    - {msg}</font>")
+								else:
+									self.info_panel.append(f"<font color='#FF8C00'>    - ... and {n_blend - 15} more</font>")
+									break
+
 						QApplication.processEvents()
 
 						# Stop here if Validate Only is strictly requested
@@ -3018,7 +3206,14 @@ class MainWindow(QMainWindow):
 		# Resolve image paths to filesystem paths relative to the temporary result_dir, folder, or input folder
 		resolved = set()
 		# directories to search (priority order)
-		search_dirs = [result_dir, folder, os.path.dirname(input_path)]
+		# Also include 'images/' subdirectories since Spine projects typically store images there
+		_base_dirs = [result_dir, folder, os.path.dirname(input_path)]
+		search_dirs = list(dict.fromkeys(d for d in _base_dirs if d))  # deduplicate, preserve order
+		# Add images/ subdirs explicitly (direct path lookups will also try these via the loop below)
+		for _d in list(search_dirs):
+			_img_sub = os.path.join(_d, 'images')
+			if os.path.isdir(_img_sub) and _img_sub not in search_dirs:
+				search_dirs.append(_img_sub)
 		
 		# Pre-scan for exact filename matches to avoid aggressive collection
 		# Map basename_lower -> list of full absolute paths
@@ -3050,20 +3245,23 @@ class MainWindow(QMainWindow):
 				continue
 			
 			# 2. Direct lookup (Exact path relative to search dirs)
+			# Also check under an 'images/' subdirectory, which is a common Spine project layout
+			# e.g. attachment 'all_symbols/jpeg/h5_bg' → project/images/all_symbols/jpeg/h5_bg.png
 			found = None
 			for d in search_dirs:
-				candidate = os.path.join(d, ip_clean)
-				if os.path.isfile(candidate):
-					found = candidate
-					break
-				# Try adding extension if missing
-				if not found:
+				for base_d in [d, os.path.join(d, 'images')]:
+					candidate = os.path.join(base_d, ip_clean)
+					if os.path.isfile(candidate):
+						found = candidate
+						break
+					# Try adding extension if missing
 					for ext in ['.png', '.jpg', '.jpeg']:
 						c_ext = candidate + ext
 						if os.path.isfile(c_ext):
 							found = c_ext
 							break
 					if found: break
+				if found: break
 			
 			if found:
 				resolved.add(os.path.normcase(os.path.abspath(found)))
@@ -3950,7 +4148,7 @@ class MainWindow(QMainWindow):
 					if all_file_stats: all_file_stats[-1]['duplicate_image_groups'] = duplicate_groups # Save for report
 
 			if near_duplicate_groups:
-				self.info_panel.append(f"<span style='color:#4CAF50; font-weight:bold;'>Consolidating {len(near_duplicate_groups)} similar-image group(s) ({similarity_mode.title()} mode)...</span>")
+				self.info_panel.append(f"<span style='color:#4CAF50; font-weight:bold;'>Consolidating {len(near_duplicate_groups)} similar-image group(s) (Confidence {int(conf_val)}%)...</span>")
 				count = 0
 				for group in near_duplicate_groups:
 					if count < 3:
@@ -3978,7 +4176,7 @@ class MainWindow(QMainWindow):
 					f.write(f"CONSOLIDATION DEBUG REPORT FOR: {name}\n")
 					f.write("=" * 80 + "\n\n")
 					
-					f.write(f"THRESHOLD SETTINGS (Mode: {similarity_mode.title()}):\n")
+					f.write(f"THRESHOLD SETTINGS (Confidence: {int(conf_val)}%):\n")
 					f.write(f"  alpha_diff: {th['alpha_diff']}\n")
 					f.write(f"  d_max: {th['d_max']}\n")
 					f.write(f"  a_max: {th['a_max']}\n")
@@ -4060,6 +4258,108 @@ class MainWindow(QMainWindow):
 				except Exception:
 					pass
 
+			# Check required slots for specific skeleton types
+			# Rule: if the spine file is named "win_events" (or contains "win_event"), it MUST have a slot named "coins"
+			try:
+				slot_names_set = {s.get('name', '') for s in slots if isinstance(s, dict)}
+				spine_stem = os.path.splitext(os.path.basename(input_path))[0].lower().replace(' ', '_')
+				if 'win_event' in spine_stem:
+					if 'coins' not in slot_names_set:
+						naming_violations.append({
+							'file': input_path,
+							'basename': '[REQUIRED SLOT MISSING]',
+							'reasons': ["win_events skeleton must contain a slot named 'coins' — none found"]
+						})
+			except Exception:
+				pass
+
+			# Check popup animations require container slots (text/number/value) with tiny placeholder attachments
+			# Rule: if any animation name contains "total_win_pop_up" or "free_spins_pop_up", the skeleton must
+			# have slots named "text", "number", or "value". Those slots should hold a small transparent placeholder
+			# attachment (~1,599 bytes). If an attachment in those slots is larger, warn that it has unexpected content.
+			try:
+				POPUP_ANIM_TRIGGERS = ('total_win_pop_up', 'free_spins_pop_up')
+				PLACEHOLDER_MAX_BYTES = 1650  # 1,599 bytes + small tolerance
+				CONTAINER_SLOTS = ('text', 'number', 'value')
+
+				anim_names_list = list(j.get('animations', {}).keys()) if isinstance(j.get('animations', {}), dict) else []
+				has_popup_anim = any(trigger in a.lower() for trigger in POPUP_ANIM_TRIGGERS for a in anim_names_list)
+
+				if has_popup_anim:
+					slot_names_lower = {s.get('name', '').lower() for s in slots if isinstance(s, dict)}
+					# Check required container slots exist
+					for cs in CONTAINER_SLOTS:
+						if cs not in slot_names_lower:
+							naming_violations.append({
+								'file': input_path,
+								'basename': '[REQUIRED SLOT MISSING]',
+								'reasons': [f"popup animation found (total_win_pop_up / free_spins_pop_up) but no '{cs}' slot — a placeholder text/number/value container slot is expected"]
+							})
+
+					# Check attachment file sizes for those container slots
+					spine_root = os.path.dirname(input_path)
+					images_rel = j.get('skeleton', {}).get('images', './images/') if isinstance(j.get('skeleton'), dict) else './images/'
+					images_root = os.path.normpath(os.path.join(spine_root, images_rel.rstrip('/\\')))
+
+					def _get_popup_slot_attachments(j_data, target_slots_set):
+						"""Return {slot_lower: set_of_att_paths} for container slots from all skins."""
+						result = {}
+						def _walk_skin(skin_node):
+							if not isinstance(skin_node, dict):
+								return
+							for sname, satts in skin_node.items():
+								if sname.lower() not in target_slots_set:
+									continue
+								if not isinstance(satts, dict):
+									continue
+								for att_name, att_data in satts.items():
+									p = None
+									if isinstance(att_data, dict):
+										p = att_data.get('path') or att_name
+									else:
+										p = att_name
+									if p:
+										key = sname.lower()
+										if key not in result:
+											result[key] = set()
+										result[key].add(p)
+						skins_data = j_data.get('skins', [])
+						if isinstance(skins_data, dict):
+							_walk_skin(skins_data)
+						elif isinstance(skins_data, list):
+							for sk in skins_data:
+								if isinstance(sk, dict):
+									if 'attachments' in sk:
+										_walk_skin(sk['attachments'])
+									else:
+										for k, v in sk.items():
+											if isinstance(v, dict):
+												_walk_skin(v)
+						return result
+
+					att_map = _get_popup_slot_attachments(j, set(CONTAINER_SLOTS))
+					for slot_n, att_paths in att_map.items():
+						for att_path in att_paths:
+							has_ext = bool(os.path.splitext(att_path)[1])
+							ext_candidates = [''] if has_ext else ['.png', '.jpg', '.jpeg']
+							for ext in ext_candidates:
+								candidate = os.path.normpath(os.path.join(images_root, att_path + ext))
+								if os.path.isfile(candidate):
+									sz = os.path.getsize(candidate)
+									if sz > PLACEHOLDER_MAX_BYTES:
+										naming_violations.append({
+											'file': input_path,
+											'basename': '[OVERSIZED PLACEHOLDER]',
+											'reasons': [
+												f"slot '{slot_n}' attachment '{os.path.basename(att_path)}' is {sz:,} bytes "
+												f"— expected a small transparent placeholder (~1,599 bytes). "
+												f"The slot may contain artwork that should not be embedded."
+											]
+										})
+									break
+			except Exception:
+				pass
+
 			# Check skeleton object fields for whitespace/typos
 			skel = j.get('skeleton') if isinstance(j.get('skeleton'), dict) else None
 			if skel:
@@ -4091,7 +4391,10 @@ class MainWindow(QMainWindow):
 					tc = self.info_panel.textCursor()
 					tc.movePosition(QTextCursor.End)
 					self.info_panel.setTextCursor(tc)
-					self.info_panel.insertHtml(f"<span style='color:#32CD32'> - {v['basename']}: {', '.join(v['reasons'])}</span><br/>")
+					# Use different colors for quality warnings
+					is_quality_warning = '[QUALITY WARNING]' in v['basename'] or '[REQUIRED SLOT MISSING]' in v['basename'] or '[MASKS IN IDLE]' in v['basename']
+					color = '#FFB81C' if is_quality_warning else '#32CD32'  # Gold for quality warnings, lime for naming violations
+					self.info_panel.insertHtml(f"<span style='color:{color}'> - {v['basename']}: {', '.join(v['reasons'])}</span><br/>")
 				if all_file_stats:
 					all_file_stats[-1]['naming_violations'] = naming_violations
 
@@ -4124,10 +4427,242 @@ class MainWindow(QMainWindow):
 						naming_violations.append({'file': input_path, 'basename': a, 'reasons': anim_reasons})
 			except Exception:
 				pass
+			
+			# === NEW: Mesh and Mask Validation ===
+			try:
+				mesh_warnings = []
+				deform_warnings = []
+				mask_warnings = []
+				
+				# Initialize all statistics variables FIRST
+				bones_count = len(j.get('bones', []))
+				slots_count = len(j.get('slots', []))
+				animations_dict = j.get('animations', {})
+				animations_count = len(animations_dict) if isinstance(animations_dict, dict) else 0
+				ik_constraints = len(j.get('ik', []))
+				transform_constraints = len(j.get('transform', []))
+				path_constraints = len(j.get('path', []))
+				physics_constraints = len(j.get('physics', []))
+				total_constraints = ik_constraints + transform_constraints + path_constraints + physics_constraints
+				total_attachments = 0
+				total_vertices = 0
+				vertex_animation_count = 0
+				
+				# 1. Detect mesh attachments and count them
+				mesh_count = 0
+				skins_data = j.get('skins', [])
+				if isinstance(skins_data, dict):
+					skins_data = [skins_data]
+				
+				idle_anims = set()  # Track animations that appear idle-like
+				ambient_anims = set()  # Track ambient animations
+				
+				# Find idle and ambient animations
+				anim_names = list(j.get('animations', {}).keys()) if isinstance(j.get('animations', {}), dict) else []
+				for anim in anim_names:
+					anim_lower = anim.lower()
+					if 'idle' in anim_lower or 'loop' in anim_lower:
+						idle_anims.add(anim)
+					if 'ambient' in anim_lower:
+						ambient_anims.add(anim)
+				
+				# Walk through skins to count meshes
+				def count_meshes_and_masks(skin_node):
+					mesh_cnt = 0
+					mask_find = []
+					if not isinstance(skin_node, dict):
+						return mesh_cnt, mask_find
+					# skin_node is slot_name -> attachments
+					for slot_name, attachments in skin_node.items():
+						if not isinstance(attachments, dict):
+							continue
+						for attach_name, attach_data in attachments.items():
+							if not isinstance(attach_data, dict):
+								continue
+							# Mesh detection: type is "mesh" or presence of "vertices" key
+							attach_type = attach_data.get('type')
+							has_vertices = 'vertices' in attach_data
+							has_uvs = 'uvs' in attach_data
+							has_triangles = 'triangles' in attach_data
+							
+							if attach_type == 'mesh' or (has_vertices and has_uvs and has_triangles):
+								mesh_cnt += 1
+							
+							# Mask detection: type is "clipping" or "linkedMesh"
+							if attach_type == 'clipping':
+								mask_find.append((slot_name, attach_name))
+							elif attach_type == 'linkedMesh':
+								# linkedMesh under a mask slot might indicate masking usage
+								if 'mask' in slot_name.lower() or 'clipping' in slot_name.lower():
+									mask_find.append((slot_name, attach_name))
+					return mesh_cnt, mask_find
+				
+				all_masks = []
+				if isinstance(skins_data, list):
+					for s in skins_data:
+						if isinstance(s, dict):
+							if 'attachments' in s:
+								m_cnt, m_finds = count_meshes_and_masks(s['attachments'])
+								mesh_count += m_cnt
+								all_masks.extend(m_finds)
+							else:
+								# Or a map of skins {skinName: {...}}
+								for k, v in s.items():
+									if isinstance(v, dict):
+										m_cnt, m_finds = count_meshes_and_masks(v)
+										mesh_count += m_cnt
+										all_masks.extend(m_finds)
+				
+				# 2. Detect animated meshes (deform timelines = vertex animation)
+				animations_obj = j.get('animations', {})
+				if isinstance(animations_obj, dict):
+					for anim_name, anim_data in animations_obj.items():
+						if not isinstance(anim_data, dict):
+							continue
+						
+						deforms = anim_data.get('deform', {})
+						if isinstance(deforms, dict) and deforms:
+							# Check if animation has vertex deformation
+							has_deform = False
+							for skin_name, skin_deforms in deforms.items():
+								if isinstance(skin_deforms, dict) and skin_deforms:
+									has_deform = True
+									break
+							
+							if has_deform:
+								deform_warnings.append(f"Animation '{anim_name}' has vertex deformation (animated meshes)")
+				
+				# 3. Check for masks in idle/ambient animations
+				if all_masks:
+					if idle_anims or ambient_anims:
+						problem_anims = idle_anims.union(ambient_anims)
+						mask_warnings.append(f"Found masks/clipping in skeleton while idle/ambient animations present ({len(problem_anims)} animations). Masks in idle/ambient are not recommended for performance.")
+				
+				# 4. Mesh complexity warning
+				if mesh_count > 15:
+					mesh_warnings.append(f"High mesh complexity: {mesh_count} meshes detected. Keep meshes simple for performance.")
+				elif mesh_count > 5:
+					mesh_warnings.append(f"Moderate mesh complexity: {mesh_count} meshes. Simplify if possible.")
+				
+				# 5. Count attachments and vertices
+				for skin in skins_data:
+					if isinstance(skin, dict):
+						if 'attachments' in skin and isinstance(skin['attachments'], dict):
+							att_dict = skin['attachments']
+						else:
+							att_dict = skin
+						
+						for slot_name, attachments in att_dict.items():
+							if isinstance(attachments, dict):
+								total_attachments += len(attachments)
+								for att_name, att_data in attachments.items():
+									if isinstance(att_data, dict):
+										if 'vertices' in att_data:
+											vertices_list = att_data.get('vertices', [])
+											if vertices_list:
+												# Vertices is an array of floats (x, y pairs)
+												total_vertices += len(vertices_list) // 2
+				
+				# 6. Count vertex animations in deform timelines
+				if isinstance(animations_dict, dict):
+					for anim_name, anim_data in animations_dict.items():
+						if isinstance(anim_data, dict):
+							deforms = anim_data.get('deform', {})
+							if isinstance(deforms, dict) and deforms:
+								vertex_animation_count += 1
+				
+				# 7. Store all statistics in skeleton_stats
+				if all_file_stats:
+					all_file_stats[-1]['spine_statistics'] = {
+						'bones': bones_count,
+						'slots': slots_count,
+						'animations': animations_count,
+						'attachments': total_attachments,
+						'vertices': total_vertices,
+						'meshes': mesh_count,
+						'constraints': {
+							'ik': ik_constraints,
+							'transform': transform_constraints,
+							'path': path_constraints,
+							'physics': physics_constraints,
+							'total': total_constraints
+						},
+						'vertex_animations': vertex_animation_count
+					}
+				
+				
+				# Report findings
+				quality_issues = []
+				if mesh_warnings:
+					quality_issues.extend(mesh_warnings)
+				if deform_warnings:
+					quality_issues.extend(deform_warnings)
+				if mask_warnings:
+					quality_issues.extend(mask_warnings)
+				
+				if quality_issues:
+					if all_file_stats:
+						all_file_stats[-1]['quality_issues'] = quality_issues
+					# Also append to naming violations for visibility in report (with special marker)
+					for issue in quality_issues:
+						naming_violations.append({
+							'file': input_path,
+							'basename': '[QUALITY WARNING]',
+							'reasons': [issue]
+						})
+			
+			except Exception as e:
+				self.info_panel.append(f"Mesh/mask analysis warning: {e}")
+		
 		except Exception as e:
 			self.info_panel.append(f"Naming check failed: {e}")
-		
-		# Progress update: Resolution done
+			try:
+				if all_file_stats and isinstance(j, dict):
+					fallback_meshes = 0
+					fallback_attachments = 0
+					fallback_vertices = 0
+					fallback_animations = j.get('animations', {}) if isinstance(j.get('animations', {}), dict) else {}
+					skins_data = j.get('skins', [])
+					if isinstance(skins_data, dict):
+						skins_data = [skins_data]
+					for skin in skins_data if isinstance(skins_data, list) else []:
+						if not isinstance(skin, dict):
+							continue
+						att_dict = skin.get('attachments', skin) if isinstance(skin.get('attachments', skin), dict) else {}
+						for _, attachments in att_dict.items():
+							if not isinstance(attachments, dict):
+								continue
+							fallback_attachments += len(attachments)
+							for _, att_data in attachments.items():
+								if not isinstance(att_data, dict):
+									continue
+								att_type = att_data.get('type')
+								if att_type == 'mesh' or ('vertices' in att_data and 'uvs' in att_data and 'triangles' in att_data):
+									fallback_meshes += 1
+								if 'vertices' in att_data and isinstance(att_data.get('vertices'), list):
+									fallback_vertices += len(att_data.get('vertices', [])) // 2
+					fallback_vertex_anims = 0
+					for _, anim_data in fallback_animations.items():
+						if isinstance(anim_data, dict) and isinstance(anim_data.get('deform', {}), dict) and anim_data.get('deform'):
+							fallback_vertex_anims += 1
+					all_file_stats[-1]['spine_statistics'] = {
+						'bones': len(j.get('bones', [])),
+						'slots': len(j.get('slots', [])),
+						'animations': len(fallback_animations),
+						'attachments': fallback_attachments,
+						'vertices': fallback_vertices,
+						'meshes': fallback_meshes,
+						'constraints': {
+							'ik': len(j.get('ik', [])),
+							'transform': len(j.get('transform', [])),
+							'path': len(j.get('path', [])),
+							'physics': len(j.get('physics', [])),
+							'total': len(j.get('ik', [])) + len(j.get('transform', [])) + len(j.get('path', [])) + len(j.get('physics', []))
+						},
+						'vertex_animations': fallback_vertex_anims
+					}
+			except Exception as fallback_err:
+				self.info_panel.append(f"Spine statistics fallback failed: {fallback_err}")
 		self.progress_bar.setValue(base_progress + 20)
 		QApplication.processEvents()
 
@@ -4312,7 +4847,10 @@ class MainWindow(QMainWindow):
 											all_skin_names.add(k)
 
 				# skeleton name
+				# Spine CLI always names the exported JSON after the skeleton (not the .spine file).
+				# So the JSON filename IS the skeleton name — use it as the primary source.
 				internal_skeleton_name = os.path.splitext(os.path.basename(found_json))[0]
+				# Fallback only: .spine file basename (used only if found_json name is not available)
 				skeleton_name = os.path.splitext(os.path.basename(input_path))[0]
 
 				# build slot blend map
@@ -4323,12 +4861,12 @@ class MainWindow(QMainWindow):
 				# prepare final output image folders under the chosen output root
 				# structure: <output_root>/images/<skeleton>/{jpeg,png}
 				output_root = base_output_root
-				# Prefer the skeleton name embedded in the exported JSON (internal_skeleton_name).
-				# Fall back to the project/spine filename (`skeleton_name`) if the JSON name isn't available.
+				# Always use the skeleton name (from exported JSON filename = Spine skeleton name).
+				# Fall back to .spine filename only if JSON name is somehow unavailable.
 				final_skeleton_dir = internal_skeleton_name or skeleton_name
 				
 				# Debug: Log the skeleton naming decision
-				self.info_panel.append(f"Skeleton Folder Name Decision: JSON='{internal_skeleton_name}' Project='{skeleton_name}' -> Final='{final_skeleton_dir}'")
+				self.info_panel.append(f"Skeleton Folder Name Decision: JSON='{internal_skeleton_name}' SpineFile='{skeleton_name}' -> Final='{final_skeleton_dir}'")
 				
 				images_root = os.path.join(output_root, 'images', final_skeleton_dir)
 				jpeg_dir = os.path.join(images_root, 'jpeg')
@@ -4355,6 +4893,8 @@ class MainWindow(QMainWindow):
 								continue
 
 							if d not in ['jpeg', 'png', 'images', 'skeleton', 'root', 'common', 'assets', 'source', 'reference']:
+								if d.startswith('all_'):
+									continue  # shared asset folder convention — never skin-owned
 								if d not in folder_owners: folder_owners[d] = set()
 								folder_owners[d].add(skin_name)
 
@@ -4471,11 +5011,10 @@ class MainWindow(QMainWindow):
 											# If owned by us, always keep
 											if skin_name and skin_name in owners:
 												continue
-											# If we are here, it is owned by others but NOT us and NOT default
-											# So it belongs to another skin exclusively -> Exclude
-											# Debug log exclusion
-											# try: self.info_panel.append(f"Excluding '{c}' for skin '{skin_name}' because folder '{p}' is owned by {owners}")
-											# except: pass
+											# If folder is shared (owned by multiple skins), keep it — it's a shared asset folder
+											if len(owners) > 1:
+												continue
+											# Owned exclusively by one other skin -> exclude
 											keep = False
 											break
 								
@@ -4857,6 +5396,16 @@ class MainWindow(QMainWindow):
 							# find real source file
 							src = find_source_image(ref, skin_context=skin_name)
 							
+							# DEBUG: Trace consolidation
+							# Warn if no source file found for this attachment (only in non-scan mode)
+							if not src and not scan_mode:
+								att_type = attach_val.get('type', 'region') if isinstance(attach_val, dict) else 'region'
+								if att_type not in ['boundingbox', 'path', 'point', 'clipping']:
+									try:
+										self.info_panel.append(f"<font color='orange'>⚠ Skipped '{attach_name}' (ref: '{ref}') — source PNG not found in any search path.</font>")
+									except Exception:
+										pass
+
 							# DEBUG: Trace consolidation
 							if src and isinstance(src, str):
 								fname = os.path.basename(src)
@@ -5434,11 +5983,6 @@ class MainWindow(QMainWindow):
 										# Check against skeleton name with pluralization handling
 										if potential_skeleton.lower().rstrip('s') != skeleton_name.lower().rstrip('s') and potential_skeleton.lower() not in IGNORED_ROOTS:
 											is_other_skeleton = True
-											# Use the folder name as the target skeleton name
-											potential_skeleton = potential_skeleton 
-									
-									# 2a. Fallback using Source File Path:
-									# If we haven't detected a redirection from the attachment string,
 									# check if the RESOLVED source file actually lives in another skeleton's folder.
 									if not is_other_skeleton and src:
 										src_path_check = src[0] if isinstance(src, (list, tuple)) else src
@@ -6054,6 +6598,17 @@ class MainWindow(QMainWindow):
 					# Exported Jpeg/Png counts come from the per-file stats we maintained during copying
 					stats['unique_jpeg'] = stats.get('jpeg', 0)
 					stats['unique_png'] = stats.get('png', 0)
+
+				# Optionally rename attachments so their names match their image paths
+				if self.config.get("fix_attachment_names", False):
+					try:
+						renamed_count = self._fix_attachment_names_to_paths(j)
+						if renamed_count:
+							self.info_panel.append(f"Attachment name fix: renamed {renamed_count} attachment(s) to match their image paths.")
+						else:
+							self.info_panel.append("Attachment name fix: all attachment names already match their image paths.")
+					except Exception as e:
+						self.log_warning(f"Attachment name fix failed: {e}")
 
 				# normalize skeleton images path so Spine can resolve images inside archive
 				skel = j.get('skeleton')
@@ -7118,8 +7673,63 @@ class MainWindow(QMainWindow):
 					'ref_skeletons_exported': file_stats.get('ref_skeletons_exported', []),
 					'ref_skeletons_off': file_stats.get('ref_skeletons_off', []),
 					'spine_version_source': file_stats.get('spine_version_source', 'Unknown'),
-					'spine_exe_used': file_stats.get('spine_exe_used', 'Unknown')
+					'spine_exe_used': file_stats.get('spine_exe_used', 'Unknown'),
+					'spine_statistics': {}  # Will be populated in _process_single_skeleton
 				}
+
+				# Precompute Spine statistics directly from exported JSON so the report always has values
+				# even if downstream validation blocks fail.
+				try:
+					with open(f_json, 'r', encoding='utf-8', errors='ignore') as sf:
+						j_stats = json.load(sf)
+					if isinstance(j_stats, dict):
+						pre_attachments = 0
+						pre_meshes = 0
+						pre_vertices = 0
+						pre_animations = j_stats.get('animations', {}) if isinstance(j_stats.get('animations', {}), dict) else {}
+						skins_data = j_stats.get('skins', [])
+						if isinstance(skins_data, dict):
+							skins_data = [skins_data]
+						for skin in skins_data if isinstance(skins_data, list) else []:
+							if not isinstance(skin, dict):
+								continue
+							att_dict = skin.get('attachments', skin)
+							if not isinstance(att_dict, dict):
+								continue
+							for _, attachments in att_dict.items():
+								if not isinstance(attachments, dict):
+									continue
+								pre_attachments += len(attachments)
+								for _, att_data in attachments.items():
+									if not isinstance(att_data, dict):
+										continue
+									att_type = att_data.get('type')
+									if att_type == 'mesh' or ('vertices' in att_data and 'uvs' in att_data and 'triangles' in att_data):
+										pre_meshes += 1
+									if isinstance(att_data.get('vertices'), list):
+										pre_vertices += len(att_data.get('vertices', [])) // 2
+						pre_vertex_anims = 0
+						for _, anim_data in pre_animations.items():
+							if isinstance(anim_data, dict) and isinstance(anim_data.get('deform', {}), dict) and anim_data.get('deform'):
+								pre_vertex_anims += 1
+						skeleton_stats['spine_statistics'] = {
+							'bones': len(j_stats.get('bones', [])),
+							'slots': len(j_stats.get('slots', [])),
+							'animations': len(pre_animations),
+							'attachments': pre_attachments,
+							'vertices': pre_vertices,
+							'meshes': pre_meshes,
+							'constraints': {
+								'ik': len(j_stats.get('ik', [])),
+								'transform': len(j_stats.get('transform', [])),
+								'path': len(j_stats.get('path', [])),
+								'physics': len(j_stats.get('physics', [])),
+								'total': len(j_stats.get('ik', [])) + len(j_stats.get('transform', [])) + len(j_stats.get('path', [])) + len(j_stats.get('physics', []))
+							},
+							'vertex_animations': pre_vertex_anims
+						}
+				except Exception as pre_stats_err:
+					self.info_panel.append(f"Spine statistics precompute warning for {os.path.basename(f_json)}: {pre_stats_err}")
 				
 				# Add to the file's list of skeletons
 				file_stats['skeletons'].append(skeleton_stats)
@@ -7472,6 +8082,20 @@ class MainWindow(QMainWindow):
 				if 'WARNING' in c_msg: any_warnings = True
 				self.info_panel.append(f"<font color='{c_color}'>  {c_msg}</font>")
 			
+			# Report Spine Statistics
+			if 'spine_statistics' in stats and stats['spine_statistics'] and 'error' not in stats['spine_statistics']:
+				self.info_panel.append("<br>")
+				self.info_panel.append(f"<span style='color:#00CED1; font-weight:bold;'>📊 Spine Statistics:</span>")
+				st = stats['spine_statistics']
+				self.info_panel.append(f"<font color='#00CED1'>  Bones: {st.get('bones', 0)} | Slots: {st.get('slots', 0)} | Animations: {st.get('animations', 0)}</font>")
+				self.info_panel.append(f"<font color='#00CED1'>  Attachments: {st.get('attachments', 0)} | Meshes: {st.get('meshes', 0)} | Vertices: {st.get('vertices', 0)}</font>")
+				constraints = st.get('constraints', {})
+				if constraints.get('total', 0) > 0:
+					c_str = f"IK:{constraints.get('ik', 0)} Transform:{constraints.get('transform', 0)} Path:{constraints.get('path', 0)} Physics:{constraints.get('physics', 0)}"
+					self.info_panel.append(f"<font color='#00CED1'>  Constraints ({constraints['total']}): {c_str}</font>")
+				if st.get('vertex_animations', 0) > 0:
+					self.info_panel.append(f"<font color='#FFD700'>  ⚠️ Vertex Animations: {st.get('vertex_animations', 0)} (animated meshes detected)</font>")
+			
 			# Separator (only between items, not after the last one)
 			if i < len(all_file_stats) - 1:
 				self.info_panel.append("\n" + "_"*50 + "\n")
@@ -7531,6 +8155,37 @@ class MainWindow(QMainWindow):
 							report_lines.append(f" - {s}")
 					if stats.get('consistency_msg'):
 						report_lines.append(f"Consistency: {stats.get('consistency_msg')}")
+					
+					# Quality Issues
+					if stats.get('quality_issues'):
+						report_lines.append("Quality Issues:")
+						for qi in stats.get('quality_issues'):
+							report_lines.append(f" - {qi}")
+					
+					# Spine Statistics
+					if 'spine_statistics' in stats and stats['spine_statistics'] and 'error' not in stats['spine_statistics']:
+						st = stats['spine_statistics']
+						report_lines.append("Spine Statistics:")
+						report_lines.append(f" - Bones: {st.get('bones', 0)}")
+						report_lines.append(f" - Slots: {st.get('slots', 0)}")
+						report_lines.append(f" - Animations: {st.get('animations', 0)}")
+						report_lines.append(f" - Attachments: {st.get('attachments', 0)}")
+						report_lines.append(f" - Meshes: {st.get('meshes', 0)}")
+						report_lines.append(f" - Total Vertices: {st.get('vertices', 0)}")
+						constraints = st.get('constraints', {})
+						if constraints.get('total', 0) > 0:
+							report_lines.append(f" - Constraints ({constraints['total']} total):")
+							if constraints.get('ik', 0) > 0:
+								report_lines.append(f"   - IK Constraints: {constraints['ik']}")
+							if constraints.get('transform', 0) > 0:
+								report_lines.append(f"   - Transform Constraints: {constraints['transform']}")
+							if constraints.get('path', 0) > 0:
+								report_lines.append(f"   - Path Constraints: {constraints['path']}")
+							if constraints.get('physics', 0) > 0:
+								report_lines.append(f"   - Physics Constraints: {constraints['physics']}")
+						if st.get('vertex_animations', 0) > 0:
+							report_lines.append(f" - Vertex Animations: {st['vertex_animations']} (animated meshes)")
+					
 					# Duplicate image groups are reported in the RECOMMENDATIONS section at the end
 					# Naming recommendations (plain-text)
 					if stats.get('naming'):

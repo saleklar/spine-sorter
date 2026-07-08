@@ -8,7 +8,7 @@ import re
 
 
 def get_app_version():
-    default_version = "5.77"
+    default_version = "5.78"
     main_file = os.path.join(os.path.dirname(__file__), "spine sorter 257.py")
     try:
         with open(main_file, "r", encoding="utf-8") as f:
@@ -88,8 +88,9 @@ def create_pdf(filename):
                 "<br/>",
                 "<br/>",
                 f"<b>WHAT'S NEW IN THIS EDITION (v{app_version}):</b>",
+                "• <b>Fix Attachment Names:</b> New Settings option renames attachments to exactly match their image paths — prevents runtime lookup issues in game engines. Works for regions, meshes and sequences; all animation references are updated automatically.",
+                "• <b>Consolidation Crash Fixed:</b> Similar-image consolidation no longer aborts processing with an internal error.",
                 "• <b>Version Lock Fixed:</b> The update check now works correctly in the distributed EXE — SSL certificate errors no longer silently bypass the version gate.",
-                "• <b>Auto Version Gatekeeper:</b> version.txt is now automatically updated on every release, ensuring outdated EXEs are always prompted to update.",
                 "• <b>Dead Weight Detection:</b> Reports unused attachments that exist in skins but lack any animation key or setup pose data.",
             ],
             "is_cover": True
@@ -198,6 +199,10 @@ def create_pdf(filename):
             "title": "Changelog",
              "body": [
                 f"<b>v{app_version} (current):</b>",
+                "• <b>New:</b> 'Fix attachment names' option (Settings) — renames attachments to match their image paths and updates all animation references (timelines, deforms, sequences, linked meshes).",
+                "• <b>Fix:</b> Similar-image consolidation crash (internal error aborting processing) resolved.",
+                "<br/>",
+                "<b>v5.73:</b>",
                 "• <b>New:</b> Unused attachment (dead weight) instances are now reported safely.",
                 "• <b>Fix:</b> Help button now works in distributed EXE — manual is bundled via --add-data.",
                 "• <b>Fix:</b> GitHub Actions build failures resolved (broken shell quoting in PyInstaller step).",
@@ -232,6 +237,10 @@ def create_pdf(filename):
             "title": "All Features By Version",
             "body": [
                 f"<b>v{app_version} (current):</b>",
+                "• Fix Attachment Names option (rename to match image path)",
+                "• Consolidation crash fix",
+                "<br/>",
+                "<b>v5.73:</b>",
                 "• Added Unused Attachments check per slot/instance",
                 "• Mac Support fix for version launcher",
                 "<br/>",

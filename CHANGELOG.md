@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.78] - 2026-07-08
+### Added
+- **Fix Attachment Names (Settings):** New option that renames attachments whose names differ from their image paths so the name exactly matches the path (prevents runtime lookup issues in game engines). Works for regions, meshes, linked meshes AND sequences. All references are updated automatically: slot setup-pose attachments, animation attachment-swap timelines, deform/FFD timelines, Spine 4.x sequence (`attachments`) timelines, and linked-mesh parents. Ambiguous renames (same name, different paths across skins) and name collisions are skipped safely with a warning.
+
+### Fixed
+- **Consolidation Crash:** Fixed `NameError: 'similarity_mode' is not defined` that aborted processing whenever similar-image groups were found during consolidation.
+
 ## [v5.77] - 2026-03-18
 ### Test
 - Version lock verification release — confirms v5.76 EXE correctly blocks on outdated version check.
