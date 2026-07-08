@@ -938,7 +938,7 @@ class MainWindow(QMainWindow):
 			"so the attachment name exactly matches the path (prevents runtime issues in games).\n"
 			"All references (slot defaults, animation timelines, deforms, linked meshes) are updated automatically."
 		)
-		self.fix_attachment_names_cb.setChecked(bool(self.config.get("fix_attachment_names", False)))
+		self.fix_attachment_names_cb.setChecked(bool(self.config.get("fix_attachment_names", True)))
 		self.fix_attachment_names_cb.stateChanged.connect(lambda v: self._save_fix_attachment_names_config(v))
 		settings_layout.addWidget(self.fix_attachment_names_cb)
 		
@@ -6600,7 +6600,7 @@ class MainWindow(QMainWindow):
 					stats['unique_png'] = stats.get('png', 0)
 
 				# Optionally rename attachments so their names match their image paths
-				if self.config.get("fix_attachment_names", False):
+				if self.config.get("fix_attachment_names", True):
 					try:
 						renamed_count = self._fix_attachment_names_to_paths(j)
 						if renamed_count:
