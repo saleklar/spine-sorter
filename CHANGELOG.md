@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.80] - 2026-07-09
+### Fixed
+- **Reference Image Crash (Critical):** Processing failed silently ("Sorting step failed: expected str... not NoneType") for projects containing reference images, preventing the .spine file from being created. Reference images now get a proper destination in the global images folder.
+- **Shared Image Folder Duplication:** When an image is shared between projects (e.g. sparkle.png used in both persistence and logo), the sorter now keeps the folder name from the JSON/skeleton path (logo/png/...) instead of adopting the .spine file name (logo_v2/png/...), preventing duplicate folders.
+- **Sequences Excluded from Consolidation:** Sequence frames are never merged by duplicate/similar-image consolidation anymore — neighbouring frames are visually similar and merging them broke animations.
+
+### Added
+- **Crash Diagnostics:** Native crashes and uncaught errors are logged to ~/spine_sorter_crash.log; the full Info log is mirrored to ~/spine_sorter_session.log for post-mortem diagnosis. Sorting failures now show a full traceback in the log.
+
 ## [v5.79] - 2026-07-09
 ### Changed
 - **Fix Attachment Names:** The option is now enabled by default. Users who explicitly disabled it keep their saved preference.

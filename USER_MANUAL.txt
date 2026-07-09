@@ -1,7 +1,14 @@
-SPINE SORTER v5.79 - ARTIST GUIDE
+SPINE SORTER v5.80 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.79)
+LATEST UPDATES (v5.80)
+----------------------------------------
+- Fixed: Projects with reference images failed silently and no .spine file was created. Now fixed.
+- Fixed: Images shared between projects no longer create duplicate folders (e.g. logo AND logo_v2). The folder name now follows the JSON/skeleton path, not the .spine file name.
+- Fixed: Sequence frames are excluded from duplicate consolidation (merging them broke animations).
+- New: Crash/session logs are written to your user folder (spine_sorter_crash.log, spine_sorter_session.log) to help diagnose problems.
+
+PREVIOUS UPDATES (v5.79)
 ----------------------------------------
 - Changed: "Fix attachment names" option is now enabled by default.
 

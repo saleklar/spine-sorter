@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.79"
+	APP_VERSION = "5.80"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -1213,6 +1213,27 @@ class MainWindow(QMainWindow):
 		self.info_panel.setMinimumHeight(160)
 		self.info_panel.setStyleSheet("background-color: #1e1e1e; color: white;")
 		layout.addWidget(self.info_panel)
+
+		# --- Persistent session log: mirror every info_panel.append() to a file on disk ---
+		# This survives crashes/app closures so failures can be diagnosed post-mortem.
+		try:
+			self._session_log_path = os.path.join(os.path.expanduser("~"), "spine_sorter_session.log")
+			self._session_log_file = open(self._session_log_path, "a", encoding="utf-8")
+			self._session_log_file.write(f"\n=== Session start: {time.strftime('%Y-%m-%d %H:%M:%S')} (v{self.APP_VERSION}) ===\n")
+			self._session_log_file.flush()
+			_orig_append = self.info_panel.append
+			def _append_and_log(text):
+				_orig_append(text)
+				try:
+					plain = re.sub(r'<[^>]+>', '', str(text))
+					self._session_log_file.write(f"[{time.strftime('%H:%M:%S')}] {plain}\n")
+					self._session_log_file.flush()
+				except Exception:
+					pass
+			self.info_panel.append = _append_and_log
+		except Exception:
+			pass
+
 		# Button to open a full plain-text report (created when processing finishes)
 		self.open_report_btn = QPushButton("Open full report")
 		self.open_report_btn.setVisible(False)
@@ -3295,12 +3316,55 @@ class MainWindow(QMainWindow):
 			
 		# convert to list for further processing and log resolved files
 		resolved = list(resolved)
-
-		# convert to list for further processing and log resolved files
-		resolved = list(resolved)
 		try:
 			if resolved:
 				self.info_panel.append("Resolved image files: " + ", ".join(resolved))
+		except Exception:
+			pass
+
+		# --- Sequence frame exclusion ---
+		# Sequence frames must NEVER be consolidated: neighbouring frames are visually
+		# similar and would be wrongly merged, breaking the animation.
+		sequence_frame_files = set()
+		try:
+			seq_prefixes = set()
+			# 1) Any collected image ref ending with '_' or '-' is a sequence base (Spine convention)
+			for ip_seq in image_paths:
+				bn_seq = os.path.splitext(os.path.basename(str(ip_seq).strip().replace('\\', '/')))[0].lower()
+				if bn_seq.endswith('_') or bn_seq.endswith('-'):
+					core_seq = bn_seq.rstrip('_-')
+					if core_seq:
+						seq_prefixes.add(core_seq)
+			# 2) Attachments explicitly marked with a 'sequence' key in the source JSON
+			try:
+				if found_json and os.path.exists(found_json):
+					with open(found_json, 'r', encoding='utf-8', errors='ignore') as _fh_seq:
+						_jseq = json.load(_fh_seq)
+					def _collect_seq_prefixes(node, key_name=None):
+						if isinstance(node, dict):
+							if 'sequence' in node:
+								ref_seq = node.get('path') or key_name or ''
+								bnp = os.path.splitext(os.path.basename(str(ref_seq).replace('\\', '/')))[0].lower()
+								core_p = bnp.rstrip('_-')
+								if core_p:
+									seq_prefixes.add(core_p)
+							for k_seq, v_seq in node.items():
+								_collect_seq_prefixes(v_seq, k_seq)
+						elif isinstance(node, list):
+							for v_seq in node:
+								_collect_seq_prefixes(v_seq, key_name)
+					_collect_seq_prefixes(_jseq.get('skins', {}))
+			except Exception:
+				pass
+			# Mark all resolved files matching '<prefix>[_-]<digits>' as sequence frames
+			if seq_prefixes:
+				_seq_res = [re.compile(r'^' + re.escape(_pref) + r'[_\-]?\d+$') for _pref in seq_prefixes]
+				for rp_seq in resolved:
+					bn_r = os.path.splitext(os.path.basename(rp_seq))[0].lower()
+					if any(_sre.match(bn_r) for _sre in _seq_res):
+						sequence_frame_files.add(rp_seq)
+				if sequence_frame_files:
+					self.info_panel.append(f"<font color='#DAA520'>Excluding {len(sequence_frame_files)} sequence frame(s) from duplicate consolidation.</font>")
 		except Exception:
 			pass
 
@@ -3738,6 +3802,9 @@ class MainWindow(QMainWindow):
 			# Sort resolved to ensure deterministic primary selection
 			resolved.sort(key=lambda x: (len(x), x))
 			
+			# Sequence frames are excluded from duplicate analysis entirely
+			dup_scan_files = [p for p in resolved if p not in sequence_frame_files]
+			
 			real_file_entries = [] # List of {'path': p, 'hash': h}
 			
 			# Pre-calculate normalized hashes for everything if mirroring is active
@@ -3745,7 +3812,7 @@ class MainWindow(QMainWindow):
 			normalized_hashes = {} 
 			image_signatures = {}
 
-			for rp in resolved:
+			for rp in dup_scan_files:
 				try:
 					h = _sha1_for_file(rp)
 					# Always register raw hash for exact duplicate detection
@@ -5822,8 +5889,8 @@ class MainWindow(QMainWindow):
 							if is_reference:
 								# For references, we want to keep them separate but still organized.
 								# Place them in the global images folder (not under skeleton subfolder).
-								# base_dest is already set to global images root.
-								pass
+								base_dest = os.path.join(output_root, 'images')
+								reason.append("reference image")
 							else:
 								forced_decision = None
 								if src:
@@ -5959,10 +6026,11 @@ class MainWindow(QMainWindow):
 										potential_lower = potential_skeleton.lower()
 										# Check exact match, pluralization match, or version-prefix match (symbols_v6 matches symbols)
 										match = None
+										match_is_exact = False
 										for s in all_skeleton_names:
 											s_lower = s.lower()
 											if s_lower == potential_lower:
-												match = s; break
+												match = s; match_is_exact = True; break
 											if s_lower.rstrip('s') == potential_lower.rstrip('s'):
 												match = s; break
 											# Version prefix check: skeleton "symbols_v6" matches folder "symbols"
@@ -5972,7 +6040,12 @@ class MainWindow(QMainWindow):
 													match = s; break
 													
 										if match:
-											potential_skeleton = match # Use correct casing
+											# IMPORTANT: keep the folder name from the ATTACHMENT PATH (which reflects
+											# the JSON/skeleton name, e.g. 'logo'), NOT the .spine file name (e.g. 'logo_v2').
+											# Otherwise shared images get duplicated into a second folder (logo + logo_v2).
+											if match_is_exact:
+												potential_skeleton = match # Use correct casing
+											# else: keep potential_skeleton = parts[0] (path-derived name)
 											is_other_skeleton = True
 									
 									# 2. Fallback: If the first folder is NOT the current skeleton name, and it's not a common folder name,
@@ -6000,11 +6073,12 @@ class MainWindow(QMainWindow):
 													# Check if this skeleton name matches any path part
 													# 1. Exact match
 													if s_name in src_parts_lower:
-														potential_skeleton = s
+														# Use the actual folder name from the source path (correct casing)
+														potential_skeleton = src_parts[src_parts_lower.index(s_name)]
 														is_other_skeleton = True
 														break
 													# 2. Relaxed match (folder "symbols" matches skeleton "symbols_v6")
-													for p in src_parts_lower:
+													for p_idx, p in enumerate(src_parts_lower):
 														if len(p) < 3 or p in ['jpeg', 'png', 'images', 'assets', 'source', 'common', 'root', 'backup']:
 															continue
 														
@@ -6012,7 +6086,9 @@ class MainWindow(QMainWindow):
 															rest = s_name[len(p):]
 															# Ensure significant prefix match
 															if rest and (rest[0] in ['_', '-', 'v', '.'] or rest[0].isdigit()):
-																potential_skeleton = s
+																# IMPORTANT: use the FOLDER name from the source path (e.g. 'logo'),
+																# NOT the .spine file name (e.g. 'logo_v2'), to avoid duplicate folders.
+																potential_skeleton = src_parts[p_idx]
 																is_other_skeleton = True
 																break
 													if is_other_skeleton: break
@@ -6893,6 +6969,12 @@ class MainWindow(QMainWindow):
 						self.info_panel.append(f"Could not open in Spine: {e}")
 		except Exception as e:
 			self.info_panel.append(f"Sorting step failed: {e}")
+			try:
+				import traceback as _tb
+				tb_text = _tb.format_exc()
+				self.info_panel.append(f"<pre style='color:#FF6666; font-size:10px'>{tb_text}</pre>")
+			except Exception:
+				pass
 
 
 
@@ -8362,6 +8444,25 @@ def main():
 			pass
 
 	try:
+		# --- Crash diagnostics: log native crashes and uncaught exceptions to a file ---
+		try:
+			import faulthandler
+			_crash_log_path = os.path.join(os.path.expanduser("~"), "spine_sorter_crash.log")
+			_crash_log_file = open(_crash_log_path, "a", encoding="utf-8")
+			_crash_log_file.write(f"\n=== Session start: {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+			_crash_log_file.flush()
+			faulthandler.enable(file=_crash_log_file, all_threads=True)
+
+			def _excepthook(exc_type, exc_value, exc_tb):
+				import traceback as _tb
+				_crash_log_file.write(f"\n--- Uncaught exception: {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+				_tb.print_exception(exc_type, exc_value, exc_tb, file=_crash_log_file)
+				_crash_log_file.flush()
+				_tb.print_exception(exc_type, exc_value, exc_tb)
+			sys.excepthook = _excepthook
+		except Exception:
+			pass
+
 		app = QApplication(sys.argv)
 		app.setStyle("Fusion")
 		
