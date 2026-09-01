@@ -1094,6 +1094,17 @@ class MainWindow(QMainWindow):
 		self.consolidate_duplicates_cb.setChecked(True)
 		actions_layout.addWidget(self.consolidate_duplicates_cb)
 
+		# Scaled-duplicate consolidation option (Experimental)
+		self.consolidate_scaled_cb = QCheckBox("Reuse Larger Assets for Scaled-Down Duplicates (Experimental)")
+		self.consolidate_scaled_cb.setToolTip(
+			"If checked, when a smaller image is a scaled-down copy of a larger one (optionally flipped/rotated),\n"
+			"the smaller file is dropped and the attachment reuses the larger asset with adjusted scale/rotation.\n"
+			"Only whole-image matches down to 50% size. Regions only (meshes and sequences are never touched).")
+		self.consolidate_scaled_cb.setStyleSheet("color: #DAA520;")
+		self.consolidate_scaled_cb.setChecked(bool(self.config.get("consolidate_scaled", False)))
+		self.consolidate_scaled_cb.stateChanged.connect(lambda v: (self.config.__setitem__("consolidate_scaled", bool(v)), self._save_config()))
+		actions_layout.addWidget(self.consolidate_scaled_cb)
+
 		# Similarity Confidence Slider
 		conf_layout = QHBoxLayout()
 		conf_label = QLabel("Match %:")
@@ -2704,7 +2715,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -3797,13 +3808,14 @@ class MainWindow(QMainWindow):
 			duplicate_groups = [] # For reporting exact dupes
 			
 			# Import PIL if needed (Consolidate duplicates logic uses it for fuzzy hashing now too)
-			if consolidate_duplicates or consolidate_mirrored:
+			if consolidate_duplicates or consolidate_mirrored or consolidate_scaled:
 				try:
 					from PIL import Image
 					import io
 				except ImportError:
 					self.log_warning("Pillow (PIL) not found! Fuzzy consolidation disabled. Install 'pillow' to enable.")
 					consolidate_mirrored = False
+					consolidate_scaled = False
 					# Don't disable consolidate_duplicates entirely, as it still supports exact hash match
 					# But fuzzy hashing won't work. The code below assumes PIL is present for normalized_hashes.
 
@@ -3831,7 +3843,7 @@ class MainWindow(QMainWindow):
 					content_registry[h].append(entry)
 					real_file_entries.append(entry)
 					# Visual signature used for robust exact/near matching.
-					if (consolidate_duplicates or consolidate_mirrored) and Image:
+					if (consolidate_duplicates or consolidate_mirrored or consolidate_scaled) and Image:
 						sig = _compute_similarity_signature(rp, Image)
 						if sig:
 							normalized_hashes[rp] = sig['norm_hash']
@@ -4183,10 +4195,186 @@ class MainWindow(QMainWindow):
 					if len(group) > 1:
 						near_duplicate_groups.append(group)
 
+			# Phase 3c: SCALED duplicate matching (Experimental)
+			# If a smaller image is a scaled-down copy of a larger one (optionally flipped/rotated),
+			# drop the smaller file and reuse the larger asset with adjusted attachment scale.
+			# Whole-image matches only, ratio >= 50%. Entries reuse consolidation_map_mirror so all
+			# downstream safety rules (regions only, no sequences, png folder only) apply automatically.
+			scaled_match_count = 0
+			if consolidate_scaled and image_signatures:
+				if not OPENCV_AVAILABLE:
+					self.info_panel.append("<font color='orange'>Scaled-duplicate consolidation requires OpenCV (cv2 + scikit-image). Skipping.</font>")
+				else:
+					self.info_panel.append("<font color='#DAA520'>Scanning for scaled-down duplicates (reuse larger assets)...</font>")
+					SC_MIN_RATIO = 0.50   # user setting: down to 50% of the larger asset
+					SC_MAX_RATIO = 0.995  # near-identical sizes are handled by exact/near-dup logic
+					SC_ASPECT_TOL = 0.04  # relative tolerance between X and Y ratios
+					SC_MAX_VALIDATIONS = 3000  # hard cap on expensive OpenCV comparisons
+					_sc_validations = 0
+
+					def _sc_load_trimmed(path):
+						"""Load image, trim to content bbox, return (bgr_masked, mask) or (None, None)."""
+						try:
+							img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+							if img is None:
+								return None, None
+							if len(img.shape) == 3 and img.shape[2] == 4:
+								mask = (img[:, :, 3] > 10).astype(np.uint8) * 255
+								ys, xs = np.where(mask > 0)
+								if len(xs) == 0:
+									return None, None
+								y0, y1 = ys.min(), ys.max() + 1
+								x0, x1 = xs.min(), xs.max() + 1
+								bgr = img[y0:y1, x0:x1, :3]
+								mask = mask[y0:y1, x0:x1]
+							elif len(img.shape) == 3:
+								bgr = img[:, :, :3]
+								mask = np.full(bgr.shape[:2], 255, dtype=np.uint8)
+							else:
+								bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+								mask = np.full(img.shape[:2], 255, dtype=np.uint8)
+							return cv2.bitwise_and(bgr, bgr, mask=mask), mask
+						except Exception:
+							return None, None
+
+					def _sc_validate(small_path, large_path, transform_name):
+						"""Transform the LARGE image, downscale to the small content size, and validate visually."""
+						try:
+							s_bgr, s_mask = _sc_load_trimmed(small_path)
+							l_bgr, l_mask = _sc_load_trimmed(large_path)
+							if s_bgr is None or l_bgr is None:
+								return False
+							if transform_name == 'flipX':
+								l_bgr = cv2.flip(l_bgr, 1); l_mask = cv2.flip(l_mask, 1)
+							elif transform_name == 'flipY':
+								l_bgr = cv2.flip(l_bgr, 0); l_mask = cv2.flip(l_mask, 0)
+							elif transform_name == 'rotate90':
+								l_bgr = cv2.rotate(l_bgr, cv2.ROTATE_90_CLOCKWISE); l_mask = cv2.rotate(l_mask, cv2.ROTATE_90_CLOCKWISE)
+							elif transform_name == 'rotate180':
+								l_bgr = cv2.rotate(l_bgr, cv2.ROTATE_180); l_mask = cv2.rotate(l_mask, cv2.ROTATE_180)
+							elif transform_name == 'rotate270':
+								l_bgr = cv2.rotate(l_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE); l_mask = cv2.rotate(l_mask, cv2.ROTATE_90_COUNTERCLOCKWISE)
+							sh, sw = s_bgr.shape[:2]
+							l_bgr = cv2.resize(l_bgr, (sw, sh), interpolation=cv2.INTER_AREA)
+							l_mask = cv2.resize(l_mask, (sw, sh), interpolation=cv2.INTER_NEAREST)
+							l_bgr = cv2.bitwise_and(l_bgr, l_bgr, mask=l_mask)
+							# A. Color histogram gate (masked)
+							hsv1 = cv2.cvtColor(s_bgr, cv2.COLOR_BGR2HSV)
+							hsv2 = cv2.cvtColor(l_bgr, cv2.COLOR_BGR2HSV)
+							hist1 = cv2.calcHist([hsv1], [0, 1], s_mask, [180, 256], [0, 180, 0, 256])
+							hist2 = cv2.calcHist([hsv2], [0, 1], l_mask, [180, 256], [0, 180, 0, 256])
+							cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
+							cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
+							if cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL) < 0.90:
+								return False
+							# B. SSIM (resampling softens details, thresholds slightly below same-size gates)
+							g1 = cv2.cvtColor(s_bgr, cv2.COLOR_BGR2GRAY)
+							g2 = cv2.cvtColor(l_bgr, cv2.COLOR_BGR2GRAY)
+							s_score = ssim(g1, g2)
+							if s_score >= 0.985:
+								return True
+							if s_score < 0.95:
+								return False
+							# C. ORB confirmation for the mid band
+							orb = cv2.ORB_create(nfeatures=500)
+							kp1, des1 = orb.detectAndCompute(s_bgr, None)
+							kp2, des2 = orb.detectAndCompute(l_bgr, None)
+							if des1 is None or des2 is None or len(des1) <= 4 or len(des2) <= 4:
+								return False
+							bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+							ms = bf.match(des1, des2)
+							if not ms:
+								return False
+							good = [m for m in ms if m.distance < 50]
+							return (len(good) / min(len(kp1), len(kp2))) >= 0.55
+						except Exception:
+							return False
+
+					_sc_angle_map = {'rotate90': 90, 'rotate180': 180, 'rotate270': -90}
+					# Sort by content area ascending so smaller assets come first
+					_sc_list = [(p, s) for p, s in image_signatures.items() if s and s.get('trim_w') and s.get('trim_h')]
+					_sc_list.sort(key=lambda x: x[1]['trim_w'] * x[1]['trim_h'])
+
+					for _i_sc in range(len(_sc_list)):
+						if _sc_validations >= SC_MAX_VALIDATIONS:
+							break
+						p_small, sig_s = _sc_list[_i_sc]
+						small_norm = os.path.normcase(os.path.abspath(p_small))
+						if small_norm in consolidation_map or small_norm in consolidation_map_mirror:
+							continue
+						sw, sh_dim = sig_s['trim_w'], sig_s['trim_h']
+						if sw < 8 or sh_dim < 8:
+							continue  # too small to validate reliably
+						for _j_sc in range(_i_sc + 1, len(_sc_list)):
+							if _sc_validations >= SC_MAX_VALIDATIONS:
+								break
+							p_large, sig_l = _sc_list[_j_sc]
+							large_norm = os.path.normcase(os.path.abspath(p_large))
+							if large_norm in consolidation_map or large_norm in consolidation_map_mirror:
+								continue
+							lw, lh = sig_l['trim_w'], sig_l['trim_h']
+							# Cheap scale-invariant gates first
+							if abs(sig_s['alpha_ratio'] - sig_l['alpha_ratio']) > th['alpha_diff']:
+								continue
+							if 'mean_colors' in sig_s and 'mean_colors' in sig_l:
+								if sum(abs(sig_s['mean_colors'][k] - sig_l['mean_colors'][k]) for k in range(3)) > 45:
+									continue
+							# Determine which transform families are geometrically plausible
+							candidate_transforms = []
+							# Non-swap family (none/flipX/flipY/rotate180): ratios small/large per axis
+							if lw > 0 and lh > 0:
+								rw, rh = sw / lw, sh_dim / lh
+								if SC_MIN_RATIO <= rw <= SC_MAX_RATIO and SC_MIN_RATIO <= rh <= SC_MAX_RATIO and abs(rw - rh) / max(rw, rh) <= SC_ASPECT_TOL:
+									ratio_ns = (rw + rh) / 2.0
+									# Hash gate for identity/flipX (dhash/ahash are computed on trimmed content -> scale-invariant)
+									d_id = _hamming_distance_int(sig_s['dhash'], sig_l['dhash'])
+									a_id = _hamming_distance_int(sig_s['ahash'], sig_l['ahash'])
+									if d_id <= th['d_max'] and a_id <= th['a_max']:
+										candidate_transforms.append(('none', ratio_ns))
+									d_fx = _hamming_distance_int(sig_s['dhash'], _flip_dhash_h(sig_l['dhash']))
+									a_fx = _hamming_distance_int(sig_s['ahash'], _flip_ahash_h(sig_l['ahash']))
+									if d_fx <= th['d_max'] and a_fx <= th['a_max']:
+										candidate_transforms.append(('flipX', ratio_ns))
+									# flipY / rotate180 have no hash helpers; alpha+color gates already passed
+									candidate_transforms.append(('flipY', ratio_ns))
+									candidate_transforms.append(('rotate180', ratio_ns))
+								# Swap family (rotate90/rotate270): small W maps to large H and vice versa
+								rw_s, rh_s = sw / lh, sh_dim / lw
+								if SC_MIN_RATIO <= rw_s <= SC_MAX_RATIO and SC_MIN_RATIO <= rh_s <= SC_MAX_RATIO and abs(rw_s - rh_s) / max(rw_s, rh_s) <= SC_ASPECT_TOL:
+									ratio_sw = (rw_s + rh_s) / 2.0
+									candidate_transforms.append(('rotate90', ratio_sw))
+									candidate_transforms.append(('rotate270', ratio_sw))
+							if not candidate_transforms:
+								continue
+							for t_name, t_ratio in candidate_transforms:
+								if _sc_validations >= SC_MAX_VALIDATIONS:
+									break
+								_sc_validations += 1
+								if _sc_validate(p_small, p_large, t_name):
+									entry_sc = {'target': p_large, 'transform': t_name, 'scale': t_ratio}
+									if t_name in _sc_angle_map:
+										entry_sc['angle'] = _sc_angle_map[t_name]
+									if t_name == 'flipX':
+										entry_sc['axis'] = 'x'
+									elif t_name == 'flipY':
+										entry_sc['axis'] = 'y'
+									consolidation_map_mirror[small_norm] = entry_sc
+									scaled_match_count += 1
+									self.info_panel.append(
+										f"<font color='#DAA520'>Scaled match: '{os.path.basename(p_small)}' -> reuse '{os.path.basename(p_large)}' "
+										f"(scale {t_ratio:.2f}, {t_name})</font>")
+									break
+							if small_norm in consolidation_map_mirror:
+								break  # matched — move on to next small asset
+					if scaled_match_count:
+						self.info_panel.append(f"<font color='#DAA520'>Scaled consolidation: {scaled_match_count} smaller asset(s) will reuse larger assets.</font>")
+					else:
+						self.info_panel.append("No scaled-down duplicates found.")
+
 			# Case B: Mirror Duplicates (Processed via Normalized Hashes AND Fuzzy Search)
 			# (Exact Hashes done in Phase 2. Fuzzy Hashes done in Phase 3 just above.)
 			# Prune any mirror mappings where the source or target has been consolidated as an exact duplicate
-			if consolidate_mirrored and consolidation_map_mirror:
+			if (consolidate_mirrored or consolidate_scaled) and consolidation_map_mirror:
 				# Remove mirror entries if:
 				# 1. The key (file to be replaced) is already being replaced by exact dup
 				# 2. The target is being remapped by exact consolidation (chaining issue)
@@ -5667,6 +5855,16 @@ class MainWindow(QMainWindow):
 												elif t_type in ('rotate90', 'rotate180', 'rotate270'):
 													angle = common_transform.get('angle', 0)
 													new_rot += angle
+
+												# Scaled consolidation: the attachment now reuses a LARGER asset,
+												# so shrink it by the detected content ratio to keep the visual size.
+												try:
+													_s_factor = float(common_transform.get('scale', 1.0) or 1.0)
+												except Exception:
+													_s_factor = 1.0
+												if abs(_s_factor - 1.0) > 1e-6:
+													new_sx *= _s_factor
+													new_sy *= _s_factor
 
 												# 3. Apply Transform Updates
 												attach_val['scaleX'] = new_sx
@@ -7954,6 +8152,7 @@ class MainWindow(QMainWindow):
 					spine_export_log_warnings=spine_export_log_warnings,
 					consolidate_duplicates=self.consolidate_duplicates_cb.isChecked(),
 					consolidate_mirrored=self.consolidate_duplicates_cb.isChecked(),
+					consolidate_scaled=self.consolidate_scaled_cb.isChecked(),
 					similarity_confidence=self.similarity_slider.value()
 				)
 
