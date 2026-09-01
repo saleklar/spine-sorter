@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.80"
+	APP_VERSION = "5.81"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -5434,6 +5434,7 @@ class MainWindow(QMainWindow):
 				TOTAL_ATTACHMENTS_COUNT = 0
 				CONSOLIDATED_IMAGES_COUNT = 0
 				UNIQUE_COPIED_PATHS = set()
+				COPIED_DST_SOURCES = {}  # norm_dst -> norm_src, to detect two DIFFERENT files colliding on one destination
 
 				# helper to process a single skin dict (slot -> attachments)
 				def process_skin_dict(skin_dict, skin_name=None, scan_mode=False):
@@ -6227,11 +6228,31 @@ class MainWindow(QMainWindow):
 									if seq_name:
 										# Heuristic: If source file is in a folder matching the sequence name, prefer that structure
 										# This fixes cases where attachment path has a typo (e.g. dissapear_fx vs disspear)
+										# FIX: Preserve skin-owned folder prefixes. Previously this OVERWROTE the whole
+										# nested path, so same-named sequences from different skins (e.g. pink/glow,
+										# gold/glow) collapsed into ONE shared folder: frames of the 2nd skin were
+										# silently skipped (identical dst basenames) and both skins ended up pointing
+										# to the 1st skin's files.
 										if src:
 											src_path = src[0] if isinstance(src, (list, tuple)) else src
 											src_folder_name = os.path.basename(os.path.dirname(src_path))
 											if src_folder_name.lower() == seq_name.lower():
-												nested_folders_str = src_folder_name
+												# Collect leading path components that belong to the current skin
+												skin_prefix_parts = []
+												if skin_name and skin_name.lower() != 'default' and nested_folders_str:
+													for cp in nested_folders_str.split('/'):
+														cpl = cp.lower()
+														if cpl == seq_name.lower():
+															break
+														owned = (skin_name.lower() in cpl) or (folder_owners and cpl in folder_owners and skin_name in folder_owners.get(cpl, set()))
+														if owned:
+															skin_prefix_parts.append(cp)
+														else:
+															break
+												if skin_prefix_parts:
+													nested_folders_str = '/'.join(skin_prefix_parts + [src_folder_name])
+												else:
+													nested_folders_str = src_folder_name
 
 										if not nested_folders_str:
 											nested_folders_str = seq_name
@@ -6271,10 +6292,23 @@ class MainWindow(QMainWindow):
 									try:
 										import shutil
 										norm_dst = os.path.normpath(dst).lower()
+										norm_src_m = os.path.normcase(os.path.abspath(m))
 										
 										# Skip copy if destination already exists/processed in this run
 										if norm_dst in UNIQUE_COPIED_PATHS:
 											copy_succeeded = True
+											# SAFETY: warn when a DIFFERENT source file collides on the same destination.
+											# This aliases one skin's asset onto another and drops files silently.
+											prev_src = COPIED_DST_SOURCES.get(norm_dst)
+											if prev_src and prev_src != norm_src_m:
+												try:
+													self.info_panel.append(
+														f"<font color='red'>⚠ Destination collision:</font> '{os.path.basename(m)}' (skin '{skin_name}') "
+														f"maps to already-used destination '{dst}'. Existing file came from a different source: {prev_src}. "
+														f"This frame was NOT copied — check skin folder structure."
+													)
+												except Exception:
+													pass
 										else:
 											if not export_json_only:
 												shutil.copy2(m, dst)
@@ -6282,6 +6316,7 @@ class MainWindow(QMainWindow):
 											# Mark as succeeded regardless of whether we actually copied or just calculated paths
 											copy_succeeded = True
 											UNIQUE_COPIED_PATHS.add(norm_dst)
+											COPIED_DST_SOURCES[norm_dst] = norm_src_m
 											
 											# Update stats
 											if all_file_stats:

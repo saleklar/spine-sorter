@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.81] - 2026-09-01
+### Fixed
+- **Skin Sequence Paths (Critical):** In projects using skins, same-named sequences from different skins collapsed into one shared output folder. Frames of the second skin were silently skipped (never copied) and both skins' JSON paths pointed at the first skin's files. Sequence folders now preserve skin-owned folder prefixes (e.g. png/pink/glow, png/gold/glow), so each skin keeps its own frames and correct paths.
+
+### Added
+- **Destination Collision Warning:** If two different source files ever map to the same output destination, a red warning is printed in the Info panel naming the skin, file, and conflicting source instead of silently dropping the frame.
+
 ## [v5.80] - 2026-07-09
 ### Fixed
 - **Reference Image Crash (Critical):** Processing failed silently ("Sorting step failed: expected str... not NoneType") for projects containing reference images, preventing the .spine file from being created. Reference images now get a proper destination in the global images folder.
