@@ -4381,6 +4381,68 @@ class MainWindow(QMainWindow):
 					else:
 						self.info_panel.append("No scaled/rotated duplicates found.")
 
+					# --- Chain resolution ---
+					# Matches can form chains (A reuses B, B reuses C, ...). Every entry must
+					# point at a TERMINAL asset (one that survives), so follow each chain to its
+					# end and compose the transforms. Composition in Spine attachment space
+					# (scale applied before rotation): f = f1 XOR f2, theta = th1 + (-1)^f1 * th2,
+					# s = s1 * s2. Then re-estimate directly against the terminal with ORB to
+					# eliminate accumulated numeric drift across long chains.
+					if scaled_match_count:
+						def _sc_canon(v):
+							"""Canonicalize a mirror-map entry to (flip, angle_deg, scale)."""
+							t = v.get('transform')
+							if t == 'flipX':
+								return 1, 0.0, float(v.get('scale', 1.0) or 1.0)
+							if t == 'flipY':
+								# scaleY*-1 == flipX + rotate180 in similarity terms
+								return 1, 180.0, float(v.get('scale', 1.0) or 1.0)
+							if t in ('rotate90', 'rotate180', 'rotate270'):
+								return 0, float(v.get('angle', 0.0) or 0.0), float(v.get('scale', 1.0) or 1.0)
+							# 'freeform' / 'none'
+							f = 1 if v.get('flip') == 'x' else 0
+							return f, float(v.get('angle', 0.0) or 0.0), float(v.get('scale', 1.0) or 1.0)
+
+						_chains_resolved = 0
+						for k_ch in list(consolidation_map_mirror.keys()):
+							v_ch = consolidation_map_mirror[k_ch]
+							f_acc, th_acc, s_acc = _sc_canon(v_ch)
+							t_norm_ch = os.path.normcase(os.path.abspath(v_ch['target']))
+							hops = 0
+							seen_ch = {k_ch}
+							while t_norm_ch in consolidation_map_mirror and hops < 64:
+								if t_norm_ch in seen_ch:
+									break  # cycle guard (shouldn't happen: chains go small->large)
+								seen_ch.add(t_norm_ch)
+								v_next = consolidation_map_mirror[t_norm_ch]
+								f2, th2, s2 = _sc_canon(v_next)
+								# outer = accumulated (applied second), inner = next hop
+								th_acc = th_acc + (th2 if f_acc == 0 else -th2)
+								f_acc = f_acc ^ f2
+								s_acc = s_acc * s2
+								t_norm_ch = os.path.normcase(os.path.abspath(v_next['target']))
+								hops += 1
+							if hops == 0:
+								continue
+							terminal_target = t_norm_ch
+							# Direct ORB re-estimation against the terminal (drift correction)
+							res_dir = _sc_match_free(k_ch, terminal_target, flip=bool(f_acc))
+							if res_dir:
+								s_acc, th_acc, _ssim_dir = res_dir
+							# Normalize angle to (-180, 180]
+							th_acc = ((th_acc + 180.0) % 360.0) - 180.0
+							entry_new = {'target': terminal_target, 'transform': 'freeform', 'scale': s_acc, 'angle': th_acc}
+							if f_acc:
+								entry_new['flip'] = 'x'
+							consolidation_map_mirror[k_ch] = entry_new
+							_chains_resolved += 1
+							self.info_panel.append(
+								f"<font color='#DAA520'>Chain resolved: '{os.path.basename(k_ch)}' -> terminal '{os.path.basename(terminal_target)}' "
+								f"({hops + 1} hops, scale {s_acc:.2f}, angle {th_acc:+.1f}°{', flipX' if f_acc else ''}"
+								f"{', verified' if res_dir else ', composed'})</font>")
+						if _chains_resolved:
+							self.info_panel.append(f"<font color='#DAA520'>Resolved {_chains_resolved} consolidation chain(s) to terminal assets.</font>")
+
 			# Case B: Mirror Duplicates (Processed via Normalized Hashes AND Fuzzy Search)
 			# (Exact Hashes done in Phase 2. Fuzzy Hashes done in Phase 3 just above.)
 			# Prune any mirror mappings where the source or target has been consolidated as an exact duplicate
