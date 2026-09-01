@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.83] - 2026-09-01
+### Fixed
+- **Digit-Ending Sequence Bases (Critical):** Sequences whose base path itself ends with digits (e.g. expl_000 with frames expl_00000.png...) were not resolved at all — "source PNG not found" — and the sequence was silently skipped. The resolver now also treats an unmatched ref as a raw prefix followed by frame digits, and the exported JSON path keeps the original sequence base intact instead of stripping its digits.
+
+### Added
+- **Stale Temp Folder Sweep:** At the start of each run, leftover spine_temp_* folders from previous interrupted/aborted runs (older than 1 hour) are automatically removed from the output folder (unless "Keep temporary files" is enabled).
+
 ## [v5.82] - 2026-09-01
 ### Added
 - **Asset Size Statistics:** The Processing Statistics report now shows the total size of all exported assets in MB — a grand total across all skeletons (with JPEG/PNG breakdown) plus per-skeleton totals next to the JPEG/PNG file counts.

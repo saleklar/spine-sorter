@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.82"
+	APP_VERSION = "5.83"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -3300,13 +3300,23 @@ class MainWindow(QMainWindow):
 				for m in matches:
 					resolved.add(m)
 
-			# 4. Sequence expansion: if ref ends with _ or - (Spine sequence indicator), scan file_map
-			# for all numbered variants (e.g. guaranteed_win_ -> guaranteed_win_01, guaranteed_win_02, ...)
-			# This is critical — the JSON only stores the base path, not the individual frame filenames.
-			if not matches and (base_noext.endswith('_') or base_noext.endswith('-')):
-				base_core_seq = base_noext.rstrip('_-')
-				if base_core_seq:
-					seq_re_scan = re.compile(r'^' + re.escape(base_core_seq) + r'[_\-]?\d+$')
+			# 4. Sequence expansion: the JSON only stores the sequence base path, not the
+			# individual frame filenames, so a sequence base won't match any file exactly.
+			#    a) Spine convention: ref ends with '_' or '-' (e.g. 'guaranteed_win_')
+			#    b) The base may itself END WITH DIGITS (e.g. 'expl_000' with 2 frame digits
+			#       -> files 'expl_00000.png'...). Stripping separators is not enough here;
+			#       we must treat the whole base as a raw prefix followed by frame digits.
+			if not matches:
+				seq_res_scan = []
+				if base_noext.endswith('_') or base_noext.endswith('-'):
+					base_core_seq = base_noext.rstrip('_-')
+					if base_core_seq:
+						seq_res_scan.append(re.compile(r'^' + re.escape(base_core_seq) + r'[_\-]?\d+$'))
+				else:
+					# No exact file found: treat the ref itself as a raw sequence prefix
+					# directly followed by frame digits (covers 'expl_000' -> 'expl_00000').
+					seq_res_scan.append(re.compile(r'^' + re.escape(base_noext) + r'\d+$'))
+				for seq_re_scan in seq_res_scan:
 					for k, v in file_map.items():
 						# k is the basename-without-extension key in file_map
 						k_noext = os.path.splitext(k)[0] if '.' in k else k
@@ -6357,14 +6367,24 @@ class MainWindow(QMainWindow):
 										# But the JSON path expects: skeleton/path/to/image
 										
 										if is_spine_sequence:
-											# For sequences: use basename without digits and add trailing underscore
+											# For sequences: rebuild the base prefix for the JSON path.
 											# FIX: Handle extension correctly (strip it before regex)
 											s_root, s_ext = os.path.splitext(start_base_name)
-											base_no_digits = re.sub(r"[_\-]?\d+$", "", s_root)
-											
-											# Ensure it ends with underscore for standard sequence prefixing
-											if base_no_digits and not base_no_digits.endswith('_'):
-												base_no_digits = base_no_digits + '_'
+											# Prefer the ORIGINAL ref basename: a Spine sequence 'path' is a prefix
+											# that may itself END WITH DIGITS (e.g. 'expl_000' + 2 frame digits ->
+											# 'expl_00000.png'). Blindly stripping ALL trailing digits from a frame
+											# filename would corrupt such bases ('expl_00000' -> 'expl_').
+											ref_seq_base = os.path.splitext(os.path.basename(str(ref).replace('\\', '/')))[0]
+											if (ref_seq_base and s_root.lower().startswith(ref_seq_base.lower())
+													and re.fullmatch(r'\d*', s_root[len(ref_seq_base):])):
+												# Frame filename = ref base + frame digits -> keep the ref base as-is
+												base_no_digits = ref_seq_base
+											else:
+												# Fallback (typo/renamed source): derive from the actual frame filename
+												base_no_digits = re.sub(r"[_\-]?\d+$", "", s_root)
+												# Ensure it ends with underscore for standard sequence prefixing
+												if base_no_digits and not base_no_digits.endswith('_'):
+													base_no_digits = base_no_digits + '_'
 											
 											# Build JSON path with nested structure
 											if nested_folders_str:
@@ -7281,6 +7301,28 @@ class MainWindow(QMainWindow):
 			# Determine base output root and create a timestamped temporary export folder
 			base_output_root = self.output_display.text() or os.path.expanduser("~")
 			os.makedirs(base_output_root, exist_ok=True)
+			
+			# Sweep STALE temp folders from previous interrupted/failed runs.
+			# Completed runs clean up after themselves, but aborted runs leave
+			# spine_temp_* folders behind. Only remove folders older than 1 hour
+			# to avoid touching a concurrent run's active temp.
+			if not self.keep_temp_cb.isChecked():
+				try:
+					_now_ts = time.time()
+					for _entry in os.listdir(base_output_root):
+						if not _entry.startswith('spine_temp_'):
+							continue
+						_stale_path = os.path.join(base_output_root, _entry)
+						if not os.path.isdir(_stale_path):
+							continue
+						try:
+							_age = _now_ts - os.path.getmtime(_stale_path)
+						except Exception:
+							continue
+						if _age > 3600:
+							self._remove_temp_dir(_stale_path, reason='stale temp from previous run')
+				except Exception:
+					pass
 			
 			# Create temp export dir
 			result_dir = os.path.join(base_output_root, f"spine_temp_{timestamp}_{i}")
