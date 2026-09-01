@@ -4297,19 +4297,25 @@ class MainWindow(QMainWindow):
 								return None
 							s_common = cv2.bitwise_and(s_bgr, s_bgr, mask=common)
 							w_common = cv2.bitwise_and(warp_bgr, warp_bgr, mask=common)
-							# Color histogram gate on the overlapping content
-							hsv1 = cv2.cvtColor(s_common, cv2.COLOR_BGR2HSV)
-							hsv2 = cv2.cvtColor(w_common, cv2.COLOR_BGR2HSV)
-							hist1 = cv2.calcHist([hsv1], [0, 1], common, [180, 256], [0, 180, 0, 256])
-							hist2 = cv2.calcHist([hsv2], [0, 1], common, [180, 256], [0, 180, 0, 256])
-							cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
-							cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
-							if cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL) < 0.90:
-								return None
 							g1 = cv2.cvtColor(s_common, cv2.COLOR_BGR2GRAY)
 							g2 = cv2.cvtColor(w_common, cv2.COLOR_BGR2GRAY)
 							s_score = ssim(g1, g2)
-							if s_score < 0.91:
+							if s_score < 0.90:
+								return None
+							# High-error blob gate: DIFFERENT content (e.g. different text on same
+							# banner) produces large connected error blobs, while genuine rotated
+							# copies only show thin scattered resampling noise. Calibrated on real
+							# data: false positives err_frac >= 0.05, true matches <= 0.002.
+							diff_g = cv2.absdiff(g1, g2)
+							diff_g[common == 0] = 0
+							err_m = (diff_g > 48).astype(np.uint8)
+							err_m = cv2.morphologyEx(err_m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+							content_px = max(1, int((common > 0).sum()))
+							err_frac = float(err_m.sum()) / content_px
+							if err_frac > 0.010:
+								return None
+							n_lbl, _lbl_img, stats_cc, _cent = cv2.connectedComponentsWithStats(err_m, connectivity=8)
+							if n_lbl > 1 and (float(stats_cc[1:, cv2.CC_STAT_AREA].max()) / content_px) > 0.005:
 								return None
 							return scale, spine_angle, s_score
 						except Exception:
