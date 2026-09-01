@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.84] - 2026-09-01
+### Added
+- **Scaled-Asset Consolidation (Experimental):** Scaled-down duplicates of a larger asset are consolidated to reuse the larger asset with composed transforms — supports any rotation, flip, and scale (free-angle ORB matching), minimum 50% scale ratio, regions only.
+### Improved
+- **Consolidation Chain Resolution:** Chains of scaled/mirrored consolidations are resolved to their terminal assets with composed transforms, and long chains (e.g. 0.32 net scale) now get direct ORB re-verification with wide scale bounds instead of relying on composition alone.
+- **Mirror/Match Accuracy:** Replaced the histogram gate with an error-blob gate — eliminates text false positives (e.g. stroked text variants) while allowing genuine mirrored/rotated matches that were previously rejected.
+
 ## [v5.83] - 2026-09-01
 ### Fixed
 - **Digit-Ending Sequence Bases (Critical):** Sequences whose base path itself ends with digits (e.g. expl_000 with frames expl_00000.png...) were not resolved at all — "source PNG not found" — and the sequence was silently skipped. The resolver now also treats an unmatched ref as a raw prefix followed by frame digits, and the exported JSON path keeps the original sequence base intact instead of stripping its digits.
