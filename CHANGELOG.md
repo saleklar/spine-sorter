@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.82] - 2026-09-01
+### Added
+- **Asset Size Statistics:** The Processing Statistics report now shows the total size of all exported assets in MB — a grand total across all skeletons (with JPEG/PNG breakdown) plus per-skeleton totals next to the JPEG/PNG file counts.
+
 ## [v5.81] - 2026-09-01
 ### Fixed
 - **Skin Sequence Paths (Critical):** In projects using skins, same-named sequences from different skins collapsed into one shared output folder. Frames of the second skin were silently skipped (never copied) and both skins' JSON paths pointed at the first skin's files. Sequence folders now preserve skin-owned folder prefixes (e.g. png/pink/glow, png/gold/glow), so each skin keeps its own frames and correct paths.

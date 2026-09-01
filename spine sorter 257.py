@@ -763,7 +763,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.81"
+	APP_VERSION = "5.82"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -6322,10 +6322,18 @@ class MainWindow(QMainWindow):
 											if all_file_stats:
 												stats = all_file_stats[-1]
 												stats['total'] += 1
+												# Track copied asset size in bytes
+												try:
+													f_size = os.path.getsize(m)
+												except Exception:
+													f_size = 0
+												stats['total_bytes'] = stats.get('total_bytes', 0) + f_size
 												if 'jpeg' in base_dest.lower():
 													stats['jpeg'] += 1
+													stats['jpeg_bytes'] = stats.get('jpeg_bytes', 0) + f_size
 												else:
 													stats['png'] += 1
+													stats['png_bytes'] = stats.get('png_bytes', 0) + f_size
 												try:
 													# Record the source path that was actually exported
 													EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(m))
@@ -6499,10 +6507,18 @@ class MainWindow(QMainWindow):
 												UNIQUE_COPIED_PATHS.add(norm_ph)
 												stats = all_file_stats[-1]
 												stats['total'] += 1
+												# Track placeholder size in bytes
+												try:
+													ph_size = os.path.getsize(ph_dst) if os.path.exists(ph_dst) else 0
+												except Exception:
+													ph_size = 0
+												stats['total_bytes'] = stats.get('total_bytes', 0) + ph_size
 												if 'jpeg' in base_dest.lower():
 													stats['jpeg'] += 1
+													stats['jpeg_bytes'] = stats.get('jpeg_bytes', 0) + ph_size
 												else:
 													stats['png'] += 1
+													stats['png_bytes'] = stats.get('png_bytes', 0) + ph_size
 												try:
 													EXPORTED_UNIQUE_IMAGES.add(os.path.normpath(ph_dst))
 												except Exception:
@@ -7920,6 +7936,21 @@ class MainWindow(QMainWindow):
 		SUCCESS_COLOR = '#32CD32' # LimeGreen
 		any_warnings = False
 		self.info_panel.append(f"\n<font color='{SUCCESS_COLOR}'>--- Processing Statistics ---</font>")
+		# Helper: format bytes as MB string
+		def _fmt_mb(n_bytes):
+			try:
+				return f"{n_bytes / (1024 * 1024):.2f} MB"
+			except Exception:
+				return "0.00 MB"
+		# Grand total size across all processed skeletons
+		try:
+			_grand_bytes = sum(s.get('total_bytes', 0) for s in all_file_stats)
+			_grand_jpeg = sum(s.get('jpeg_bytes', 0) for s in all_file_stats)
+			_grand_png = sum(s.get('png_bytes', 0) for s in all_file_stats)
+			if _grand_bytes > 0:
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>Total exported assets size: {_fmt_mb(_grand_bytes)} (JPEG: {_fmt_mb(_grand_jpeg)}, PNG: {_fmt_mb(_grand_png)})</font>")
+		except Exception:
+			pass
 		for i, stats in enumerate(all_file_stats):
 			if 'total_exported_unique' in stats: # New format
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
@@ -7928,8 +7959,10 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total exported images: {stats.get('total_exported_unique', 0)}</font>")
 				if 'consolidated_count' in stats and stats['consolidated_count'] > 0:
 					self.info_panel.append(f"<font color='#DAA520'>  Consolidated duplicates: {stats['consolidated_count']}</font>")
-				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)}</font>")
-				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to JPEG folder: {stats.get('jpeg', 0)} ({_fmt_mb(stats.get('jpeg_bytes', 0))})</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Copied to PNG folder: {stats.get('png', 0)} ({_fmt_mb(stats.get('png_bytes', 0))})</font>")
+				if stats.get('total_bytes', 0) > 0:
+					self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total assets size: {_fmt_mb(stats.get('total_bytes', 0))}</font>")
 				
 				# Report Missing Files Count
 				if 'missing_files_reported' in stats and stats['missing_files_reported']:
@@ -7957,8 +7990,10 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>File: {stats['name']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images copied: {stats['total']}</font>")
 				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total images in Spine: {stats.get('total_spine', 0)}</font>")
-				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']}</font>")
-				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']}</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  JPEG images: {stats['jpeg']} ({_fmt_mb(stats.get('jpeg_bytes', 0))})</font>")
+				self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  PNG images: {stats['png']} ({_fmt_mb(stats.get('png_bytes', 0))})</font>")
+				if stats.get('total_bytes', 0) > 0:
+					self.info_panel.append(f"<font color='{SUCCESS_COLOR}'>  Total assets size: {_fmt_mb(stats.get('total_bytes', 0))}</font>")
 				
 				# Report Missing Files Count
 				if 'missing_files_reported' in stats and stats['missing_files_reported']:
