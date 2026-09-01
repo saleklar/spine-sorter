@@ -4252,12 +4252,15 @@ class MainWindow(QMainWindow):
 						_sc_img_cache[path] = result
 						return result
 
-					def _sc_match_free(small_path, large_path, flip=False):
+					def _sc_match_free(small_path, large_path, flip=False, scale_bounds=None):
 						"""Estimate a free-angle similarity transform LARGE->SMALL via ORB feature
 						matching + RANSAC, then validate by warping. Trying flip=False and flip=True
 						covers the entire similarity group (any reflection = flipX + some rotation).
+						scale_bounds overrides (min, max) accepted scale (chain re-verification
+						needs wider bounds than initial pair discovery).
 						Returns (scale, spine_angle_degrees, ssim_score) or None."""
 						try:
+							_smin, _smax = scale_bounds if scale_bounds else (SC_MIN_SCALE, SC_MAX_SCALE)
 							s_bgr, s_mask = _sc_load_trimmed(small_path)
 							l_bgr_o, l_mask_o = _sc_load_trimmed(large_path)
 							if s_bgr is None or l_bgr_o is None:
@@ -4283,7 +4286,7 @@ class MainWindow(QMainWindow):
 								return None
 							a_c, b_c = M[0, 0], M[1, 0]
 							scale = math.hypot(a_c, b_c)
-							if not (SC_MIN_SCALE <= scale <= SC_MAX_SCALE):
+							if not (_smin <= scale <= _smax):
 								return None
 							theta_img = math.degrees(math.atan2(b_c, a_c))
 							spine_angle = -theta_img  # image Y-down -> Spine Y-up
@@ -4431,8 +4434,11 @@ class MainWindow(QMainWindow):
 							if hops == 0:
 								continue
 							terminal_target = t_norm_ch
-							# Direct ORB re-estimation against the terminal (drift correction)
-							res_dir = _sc_match_free(k_ch, terminal_target, flip=bool(f_acc))
+							# Direct ORB re-estimation against the terminal (drift correction).
+							# Composed chains can reach scales well below the discovery gate,
+							# so verify with wide scale bounds around the composed estimate.
+							res_dir = _sc_match_free(k_ch, terminal_target, flip=bool(f_acc),
+							                         scale_bounds=(max(0.05, s_acc * 0.5), s_acc * 2.0))
 							if res_dir:
 								s_acc, th_acc, _ssim_dir = res_dir
 							# Normalize angle to (-180, 180]
