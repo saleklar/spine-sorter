@@ -3427,7 +3427,7 @@ class MainWindow(QMainWindow):
 		# SSIM + ORB dual-gate. Both must agree. No slider influence.
 		th_ssim  = 0.97  # Hard minimum structural similarity
 		th_color = 0.90  # Color histogram must be >= 90% correlated
-		th_size_diff = 0  # Size must be identical - no tolerance, no slider influence
+		th_size_diff = 2  # Allow tiny trim-bbox differences (anti-aliased mirrored exports often differ by 1-2px); SSIM+ORB judge still validates strictly
 
 		th = {
 			'alpha_diff': th_alpha,
@@ -3602,6 +3602,21 @@ class MainWindow(QMainWindow):
 					res |= (inv << shift)
 				return res
 
+			def _flip_hash_v_64(h):
+				# Vertical flip of an 8x8 hash = reverse row (byte) order
+				return int.from_bytes(h.to_bytes(8, 'big')[::-1], 'big')
+
+			def _flip_ahash_v(h):
+				mask64 = 0xFFFFFFFFFFFFFFFF
+				b = h & mask64
+				g = (h >> 64) & mask64
+				r = (h >> 128) & mask64
+				return (_flip_hash_v_64(r) << 128) | (_flip_hash_v_64(g) << 64) | _flip_hash_v_64(b)
+
+			def _flip_dhash_v(h):
+				# Rows swap order; left/right comparisons within each row are unchanged
+				return _flip_hash_v_64(h)
+
 			def _is_near_duplicate(sig_a, sig_b, th, flip_mode=None):
 				# Advanced OpenCV check for robust validation
 				# If basic criteria are met, we verify with histogram/SSIM if available
@@ -3617,6 +3632,9 @@ class MainWindow(QMainWindow):
 					# Apply transformation to B's hashes
 					ahash_b = _flip_ahash_h(sig_b['ahash'])
 					dhash_b = _flip_dhash_h(sig_b['dhash'])
+				elif flip_mode == 'y':
+					ahash_b = _flip_ahash_v(sig_b['ahash'])
+					dhash_b = _flip_dhash_v(sig_b['dhash'])
 				
 				# Allow flexible size tolerance
 				w_diff = abs(sig_a['trim_w'] - sig_b['trim_w'])
@@ -3632,8 +3650,12 @@ class MainWindow(QMainWindow):
 						# self.info_panel.append(f"<span style='color:orange'>Reject Size ({w_diff}x{h_diff}): {os.path.basename(sig_a['path'])} vs {os.path.basename(sig_b['path'])}</span>")
 					return False
 				
-				# 1. Quick Alpha/Aspect Ratio Check
-				if abs(sig_a['alpha_ratio'] - sig_b['alpha_ratio']) > th['alpha_diff']:
+				# 1. Quick Alpha Fill Check (relative to TRIMMED content bbox, not the canvas,
+				# so different canvas padding around identical content doesn't cause rejection)
+				def _content_fill(sig):
+					area_t = max(1.0, float(sig['trim_w'] * sig['trim_h']))
+					return (sig['alpha_ratio'] * float(sig['original_w'] * sig['original_h'])) / area_t
+				if abs(_content_fill(sig_a) - _content_fill(sig_b)) > th['alpha_diff']:
 					return False
 
 				# 2. Hash Distance Check (Candidate Selection)
@@ -3663,6 +3685,8 @@ class MainWindow(QMainWindow):
 							# Apply Flip if requested
 							if flip_mode == 'x':
 								img2_raw = cv2.flip(img2_raw, 1) # 1 = Horizontal Flip
+							elif flip_mode == 'y':
+								img2_raw = cv2.flip(img2_raw, 0) # 0 = Vertical Flip
 
 							# Helper: Extract BGR + Mask
 							def _get_bgr_mask(im):
@@ -3682,8 +3706,38 @@ class MainWindow(QMainWindow):
 
 							if bgr1 is None or bgr2 is None: return is_hash_candidate
 
-							# Standardize size (Match img2 to img1)
-							if bgr1.shape[:2] != bgr2.shape[:2]:
+							# Crop both to content bbox: mirrored/duplicate assets are often
+							# positioned differently within their canvases, which would misalign
+							# the SSIM comparison and wrongly reject genuine matches.
+							def _crop_to_content(bgr, mask):
+								ys, xs = np.where(mask > 0)
+								if len(xs) == 0:
+									return bgr, mask
+								y0, y1 = ys.min(), ys.max() + 1
+								x0, x1 = xs.min(), xs.max() + 1
+								return bgr[y0:y1, x0:x1], mask[y0:y1, x0:x1]
+
+							bgr1, mask1 = _crop_to_content(bgr1, mask1)
+							bgr2, mask2 = _crop_to_content(bgr2, mask2)
+
+							# Standardize size.
+							# For NEAR-EQUAL sizes (<=3px difference) do NOT resize: one export
+							# often has an extra row/col of faint alpha, and resizing 74->73px
+							# smears every row (sub-pixel misalignment), collapsing SSIM from
+							# ~1.0 to ~0.8 for pixel-identical art. Pad to common size instead;
+							# residual 1-2px offsets are recovered by the borderline micro-shift
+							# retry after the first SSIM pass below.
+							h_del = abs(bgr1.shape[0] - bgr2.shape[0])
+							w_del = abs(bgr1.shape[1] - bgr2.shape[1])
+							if bgr1.shape[:2] != bgr2.shape[:2] and h_del <= 3 and w_del <= 3:
+								Hc = max(bgr1.shape[0], bgr2.shape[0])
+								Wc = max(bgr1.shape[1], bgr2.shape[1])
+								def _pad_to(b, m, Hp, Wp):
+									return (cv2.copyMakeBorder(b, 0, Hp - b.shape[0], 0, Wp - b.shape[1], cv2.BORDER_CONSTANT, value=0),
+									        cv2.copyMakeBorder(m, 0, Hp - m.shape[0], 0, Wp - m.shape[1], cv2.BORDER_CONSTANT, value=0))
+								bgr1, mask1 = _pad_to(bgr1, mask1, Hc, Wc)
+								bgr2, mask2 = _pad_to(bgr2, mask2, Hc, Wc)
+							elif bgr1.shape[:2] != bgr2.shape[:2]:
 								bgr2 = cv2.resize(bgr2, (bgr1.shape[1], bgr1.shape[0]))
 								mask2 = cv2.resize(mask2, (bgr1.shape[1], bgr1.shape[0]), interpolation=cv2.INTER_NEAREST)
 
@@ -3723,10 +3777,39 @@ class MainWindow(QMainWindow):
 							
 							s = ssim(gray1, gray2)
 							
+							# Micro-shift retry for BORDERLINE scores: a single faint alpha pixel
+							# can offset the trim bbox by 1px, so pixel-identical art can score
+							# SSIM as low as ~0.4 purely from misalignment (even at EQUAL trim
+							# sizes). Try small integer shifts of img2 and keep the best alignment.
+							# Safe: a +/-2px shift cannot lift genuinely different art to >=0.97;
+							# only true duplicates recover. Runs only below the accept range,
+							# so cost stays negligible.
+							if 0.35 <= s < 0.995:
+								try:
+									Hc2, Wc2 = gray1.shape[:2]
+									best_s_al, best_dxy = s, (0, 0)
+									for dy_al in range(-2, 3):
+										for dx_al in range(-2, 3):
+											if dx_al == 0 and dy_al == 0:
+												continue
+											M_al = np.float32([[1, 0, dx_al], [0, 1, dy_al]])
+											s_al = ssim(gray1, cv2.warpAffine(gray2, M_al, (Wc2, Hc2)))
+											if s_al > best_s_al:
+												best_s_al, best_dxy = s_al, (dx_al, dy_al)
+									if best_dxy != (0, 0) and best_s_al > s + 0.005:
+										M_al = np.float32([[1, 0, best_dxy[0]], [0, 1, best_dxy[1]]])
+										img2 = cv2.warpAffine(img2, M_al, (Wc2, Hc2))
+										mask2 = cv2.warpAffine(mask2, M_al, (Wc2, Hc2), flags=cv2.INTER_NEAREST)
+										gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+										s = best_s_al
+								except Exception:
+									pass
+							
 							# C. Feature Matching (ORB) - "Sophisticated" Object Recognition
 							# This acts like "face recognition" for sprites, identifying key features
 							# regardless of minor shifts, noise, or scale differences.
 							orb_score = 0.0
+							orb_reliable = False
 							try:
 								# Initialize ORB (Oriented FAST and Rotated BRIEF)
 								orb = cv2.ORB_create(nfeatures=500)
@@ -3734,6 +3817,7 @@ class MainWindow(QMainWindow):
 								kp2, des2 = orb.detectAndCompute(img2, None)
 								
 								if des1 is not None and des2 is not None and len(des1) > 4 and len(des2) > 4:
+									orb_reliable = True
 									# Brute-Force Matcher with Hamming distance (efficient for binary descriptors)
 									bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 									matches = bf.match(des1, des2)
@@ -3758,6 +3842,29 @@ class MainWindow(QMainWindow):
 							# Requiring BOTH eliminates palette-swaps and similar-but-different images.
 							if s >= 0.97 and orb_score >= 0.65:
 								return True
+							
+							# Gate C: Small-sprite fallback. ORB is unreliable on tiny images
+							# (too few keypoints), which made Gate B impossible to satisfy even
+							# for identical art (orb_score stuck at 0). Instead validate with a
+							# strict pixel-level error-blob check (same calibrated technique as
+							# the scaled matcher): genuine copies show only thin scattered
+							# resampling noise, different frames/art show connected error blobs.
+							if s >= 0.97 and not orb_reliable:
+								try:
+									common_m = cv2.bitwise_and(mask1, mask2)
+									diff_g = cv2.absdiff(gray1, gray2)
+									diff_g[common_m == 0] = 0
+									err_m = (diff_g > 48).astype(np.uint8)
+									err_m = cv2.morphologyEx(err_m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+									content_px = max(1, int((common_m > 0).sum()))
+									err_frac = float(err_m.sum()) / content_px
+									if err_frac <= 0.010:
+										n_lbl, _lbl_img, stats_cc, _cent = cv2.connectedComponentsWithStats(err_m, connectivity=8)
+										max_blob = (float(stats_cc[1:, cv2.CC_STAT_AREA].max()) / content_px) if n_lbl > 1 else 0.0
+										if max_blob <= 0.005:
+											return True
+								except Exception:
+									pass
 							
 							# Everything else: hard reject
 							return False
@@ -3947,10 +4054,12 @@ class MainWindow(QMainWindow):
 							
 							# Clean alpha before flipping ensure clean source
 							# Must apply SAME threshold logic as normalized_hashes generation!
+							# (_compute_similarity_signature uses threshold 15 - keep in sync,
+							# otherwise flipped hashes NEVER match the signature database)
 							r, g, b, a = im.split()
 							lut = []
 							for i in range(256):
-								lut.append(0 if i < 5 else i)
+								lut.append(0 if i < 15 else i)
 							a = a.point(lut)
 							im.putalpha(a)
 							
@@ -4179,17 +4288,14 @@ class MainWindow(QMainWindow):
 						elif consolidate_mirrored:
 							# Check Horizontal Flip (Fuzzy Match)
 							if _is_near_duplicate(sig1, sig2, th, flip_mode='x'):
-								# Prioritize exact name based sorting? logic handled later, but we need to set map
-								# If p1 < p2 name wise?
-								# The existing mirror logic prioritizes alphabetically.
-								# 'target' is the one being removed. 
 								# Here p1 is source, p2 is candidate.
-								# If p2 is a flipped version of p1.
-								# We map p2 -> p1
-								
-								# Check if we already have a mirror map for this?
+								# If p2 is a flipped version of p1, map p2 -> p1.
 								if target_norm not in consolidation_map_mirror:
 									consolidation_map_mirror[target_norm] = {'target': p1, 'transform': 'flipX', 'axis': 'x'}
+							# Check Vertical Flip (Fuzzy Match)
+							elif _is_near_duplicate(sig1, sig2, th, flip_mode='y'):
+								if target_norm not in consolidation_map_mirror:
+									consolidation_map_mirror[target_norm] = {'target': p1, 'transform': 'flipY', 'axis': 'y'}
 						
 						# Debug logging omitted for performance
 						
@@ -4298,6 +4404,22 @@ class MainWindow(QMainWindow):
 							cov = common.sum() / max(1, s_mask.sum())
 							if cov < 0.90:
 								return None
+							# --- SYMMETRIC content-conservation gates (anti false-positive) ---
+							# A one-way coverage check lets a LARGER asset with EXTRA content
+							# (e.g. a DOUBLE money stack) match a SINGLE stack: one stack aligns,
+							# the extra one is clipped off-canvas or lands on transparency.
+							# Gate 1: area conservation. After scaling, the large's content area
+							# must land (almost) entirely inside the small's canvas.
+							l_content_px = float((l_mask > 0).sum())
+							expected_px = l_content_px * (scale * scale)
+							warp_in_canvas = float((warp_mask > 0).sum())
+							if expected_px > 0 and warp_in_canvas < 0.90 * expected_px:
+								return None  # significant content clipped outside canvas => extra content
+							# Gate 2: no leftover content. Warped-large pixels landing where the
+							# small is transparent mean the large depicts MORE than the small.
+							leftover = float(((warp_mask > 0) & (s_mask == 0)).sum())
+							if warp_in_canvas > 0 and (leftover / warp_in_canvas) > 0.06:
+								return None
 							s_common = cv2.bitwise_and(s_bgr, s_bgr, mask=common)
 							w_common = cv2.bitwise_and(warp_bgr, warp_bgr, mask=common)
 							g1 = cv2.cvtColor(s_common, cv2.COLOR_BGR2GRAY)
@@ -4321,6 +4443,117 @@ class MainWindow(QMainWindow):
 							if n_lbl > 1 and (float(stats_cc[1:, cv2.CC_STAT_AREA].max()) / content_px) > 0.005:
 								return None
 							return scale, spine_angle, s_score
+						except Exception:
+							return None
+
+					def _sc_match_bruteforce(small_path, large_path, flip=False):
+						"""Rotation fallback for SMALL sprites where ORB cannot extract enough
+						features (tiny coins etc). Dense angle search: rotate LARGE through 360
+						degrees at estimated scale, trim, micro-shift align, validate with SSIM
+						+ strict error-blob gates. Coarse pass (6 deg) then fine (1 deg around
+						best). Returns (scale, spine_angle_degrees, ssim_score) or None."""
+						try:
+							s_bgr, s_mask = _sc_load_trimmed(small_path)
+							l_bgr, l_mask = _sc_load_trimmed(large_path)
+							if s_bgr is None or l_bgr is None:
+								return None
+							if flip:
+								l_bgr = cv2.flip(l_bgr, 1); l_mask = cv2.flip(l_mask, 1)
+							px_s = float((s_mask > 0).sum()); px_l = float((l_mask > 0).sum())
+							if px_s < 64 or px_l < 64:
+								return None
+							sc_est = math.sqrt(px_s / max(1.0, px_l))
+							if not (SC_MIN_SCALE <= sc_est <= SC_MAX_SCALE):
+								return None
+							hs, ws = s_bgr.shape[:2]
+							hL, wL = l_bgr.shape[:2]
+							diag = int(math.ceil(math.hypot(hL, wL) * sc_est)) + 4
+							g_small_full = cv2.cvtColor(s_bgr, cv2.COLOR_BGR2GRAY)
+
+							def _try_angle(ang, shifts=(-1, 0, 1)):
+								"""Returns (ssim, aligned g2, aligned m2, common) or None."""
+								M_r = cv2.getRotationMatrix2D((wL/2.0, hL/2.0), ang, sc_est)
+								M_r[0, 2] += diag/2.0 - wL/2.0
+								M_r[1, 2] += diag/2.0 - hL/2.0
+								rb = cv2.warpAffine(l_bgr, M_r, (diag, diag))
+								rm = cv2.warpAffine(l_mask, M_r, (diag, diag), flags=cv2.INTER_NEAREST)
+								ys_r, xs_r = np.where(rm > 0)
+								if len(xs_r) == 0:
+									return None
+								y0r, y1r = ys_r.min(), ys_r.max()+1
+								x0r, x1r = xs_r.min(), xs_r.max()+1
+								rb = rb[y0r:y1r, x0r:x1r]; rm = rm[y0r:y1r, x0r:x1r]
+								# bbox after rotation must be close to small's bbox
+								if abs(rb.shape[0]-hs) > 3 or abs(rb.shape[1]-ws) > 3:
+									return None
+								Hc = max(rb.shape[0], hs); Wc = max(rb.shape[1], ws)
+								def _padc(b, target_h, target_w):
+									return cv2.copyMakeBorder(b, 0, target_h-b.shape[0], 0, target_w-b.shape[1], cv2.BORDER_CONSTANT, value=0)
+								g1p = _padc(g_small_full, Hc, Wc)
+								m1p = _padc(s_mask, Hc, Wc)
+								g2p = _padc(cv2.cvtColor(rb, cv2.COLOR_BGR2GRAY), Hc, Wc)
+								m2p = _padc(rm, Hc, Wc)
+								best_s_loc, best_g2, best_m2 = -1.0, g2p, m2p
+								for dy_b in shifts:
+									for dx_b in shifts:
+										if dx_b == 0 and dy_b == 0:
+											g2s, m2s = g2p, m2p
+										else:
+											M_s = np.float32([[1, 0, dx_b], [0, 1, dy_b]])
+											g2s = cv2.warpAffine(g2p, M_s, (Wc, Hc))
+											m2s = cv2.warpAffine(m2p, M_s, (Wc, Hc), flags=cv2.INTER_NEAREST)
+										try:
+											s_loc = ssim(g1p, g2s)
+										except Exception:
+											continue
+										if s_loc > best_s_loc:
+											best_s_loc, best_g2, best_m2 = s_loc, g2s, m2s
+								return best_s_loc, g1p, m1p, best_g2, best_m2
+
+							# Coarse pass
+							best_ang, best_val = None, -1.0
+							for ang in range(0, 360, 6):
+								r = _try_angle(ang)
+								if r and r[0] > best_val:
+									best_val, best_ang = r[0], ang
+							if best_ang is None or best_val < 0.55:
+								return None
+							# Fine pass around best
+							fine_best = None
+							for ang_f in range(best_ang-5, best_ang+6):
+								r = _try_angle(ang_f % 360, shifts=(-2, -1, 0, 1, 2))
+								if r and (fine_best is None or r[0] > fine_best[0]):
+									fine_best = r; best_ang = ang_f % 360
+							if fine_best is None:
+								return None
+							s_score, g1p, m1p, g2p, m2p = fine_best
+							if s_score < 0.93:
+								return None
+							# Strict pixel gates (same calibration as ORB path)
+							common = cv2.bitwise_and(m1p, m2p)
+							cov = common.sum() / max(1, m1p.sum())
+							if cov < 0.90:
+								return None
+							# Content conservation both ways
+							leftover = float(((m2p > 0) & (m1p == 0)).sum())
+							if (m2p > 0).sum() > 0 and leftover / float((m2p > 0).sum()) > 0.06:
+								return None
+							diff_g = cv2.absdiff(g1p, g2p)
+							diff_g[common == 0] = 0
+							err_m = (diff_g > 48).astype(np.uint8)
+							err_m = cv2.morphologyEx(err_m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+							content_px = max(1, int((common > 0).sum()))
+							if float(err_m.sum()) / content_px > 0.010:
+								return None
+							n_lbl, _li, stats_cc, _ce = cv2.connectedComponentsWithStats(err_m, connectivity=8)
+							if n_lbl > 1 and (float(stats_cc[1:, cv2.CC_STAT_AREA].max()) / content_px) > 0.005:
+								return None
+							# rotation matrix angle is CCW-positive in image coords (Y down),
+							# matching _sc_match_free's spine_angle = -theta_img convention:
+							# getRotationMatrix2D(ang) rotates image content by +ang CCW visually,
+							# which corresponds to spine rotation of +ang.
+							spine_angle = float(((best_ang + 180.0) % 360.0) - 180.0)
+							return sc_est, spine_angle, s_score
 						except Exception:
 							return None
 
@@ -4374,6 +4607,17 @@ class MainWindow(QMainWindow):
 								_sc_validations += 1
 								res_sc = _sc_match_free(p_small, p_large, flip=True)
 								flip_used = True
+							# Brute-force rotation fallback for SMALL sprites: ORB needs >=8
+							# keypoints which tiny coins never provide, so rotated tiny copies
+							# were undetectable. Dense angle search is affordable at this size.
+							if res_sc is None and max(sig_s['trim_w'], sig_s['trim_h']) <= 96 and max(sig_l['trim_w'], sig_l['trim_h']) <= 96:
+								_sc_validations += 1
+								res_sc = _sc_match_bruteforce(p_small, p_large, flip=False)
+								flip_used = False
+								if res_sc is None:
+									_sc_validations += 1
+									res_sc = _sc_match_bruteforce(p_small, p_large, flip=True)
+									flip_used = True
 							if res_sc:
 								sc_scale, sc_angle, sc_ssim = res_sc
 								entry_sc = {'target': p_large, 'transform': 'freeform', 'scale': sc_scale, 'angle': sc_angle}
