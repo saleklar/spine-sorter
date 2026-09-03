@@ -764,7 +764,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.85"
+	APP_VERSION = "5.86"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -4410,15 +4410,18 @@ class MainWindow(QMainWindow):
 							# the extra one is clipped off-canvas or lands on transparency.
 							# Gate 1: area conservation. After scaling, the large's content area
 							# must land (almost) entirely inside the small's canvas.
+							# Calibrated on real data: true matches conserve >= 1.00, false
+							# "subset" matches (pile+extra gems vs pile) sit at ~0.94.
 							l_content_px = float((l_mask > 0).sum())
 							expected_px = l_content_px * (scale * scale)
 							warp_in_canvas = float((warp_mask > 0).sum())
-							if expected_px > 0 and warp_in_canvas < 0.90 * expected_px:
+							if expected_px > 0 and warp_in_canvas < 0.97 * expected_px:
 								return None  # significant content clipped outside canvas => extra content
 							# Gate 2: no leftover content. Warped-large pixels landing where the
 							# small is transparent mean the large depicts MORE than the small.
+							# Calibrated: true matches <= 0.007, false subsets >= 0.028.
 							leftover = float(((warp_mask > 0) & (s_mask == 0)).sum())
-							if warp_in_canvas > 0 and (leftover / warp_in_canvas) > 0.06:
+							if warp_in_canvas > 0 and (leftover / warp_in_canvas) > 0.02:
 								return None
 							s_common = cv2.bitwise_and(s_bgr, s_bgr, mask=common)
 							w_common = cv2.bitwise_and(warp_bgr, warp_bgr, mask=common)
@@ -4427,6 +4430,23 @@ class MainWindow(QMainWindow):
 							s_score = ssim(g1, g2)
 							if s_score < 0.90:
 								return None
+							# COLOR gate (grayscale is blind on saturated hues, e.g. red gems:
+							# different red-gem arrangements produce gray-diff ~11 but color-diff
+							# ~20). Blur first: resampling noise from genuine rotated/scaled
+							# copies is high-frequency and vanishes under blur (true matches
+							# blur_mean <= 3.2), while real content differences are structural
+							# and survive (false matches blur_mean >= 16).
+							common_er = cv2.erode(common, np.ones((5, 5), np.uint8))
+							er_px = int((common_er > 0).sum())
+							if er_px > 400:  # enough interior pixels for a reliable estimate
+								blur1 = cv2.GaussianBlur(s_common, (0, 0), 2.0)
+								blur2 = cv2.GaussianBlur(w_common, (0, 0), 2.0)
+								dcol = cv2.absdiff(blur1, blur2).max(axis=2).astype(np.float32)
+								dcol[common_er == 0] = 0
+								if float(dcol[common_er > 0].mean()) > 8.0:
+									return None
+								if float((dcol > 24).sum()) / er_px > 0.02:
+									return None
 							# High-error blob gate: DIFFERENT content (e.g. different text on same
 							# banner) produces large connected error blobs, while genuine rotated
 							# copies only show thin scattered resampling noise. Calibrated on real
