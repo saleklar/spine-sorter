@@ -2107,8 +2107,10 @@ class MainWindow(QMainWindow):
 				key = (slot_name, str(att_name))
 				new_name = renames.get(key)
 				if new_name and new_name != att_name and isinstance(att_data, dict):
-					# Name now matches the path, so the redundant 'path' key can be dropped
-					att_data.pop('path', None)
+					# Preserve the real exported asset path. The attachment key can be renamed
+					# to match the copied image reference without deleting the file path itself.
+					if 'name' in att_data:
+						att_data['name'] = new_name
 					new_atts[new_name] = att_data
 					renamed_count += 1
 					changed = True
