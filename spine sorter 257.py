@@ -102,6 +102,8 @@ try:
 		QStyle,
 		QListWidgetItem,
 		QSizePolicy,
+		QTabWidget,
+		QScrollArea,
 	)
 except ModuleNotFoundError:
 	print("PySide6 is not installed. Install with: pip install PySide6")
@@ -407,10 +409,11 @@ class SpineScannerThread(QThread):
 
 
 class ReportDialog(QDialog):
-	def __init__(self, parent=None, report_text=""):
+	def __init__(self, parent=None, report_text="", preview_image_path=None):
 		super().__init__(parent)
 		self.setWindowTitle("Process Report")
-		self.resize(800, 600)
+		self.resize(1000, 700)
+		self.preview_image_path = preview_image_path
 		
 		layout = QVBoxLayout(self)
 		
@@ -418,14 +421,66 @@ class ReportDialog(QDialog):
 		label.setStyleSheet("font-weight: bold; font-size: 14px;")
 		layout.addWidget(label)
 
-		self.text_edit = QTextEdit()
-		self.text_edit.setReadOnly(True)
-		self.text_edit.setText(report_text)
-		# Use monospace font for better formatting of lists
-		font = QFont("Consolas", 10)
-		font.setStyleHint(QFont.Monospace)
-		self.text_edit.setFont(font)
-		layout.addWidget(self.text_edit)
+		# Create a tab widget if we have preview image
+		if preview_image_path:
+			self.tab_widget = QTabWidget()
+			
+			# Report tab
+			report_widget = QWidget()
+			report_layout = QVBoxLayout(report_widget)
+			
+			self.text_edit = QTextEdit()
+			self.text_edit.setReadOnly(True)
+			self.text_edit.setText(report_text)
+			# Use monospace font for better formatting of lists
+			font = QFont("Consolas", 10)
+			font.setStyleHint(QFont.Monospace)
+			self.text_edit.setFont(font)
+			report_layout.addWidget(self.text_edit)
+			
+			self.tab_widget.addTab(report_widget, "Report")
+			
+			# Preview tab
+			preview_widget = QWidget()
+			preview_layout = QVBoxLayout(preview_widget)
+			
+			self.preview_label = QLabel()
+			self.preview_label.setAlignment(Qt.AlignCenter)
+			
+			# Load and display preview image
+			try:
+				pixmap = QPixmap(preview_image_path)
+				if not pixmap.isNull():
+					# Scale to fit nicely in the dialog while maintaining aspect ratio
+					scaled_pixmap = pixmap.scaledToWidth(900, Qt.SmoothTransformation)
+					self.preview_label.setPixmap(scaled_pixmap)
+					self.preview_image_loaded = True
+				else:
+					self.preview_label.setText("Failed to load preview image")
+					self.preview_image_loaded = False
+			except Exception as e:
+				self.preview_label.setText(f"Could not display preview: {e}")
+				self.preview_image_loaded = False
+			
+			# Scroll area for preview  
+			scroll = QScrollArea()
+			scroll.setWidget(self.preview_label)
+			scroll.setWidgetResizable(True)
+			preview_layout.addWidget(scroll)
+			
+			self.tab_widget.addTab(preview_widget, "PNG Atlas Preview")
+			
+			layout.addWidget(self.tab_widget)
+		else:
+			self.text_edit = QTextEdit()
+			self.text_edit.setReadOnly(True)
+			self.text_edit.setText(report_text)
+			# Use monospace font for better formatting of lists
+			font = QFont("Consolas", 10)
+			font.setStyleHint(QFont.Monospace)
+			self.text_edit.setFont(font)
+			layout.addWidget(self.text_edit)
+			self.preview_image_loaded = False
 		
 		btn_layout = QHBoxLayout()
 		
@@ -433,6 +488,12 @@ class ReportDialog(QDialog):
 		self.save_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton) if hasattr(QStyle, 'SP_DialogSaveButton') else QIcon())
 		self.save_btn.clicked.connect(self.save_report)
 		btn_layout.addWidget(self.save_btn)
+		
+		# Add Save Preview button if preview exists
+		if preview_image_path and self.preview_image_loaded:
+			self.save_preview_btn = QPushButton("Save Preview As...")
+			self.save_preview_btn.clicked.connect(self.save_preview)
+			btn_layout.addWidget(self.save_preview_btn)
 		
 		btn_layout.addStretch()
 
@@ -453,6 +514,23 @@ class ReportDialog(QDialog):
 				QMessageBox.information(self, "Saved", f"Report saved to:\n{path}")
 			except Exception as e:
 				QMessageBox.critical(self, "Error", f"Could not save report:\n{e}")
+	
+	def save_preview(self):
+		if not self.preview_image_path or not os.path.exists(self.preview_image_path):
+			QMessageBox.warning(self, "No Preview", "Preview image is not available.")
+			return
+		
+		timestamp = int(time.time())
+		default_name = f"spine_atlas_preview_{timestamp}.png"
+		path, _ = QFileDialog.getSaveFileName(self, "Save Preview As", default_name, "PNG Images (*.png)")
+		if path:
+			try:
+				# Copy the temporary preview image to the user's chosen location
+				import shutil
+				shutil.copy2(self.preview_image_path, path)
+				QMessageBox.information(self, "Saved", f"Preview saved to:\n{path}")
+			except Exception as e:
+				QMessageBox.critical(self, "Error", f"Could not save preview:\n{e}")
 
 
 class ImageCache:
@@ -1053,6 +1131,12 @@ class MainWindow(QMainWindow):
 		self.open_after_checkbox.setChecked(bool(self.config.get("open_after_export", False)))
 		self.open_after_checkbox.stateChanged.connect(lambda v: self._save_open_after_config(v))
 
+		# Optional: preview exported PNG atlas
+		self.preview_atlas_checkbox = QCheckBox("Preview exported PNG atlas")
+		self.preview_atlas_checkbox.setToolTip("If checked, generates a composite image showing how the exported Spine atlas will look after export")
+		self.preview_atlas_checkbox.setChecked(bool(self.config.get("preview_png_atlas", False)))
+		self.preview_atlas_checkbox.stateChanged.connect(lambda v: self._save_preview_atlas_config(v))
+
 		# Optional: Optimization (Opaque/Blend to JPEG)
 		self.optimization_cb = QCheckBox("Sort all opaque images to jpeg")
 		self.optimization_cb.setToolTip(
@@ -1085,6 +1169,7 @@ class MainWindow(QMainWindow):
 		actions_layout.addWidget(self.process_btn)
 		actions_layout.addWidget(self.stop_btn)
 		actions_layout.addWidget(self.open_after_checkbox)
+		actions_layout.addWidget(self.preview_atlas_checkbox)
 		actions_layout.addWidget(self.force_local_cb)
 
 		# Consolidate Duplicates option
@@ -1959,6 +2044,13 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
+	def _save_preview_atlas_config(self, v):
+		try:
+			self.config["preview_png_atlas"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
 	def _save_force_local_config(self, v):
 		try:
 			self.config["force_local_sorting"] = bool(v)
@@ -2299,6 +2391,125 @@ class MainWindow(QMainWindow):
 		except Exception as e:
 			self.info_panel.append(f"Could not write cleanup diagnostics: {e}")
 		return False
+
+	def generate_png_atlas_preview(self, result_dirs):
+		"""
+		Generate a composite PNG preview from exported atlas images in result directories.
+		
+		Args:
+			result_dirs: List of result directory paths containing exported files
+		
+		Returns:
+			Path to the generated preview image, or None if no preview could be generated
+		"""
+		if Image is None:
+			self.info_panel.append("Pillow not available for PNG atlas preview generation")
+			return None
+		
+		try:
+			# Collect all PNG files from result directories
+			atlas_images = []
+			for result_dir in result_dirs:
+				if not os.path.isdir(result_dir):
+					self.info_panel.append(f"Result directory not found: {result_dir}")
+					continue
+				
+				self.info_panel.append(f"Scanning for PNG files in: {result_dir}")
+				
+				try:
+					# First, try to find PNG files referenced in atlas files
+					for f in os.listdir(result_dir):
+						if f.lower().endswith('.atlas'):
+							# Parse atlas file to find the PNG images it references
+							atlas_path = os.path.join(result_dir, f)
+							try:
+								with open(atlas_path, 'r', encoding='utf-8', errors='ignore') as af:
+									for line in af:
+										line = line.strip()
+										if line and (line.endswith('.png') or line.endswith('.jpg') or line.endswith('.jpeg')):
+											img_path = os.path.join(os.path.dirname(atlas_path), line)
+											if os.path.exists(img_path):
+												atlas_images.append(img_path)
+							except Exception as e:
+								self.info_panel.append(f"  Warning: Could not parse atlas file {f}: {e}")
+					
+					# Also scan directly for PNG/JPG files if no atlas files found
+					if not atlas_images:
+						for f in os.listdir(result_dir):
+							if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+								img_path = os.path.join(result_dir, f)
+								if os.path.isfile(img_path):
+									atlas_images.append(img_path)
+					
+					if atlas_images:
+						self.info_panel.append(f"  Found {len(atlas_images)} image(s) for preview")
+					
+				except Exception as e:
+					self.info_panel.append(f"  Error scanning directory: {e}")
+					pass
+			
+			if not atlas_images:
+				self.info_panel.append("No PNG/JPG images found in any result directories for preview generation")
+				return None
+			
+			self.info_panel.append(f"Creating composite preview from {len(atlas_images)} image(s)")
+			
+			# Limit to reasonable number of images to avoid huge composite
+			if len(atlas_images) > 50:
+				atlas_images = atlas_images[:50]
+				self.info_panel.append(f"  (Limited to first 50 images)")
+			
+			# Load images and create a composite
+			loaded_images = []
+			total_width = 0
+			max_height = 0
+			
+			for img_path in atlas_images:
+				try:
+					img = Image.open(img_path)
+					# Convert RGBA if needed
+					if img.mode in ('RGBA', 'LA', 'P'):
+						# Keep alpha channel
+						pass
+					else:
+						img = img.convert('RGBA')
+					loaded_images.append(img)
+					total_width += img.width + 10  # Add spacing
+					max_height = max(max_height, img.height)
+				except Exception as e:
+					self.info_panel.append(f"  Warning: Could not load image {os.path.basename(img_path)}: {e}")
+					pass
+			
+			if not loaded_images:
+				self.info_panel.append("Could not load any images for preview")
+				return None
+			
+			# Create composite image
+			max_height = max(max_height, 100)  # Minimum height
+			total_width = max(total_width, 100)  # Minimum width
+			
+			self.info_panel.append(f"Compositing {len(loaded_images)} image(s) into preview ({total_width}x{max_height})")
+			
+			composite = Image.new('RGBA', (total_width, max_height), (0, 0, 0, 0))
+			
+			x_offset = 5
+			for img in loaded_images:
+				try:
+					# Paste image at current position
+					composite.paste(img, (x_offset, (max_height - img.height) // 2), img if img.mode == 'RGBA' else None)
+					x_offset += img.width + 10
+				except Exception:
+					pass
+			
+			# Save to temporary file
+			temp_preview_path = os.path.join(os.path.expanduser("~"), f"spine_atlas_preview_{int(time.time())}.png")
+			composite.save(temp_preview_path, "PNG")
+			self.info_panel.append(f"Generated PNG atlas preview: {temp_preview_path}")
+			return temp_preview_path
+			
+		except Exception as e:
+			self.info_panel.append(f"Error generating PNG atlas preview: {e}")
+			return None
 
 	def browse_folder(self):
 		start = self.folder_display.text() or os.path.expanduser("~")
@@ -7564,10 +7775,14 @@ class MainWindow(QMainWindow):
 
 					if is_last:
 						try:
-							# Remove the temporary export folder (spine_temp_...)
-							if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir):
+							# Remove the temporary export folder (spine_temp_...) 
+							# unless preview is enabled (preview needs the directories to be intact)
+							skip_cleanup = self.preview_atlas_checkbox.isChecked() if hasattr(self, 'preview_atlas_checkbox') else False
+							if result_dir and os.path.isdir(result_dir) and 'spine_temp_' in os.path.basename(result_dir) and not skip_cleanup:
 								# Use robust removal helper (retries + logging)
 								self._remove_temp_dir(result_dir, reason='export-cleanup')
+							elif skip_cleanup:
+								self.info_panel.append(f"Skipped cleanup of {result_dir} (preview is enabled)")
 						except Exception as e:
 							self.info_panel.append(f"<font color='yellow'>Cleanup warning: {e}</font>")
 
@@ -7682,6 +7897,8 @@ class MainWindow(QMainWindow):
 		jpeg_forced_png_warnings = []
 		# List to collect statistics for each file
 		all_file_stats = []
+		# List to track result directories for preview generation
+		processed_result_dirs = []
 			
 		file_scanner = FileScanner()
 
@@ -7881,6 +8098,8 @@ class MainWindow(QMainWindow):
 			# Create temp export dir
 			result_dir = os.path.join(base_output_root, f"spine_temp_{timestamp}_{i}")
 			os.makedirs(result_dir, exist_ok=True)
+			# Track this directory for preview generation
+			processed_result_dirs.append(result_dir)
 
 			self.info_panel.append(f"\nProcessing: {name}")
 			self.status_label.setText(f"Processing file: {name}")
@@ -9058,7 +9277,21 @@ class MainWindow(QMainWindow):
 				self.info_panel.insertHtml(f"<span style='color:{rc_color}'>Recommendation: Consider using a single image for all identical attachments to reduce disk usage and improve performance.</span><br/>")
 
 			# Show report dialog
-			dlg = ReportDialog(self, report_content)
+			# Generate PNG atlas preview if checkbox is enabled
+			preview_image_path = None
+			try:
+				if self.preview_atlas_checkbox.isChecked() and processed_result_dirs:
+					self.info_panel.append(f"Generating PNG atlas preview from {len(processed_result_dirs)} processed directories...")
+					# Use the tracked result directories
+					preview_image_path = self.generate_png_atlas_preview(processed_result_dirs)
+					if preview_image_path:
+						self.info_panel.append(f"Successfully generated PNG atlas preview: {preview_image_path}")
+					else:
+						self.info_panel.append("Warning: Could not generate PNG atlas preview")
+			except Exception as e:
+				self.info_panel.append(f"Warning: Could not generate PNG atlas preview: {e}")
+			
+			dlg = ReportDialog(self, report_content, preview_image_path=preview_image_path)
 			dlg.exec()
 
 		except Exception as e:
