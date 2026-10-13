@@ -40,6 +40,13 @@ Click the **`?`** button in the app to open the full manual.
 
 ## Changelog
 
+### v5.87
+- New: "Multiply blend: sort its images to png" — images used by Multiply-blend slots always go to the PNG folder (blend mode unchanged)
+- New: "Multiply blend: remove it" — sets Multiply slots to normal blend; noted in the log and report (independent from the PNG option)
+- New: "Lowercase bone and slot names" (Settings, on by default) — updates all references automatically; colliding names are skipped with a warning
+- New: "Preview exported PNG atlas" option
+- Fixed: `spine_temp_*` folders are now removed at the end of every run (unless "Keep temporary files" is on)
+
 ### v5.77
 - Test: Version lock verification release
 

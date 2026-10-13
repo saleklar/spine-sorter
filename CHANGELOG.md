@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.87] - 2026-10-13
+### Added
+- **Multiply Blend: Sort Images to PNG:** New checkbox. Every image used by a slot with Multiply blend mode is forced into the PNG folder (JPEG images on a Multiply slot rendered as black squares). The blend mode itself is left unchanged.
+- **Multiply Blend: Remove It:** New, separate checkbox. Sets every Multiply slot to normal blend in the exported skeleton. Noted in the Info log and in the full report. When used without the PNG option, the affected images are sorted like normal-blend images (no longer treated as "non-normal only" and sent to JPEG).
+- **Lowercase Bone and Slot Names:** New Settings checkbox (on by default). Converts all bone and slot names to lowercase and updates every reference: bone parents, slot bones, skin attachments and skin bone lists, clipping ends, constraints, animation timelines, deform timelines and draw order. Names that would collide after lowercasing are skipped with a warning.
+- **PNG Atlas Preview:** Optional preview image of the exported atlas, shown in the report dialog ("Preview exported PNG atlas").
+
+### Fixed
+- **Temp Folders Not Deleted:** `spine_temp_*` folders could be left behind after export (preview enabled, failed or stopped runs, locked or read-only files). All temp folders created in a run are now removed at the end of the run unless "Keep temporary files" is checked; deletion clears read-only flags and retries longer, and the preview no longer keeps image files open. The preview image saved in the home folder is also removed afterwards.
+
 ## [v5.84] - 2026-09-01
 ### Added
 - **Scaled-Asset Consolidation (Experimental):** Scaled-down duplicates of a larger asset are consolidated to reuse the larger asset with composed transforms — supports any rotation, flip, and scale (free-angle ORB matching), minimum 50% scale ratio, regions only.

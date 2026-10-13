@@ -1,7 +1,15 @@
-SPINE SORTER v5.80 - ARTIST GUIDE
+SPINE SORTER v5.87 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.80)
+LATEST UPDATES (v5.87)
+----------------------------------------
+- New: "Multiply blend: sort its images to png" checkbox. Images used by a Multiply-blend slot are always put in the PNG folder (JPEG images on a Multiply slot can render as black squares). The Multiply blend mode itself is NOT changed by this option.
+- New: "Multiply blend: remove it (set slots to normal)" checkbox. Changes every Multiply slot to normal blend in the exported skeleton. The look of those slots will change (they no longer darken what is behind them), so check the result in Spine. The change is listed in the Info log and in the full report. The two Multiply checkboxes are independent - use either one or both.
+- New: "Lowercase bone and slot names" checkbox (Settings, on by default). All bone and slot names are converted to lowercase and every reference to them (parents, skins, constraints, animations, draw order) is updated automatically. If two names would become identical after lowercasing (for example "Arm" and "arm"), they are left unchanged and a warning is shown.
+- New: "Preview exported PNG atlas" checkbox shows a preview image of the exported images in the report window.
+- Fixed: Temporary export folders (spine_temp_...) were sometimes left in the output folder. They are now removed at the end of every run, including runs with errors, stopped runs and runs with the preview enabled (unless "Keep temporary files" is checked).
+
+PREVIOUS UPDATES (v5.80)
 ----------------------------------------
 - Fixed: Projects with reference images failed silently and no .spine file was created. Now fixed.
 - Fixed: Images shared between projects no longer create duplicate folders (e.g. logo AND logo_v2). The folder name now follows the JSON/skeleton path, not the .spine file name.
@@ -168,6 +176,15 @@ The main interface has several checkboxes that control how the tool works.
   - Checked (Default): Any image that has no transparency and is used in a "Normal" blend mode slot will be moved to the JPEG folder. This saves the most space.
   - Unchecked: Opaque images are kept as PNGs. Use this only if your game engine has trouble with JPEGs or if you see visual artifacts.
   Note: Images used in "Additive" or "Screen" blend modes are ALWAYS moved to JPEG, regardless of this setting, because they don't need transparency.
+
+- Multiply blend: sort its images to png:
+  If checked, every image used by a slot with "Multiply" blend mode is placed in the PNG folder, even if it is opaque. Use this when Multiply slots show black squares because their image was exported as a JPEG. The blend mode is not changed. This option overrides "Sort all opaque images to jpeg" for those images.
+
+- Multiply blend: remove it (set slots to normal):
+  If checked, all slots using "Multiply" blend mode are set to "normal" in the exported skeleton. This is reported in the Info log and in the report. The images of those slots are then sorted like normal-blend images, unless "sort its images to png" is also checked.
+
+- Lowercase bone and slot names (Settings):
+  Converts all bone and slot names to lowercase and updates all references to them. Names that would collide after lowercasing are skipped and reported as a warning.
 
 - Force local sorting (Old projects):
   - Use this for OLD, messy projects that haven't been organized yet.

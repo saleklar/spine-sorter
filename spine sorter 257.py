@@ -842,7 +842,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.86"
+	APP_VERSION = "5.87"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -1020,6 +1020,18 @@ class MainWindow(QMainWindow):
 		self.fix_attachment_names_cb.setChecked(bool(self.config.get("fix_attachment_names", True)))
 		self.fix_attachment_names_cb.stateChanged.connect(lambda v: self._save_fix_attachment_names_config(v))
 		settings_layout.addWidget(self.fix_attachment_names_cb)
+
+		# Lowercase bone and slot names option
+		self.lowercase_bones_slots_cb = QCheckBox("Lowercase bone and slot names")
+		self.lowercase_bones_slots_cb.setToolTip(
+			"If checked, all bone and slot names are converted to lowercase in the exported skeleton.\n"
+			"All references (parents, slot bones, skins, constraints, animation timelines, draw order,\n"
+			"clipping ends) are updated automatically. Names that would collide after lowercasing\n"
+			"(e.g. 'Arm' and 'arm') are left unchanged and reported as warnings."
+		)
+		self.lowercase_bones_slots_cb.setChecked(bool(self.config.get("lowercase_bones_slots", True)))
+		self.lowercase_bones_slots_cb.stateChanged.connect(lambda v: self._save_lowercase_bones_slots_config(v))
+		settings_layout.addWidget(self.lowercase_bones_slots_cb)
 		
 		# Dev options container
 		self.dev_options_cb = QCheckBox("Dev options")
@@ -1147,6 +1159,30 @@ class MainWindow(QMainWindow):
 		self.optimization_cb.setChecked(bool(self.config.get("optimization_enabled", True)))
 		self.optimization_cb.stateChanged.connect(lambda v: self._save_optimization_config(v))
 		actions_layout.addWidget(self.optimization_cb)
+
+		# Optional: send images used by Multiply-blend slots to PNG instead of JPEG (blend mode is kept)
+		self.multiply_png_cb = QCheckBox("Multiply blend: sort its images to png")
+		self.multiply_png_cb.setToolTip(
+			"If checked, every image used by a slot with 'Multiply' blend mode is forced into the PNG folder.\n"
+			"The Multiply blend mode itself is NOT changed (use the option below to remove it).\n"
+			"If unchecked, Multiply-only images follow the Additive/Screen rule (JPEG).\n"
+			"Use this if Multiply slots render as black squares when the image is a JPEG."
+		)
+		self.multiply_png_cb.setChecked(bool(self.config.get("multiply_to_png", False)))
+		self.multiply_png_cb.stateChanged.connect(lambda v: self._save_multiply_png_config(v))
+		actions_layout.addWidget(self.multiply_png_cb)
+
+		# Optional: remove Multiply blend mode entirely (set to normal)
+		self.remove_multiply_cb = QCheckBox("Multiply blend: remove it (set slots to normal)")
+		self.remove_multiply_cb.setToolTip(
+			"If checked, every slot using 'Multiply' blend mode is set to 'normal' in the exported skeleton.\n"
+			"This is noted in the log and report. The look of those slots will change (no darkening of what is behind).\n"
+			"Images of these slots are then sorted like any normal-blend image (opaque -> jpeg if enabled, else png),\n"
+			"unless the 'sort its images to png' option above is also checked."
+		)
+		self.remove_multiply_cb.setChecked(bool(self.config.get("remove_multiply", False)))
+		self.remove_multiply_cb.stateChanged.connect(lambda v: self._save_remove_multiply_config(v))
+		actions_layout.addWidget(self.remove_multiply_cb)
 
 		# Optional: Force local sorting (treat all assets as local to the skeleton)
 		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
@@ -2065,6 +2101,20 @@ class MainWindow(QMainWindow):
 		except Exception:
 			pass
 
+	def _save_multiply_png_config(self, state):
+		try:
+			self.config['multiply_to_png'] = bool(state)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_remove_multiply_config(self, state):
+		try:
+			self.config['remove_multiply'] = bool(state)
+			self._save_config()
+		except Exception:
+			pass
+
 	def _save_keep_temp_config(self, v):
 		try:
 			self.config["keep_temp_files"] = bool(v)
@@ -2103,6 +2153,13 @@ class MainWindow(QMainWindow):
 	def _save_fix_attachment_names_config(self, v):
 		try:
 			self.config["fix_attachment_names"] = bool(v)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_lowercase_bones_slots_config(self, v):
+		try:
+			self.config["lowercase_bones_slots"] = bool(v)
 			self._save_config()
 		except Exception:
 			pass
@@ -2262,6 +2319,139 @@ class MainWindow(QMainWindow):
 
 		return renamed_count
 
+	def _lowercase_bones_and_slots(self, j):
+		"""
+		Converts all bone and slot names to lowercase and updates every reference:
+		bone parents, slot bones, skin attachment maps (slot keys), skin bone lists,
+		clipping 'end' slots, constraints (bones/bone/target/slot), animation bone/slot
+		timelines, deform/attachment timelines and draw order offsets.
+		Names whose lowercase form would collide with another name are skipped.
+		Returns (bones_renamed, slots_renamed).
+		"""
+		def build_map(names, kind):
+			names = {n for n in names if isinstance(n, str) and n}
+			counts = {}
+			for n in names:
+				counts[n.lower()] = counts.get(n.lower(), 0) + 1
+			mapping = {}
+			for n in sorted(names):
+				low = n.lower()
+				if low == n:
+					continue
+				if counts[low] > 1:
+					self.log_warning(f"Lowercase {kind} names: skipping '{n}' (would collide with another {kind} named '{low}' after lowercasing).")
+					continue
+				mapping[n] = low
+			return mapping
+
+		bones = j.get('bones', []) if isinstance(j.get('bones', []), list) else []
+		slots = j.get('slots', []) if isinstance(j.get('slots', []), list) else []
+		bmap = build_map([b.get('name') for b in bones if isinstance(b, dict)], 'bone')
+		smap = build_map([s.get('name') for s in slots if isinstance(s, dict)], 'slot')
+		if not bmap and not smap:
+			return 0, 0
+
+		def mb(n):
+			return bmap.get(n, n) if isinstance(n, str) else n
+
+		def ms(n):
+			return smap.get(n, n) if isinstance(n, str) else n
+
+		def rekey(d, mapping):
+			"""Rename dict keys in place, preserving order."""
+			if not isinstance(d, dict) or not mapping:
+				return
+			if not any(k in mapping for k in d.keys()):
+				return
+			new = {mapping.get(k, k): v for k, v in d.items()}
+			d.clear()
+			d.update(new)
+
+		# Bones
+		for b in bones:
+			if isinstance(b, dict):
+				if 'name' in b:
+					b['name'] = mb(b['name'])
+				if 'parent' in b:
+					b['parent'] = mb(b['parent'])
+
+		# Slots
+		for s in slots:
+			if isinstance(s, dict):
+				if 'name' in s:
+					s['name'] = ms(s['name'])
+				if 'bone' in s:
+					s['bone'] = mb(s['bone'])
+
+		# Skins (3.x dict form and 4.x list form)
+		skins = j.get('skins')
+		slot_maps = []
+		if isinstance(skins, dict):
+			for sv in skins.values():
+				if isinstance(sv, dict):
+					slot_maps.append(sv)
+		elif isinstance(skins, list):
+			for item in skins:
+				if not isinstance(item, dict):
+					continue
+				if isinstance(item.get('attachments'), dict):
+					slot_maps.append(item['attachments'])
+				if isinstance(item.get('bones'), list):
+					item['bones'] = [mb(x) for x in item['bones']]
+		for sm in slot_maps:
+			rekey(sm, smap)
+			for atts in sm.values():
+				if not isinstance(atts, dict):
+					continue
+				for att in atts.values():
+					if isinstance(att, dict) and 'end' in att and str(att.get('type', '')).lower() == 'clipping':
+						att['end'] = ms(att['end'])
+
+		# Constraints
+		def fix_constraint(c, ctype):
+			if not isinstance(c, dict):
+				return
+			if isinstance(c.get('bones'), list):
+				c['bones'] = [mb(x) for x in c['bones']]
+			if 'bone' in c:
+				c['bone'] = mb(c['bone'])
+			if 'slot' in c:
+				c['slot'] = ms(c['slot'])
+			if 'target' in c:
+				c['target'] = ms(c['target']) if str(ctype).lower() == 'path' else mb(c['target'])
+
+		for ckey in ('ik', 'transform', 'path', 'physics', 'slider'):
+			lst = j.get(ckey)
+			if isinstance(lst, list):
+				for c in lst:
+					fix_constraint(c, ckey)
+		if isinstance(j.get('constraints'), list):
+			for c in j['constraints']:
+				fix_constraint(c, c.get('type', '') if isinstance(c, dict) else '')
+
+		# Animations
+		anims = j.get('animations', {})
+		if isinstance(anims, dict):
+			for anim_data in anims.values():
+				if not isinstance(anim_data, dict):
+					continue
+				rekey(anim_data.get('bones'), bmap)
+				rekey(anim_data.get('slots'), smap)
+				for dkey in ('deform', 'ffd', 'attachments'):
+					ad = anim_data.get(dkey)
+					if isinstance(ad, dict):
+						for skin_slots in ad.values():
+							rekey(skin_slots, smap)
+				do = anim_data.get('drawOrder', anim_data.get('draworder'))
+				if isinstance(do, list):
+					for frame in do:
+						if isinstance(frame, dict) and isinstance(frame.get('offsets'), list):
+							for off in frame['offsets']:
+								if isinstance(off, dict) and 'slot' in off:
+									off['slot'] = ms(off['slot'])
+
+		return len(bmap), len(smap)
+
 	def _save_validate_only_config(self, v):
 		try:
 			self.config["validate_only"] = bool(v)
@@ -2329,14 +2519,24 @@ class MainWindow(QMainWindow):
 		if 'spine_temp_' not in os.path.basename(path):
 			self.info_panel.append(f"Skipped cleanup (not a temp folder): {path}")
 			return False
-		# Retry loop
-		for attempt in range(3):
+		# Retry loop (Windows can hold files briefly: antivirus, indexer, Spine, preview handles)
+		def _on_rm_error(func, p, exc_info):
+			# Clear read-only flag and retry the failed operation once
 			try:
-				# brief backoff on attempts > 0
+				import stat
+				os.chmod(p, stat.S_IWRITE)
+				func(p)
+			except Exception:
+				pass
+		for attempt in range(6):
+			try:
+				# backoff on attempts > 0 (0.3s, 0.6s, ... up to ~4.5s total)
 				if attempt:
-					time.sleep(0.1 * attempt)
+					time.sleep(0.3 * attempt)
 				# attempt removal
-				shutil.rmtree(path)
+				shutil.rmtree(path, onerror=_on_rm_error)
+				if os.path.exists(path):
+					raise OSError("folder still exists after rmtree (files in use?)")
 				self.info_panel.append(f"Cleaned up temp folder ({'reason: '+reason if reason else 'automatic'}): {path}")
 				return True
 			except Exception as e:
@@ -2416,37 +2616,21 @@ class MainWindow(QMainWindow):
 				
 				self.info_panel.append(f"Scanning for PNG files in: {result_dir}")
 				
-				try:
-					# First, try to find PNG files referenced in atlas files
-					for f in os.listdir(result_dir):
-						if f.lower().endswith('.atlas'):
-							# Parse atlas file to find the PNG images it references
-							atlas_path = os.path.join(result_dir, f)
-							try:
-								with open(atlas_path, 'r', encoding='utf-8', errors='ignore') as af:
-									for line in af:
-										line = line.strip()
-										if line and (line.endswith('.png') or line.endswith('.jpg') or line.endswith('.jpeg')):
-											img_path = os.path.join(os.path.dirname(atlas_path), line)
-											if os.path.exists(img_path):
-												atlas_images.append(img_path)
-							except Exception as e:
-								self.info_panel.append(f"  Warning: Could not parse atlas file {f}: {e}")
-					
-					# Also scan directly for PNG/JPG files if no atlas files found
-					if not atlas_images:
-						for f in os.listdir(result_dir):
-							if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-								img_path = os.path.join(result_dir, f)
-								if os.path.isfile(img_path):
-									atlas_images.append(img_path)
-					
-					if atlas_images:
-						self.info_panel.append(f"  Found {len(atlas_images)} image(s) for preview")
-					
-				except Exception as e:
-					self.info_panel.append(f"  Error scanning directory: {e}")
-					pass
+			try:
+				# Recursively scan all subdirectories for images
+				for root, dirs, files in os.walk(result_dir):
+					for f in files:
+						if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+							img_path = os.path.join(root, f)
+							if os.path.isfile(img_path) and img_path not in atlas_images:
+								atlas_images.append(img_path)
+				
+				if atlas_images:
+					self.info_panel.append(f"  Found {len(atlas_images)} image(s) for preview")
+				
+			except Exception as e:
+				self.info_panel.append(f"  Error scanning directory: {e}")
+				pass
 			
 			if not atlas_images:
 				self.info_panel.append("No PNG/JPG images found in any result directories for preview generation")
@@ -2498,6 +2682,13 @@ class MainWindow(QMainWindow):
 					# Paste image at current position
 					composite.paste(img, (x_offset, (max_height - img.height) // 2), img if img.mode == 'RGBA' else None)
 					x_offset += img.width + 10
+				except Exception:
+					pass
+			
+			# Release file handles so the temp folders can be deleted afterwards (Windows locks open files)
+			for img in loaded_images:
+				try:
+					img.close()
 				except Exception:
 					pass
 			
@@ -2929,7 +3120,7 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False):
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False, multiply_to_png=False, remove_multiply=False):
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -3221,7 +3412,14 @@ class MainWindow(QMainWindow):
 						if 'multiply_blend_slots' in stats and stats['multiply_blend_slots']:
 							self.info_panel.append("<br>")
 							n_blend = len(stats['multiply_blend_slots'])
-							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode (not supported in game):</span>")
+							if multiply_to_png and remove_multiply:
+								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — it will be REMOVED (set to normal) and their images sorted to PNG:</span>")
+							elif remove_multiply:
+								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — it will be REMOVED (set to normal):</span>")
+							elif multiply_to_png:
+								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — blend mode is kept, but their images will be sorted to PNG:</span>")
+							else:
+								self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode (not supported in game):</span>")
 							for i, msg in enumerate(stats['multiply_blend_slots']):
 								if i < 15:
 									self.info_panel.append(f"<font color='#FF8C00'>    - {msg}</font>")
@@ -5680,9 +5878,18 @@ class MainWindow(QMainWindow):
 				skeleton_name = os.path.splitext(os.path.basename(input_path))[0]
 
 				# build slot blend map
+				# multiply_slot_names always holds the ORIGINAL multiply slots (used by the 'sort to png' option).
+				# If Multiply is going to be removed, the sorter treats those slots as 'normal' so their images are
+				# not sent to JPEG as 'non-normal only' (they would show black/white boxes on a normal blend).
 				slot_blend = {}
+				multiply_slot_names = set()
 				for s in j.get('slots', []):
-					slot_blend[s.get('name')] = s.get('blend', 'normal')
+					_b = s.get('blend', 'normal')
+					if str(_b).lower() == 'multiply':
+						multiply_slot_names.add(s.get('name'))
+						if remove_multiply:
+							_b = 'normal'
+					slot_blend[s.get('name')] = _b
 
 				# prepare final output image folders under the chosen output root
 				# structure: <output_root>/images/<skeleton>/{jpeg,png}
@@ -6669,6 +6876,7 @@ class MainWindow(QMainWindow):
 								reason.append("reference image")
 							else:
 								forced_decision = None
+								uses_multiply = multiply_to_png and (slot_name in multiply_slot_names or any(s in multiply_slot_names for s in slots_found))
 								if src:
 									src_check = src[0] if isinstance(src, (list, tuple)) else src
 									try:
@@ -6676,7 +6884,10 @@ class MainWindow(QMainWindow):
 										forced_decision = PRECALC_DESTINATIONS.get(k_s)
 									except: pass
 
-								if forced_decision == 'png':
+								if uses_multiply:
+									base_dest = png_dir
+									reason.append("multiply blend -> png")
+								elif forced_decision == 'png':
 									base_dest = png_dir
 									reason.append("global: forced to png")
 								elif forced_decision == 'jpeg':
@@ -6695,7 +6906,10 @@ class MainWindow(QMainWindow):
 								
 								# Warning if it was JPEG but forced to PNG
 								if is_jpeg_source and base_dest == png_dir:
-									msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!"
+									if uses_multiply:
+										msg = f"<font color='#FF8C00'>NOTE:</font> '{attach_name}' was in jpeg folder but moved to PNG because it is used by a MULTIPLY blend slot."
+									else:
+										msg = f"<font color='red'>WARNING:</font> '{attach_name}' was in jpeg folder but forced to PNG due to: Transparent corners and/or edges while using normal mode . You may want to fix transparency and put it back to jpeg folder manually or change blend mode !!!"
 									self.info_panel.append(msg)
 									jpeg_forced_png_warnings.append(f"[{name}] {msg}")
 								else:
@@ -7339,7 +7553,10 @@ class MainWindow(QMainWindow):
 						if slots:
 							appears_only_in_non_normal = all(slot_blend.get(s, 'normal') != 'normal' for s in slots)
 						
-						if appears_only_in_non_normal:
+						used_by_multiply = bool(slots) and any(s in multiply_slot_names for s in slots)
+						if multiply_to_png and used_by_multiply:
+							dest = 'png'
+						elif appears_only_in_non_normal:
 							dest = 'jpeg'
 						elif is_opaque_f:
 							dest = 'jpeg'
@@ -7521,6 +7738,34 @@ class MainWindow(QMainWindow):
 							self.info_panel.append("Attachment name fix: all attachment names already match their image paths.")
 					except Exception as e:
 						self.log_warning(f"Attachment name fix failed: {e}")
+
+				# Optionally lowercase all bone and slot names (with all references)
+				if self.config.get("lowercase_bones_slots", True):
+					try:
+						b_cnt, s_cnt = self._lowercase_bones_and_slots(j)
+						self.info_panel.append(f"Lowercase names: {b_cnt} bone(s), {s_cnt} slot(s) converted to lowercase.")
+					except Exception as e:
+						self.log_warning(f"Lowercase bone/slot names failed: {e}")
+
+				# Optionally remove Multiply blend mode (set to normal)
+				if remove_multiply:
+					try:
+						removed_slots = []
+						for _s in (j.get('slots', []) or []):
+							if isinstance(_s, dict) and str(_s.get('blend', 'normal')).lower() == 'multiply':
+								_s.pop('blend', None)  # absent 'blend' == normal
+								removed_slots.append(_s.get('name', 'unknown'))
+						if removed_slots:
+							if all_file_stats:
+								all_file_stats[-1].setdefault('multiply_blend_removed', []).extend(removed_slots)
+							_png_note = "Their images were sorted to PNG." if multiply_to_png else "Their images were sorted like normal-blend images."
+							self.info_panel.append(
+								f"<font color='#FF8C00'><b>NOTE:</b> Multiply blend mode REMOVED (set to normal) on {len(removed_slots)} slot(s): "
+								f"{', '.join(removed_slots[:15])}{' ...' if len(removed_slots) > 15 else ''}. "
+								f"{_png_note} Visual result may differ from the original multiply look.</font>"
+							)
+					except Exception as e:
+						self.log_warning(f"Multiply blend removal failed: {e}")
 
 				# normalize skeleton images path so Spine can resolve images inside archive
 				skel = j.get('skeleton')
@@ -7899,6 +8144,7 @@ class MainWindow(QMainWindow):
 		all_file_stats = []
 		# List to track result directories for preview generation
 		processed_result_dirs = []
+		preview_tmp_path = None
 			
 		file_scanner = FileScanner()
 
@@ -8728,6 +8974,8 @@ class MainWindow(QMainWindow):
 					consolidate_duplicates=self.consolidate_duplicates_cb.isChecked(),
 					consolidate_mirrored=self.consolidate_duplicates_cb.isChecked(),
 					consolidate_scaled=self.consolidate_scaled_cb.isChecked(),
+					multiply_to_png=self.multiply_png_cb.isChecked(),
+					remove_multiply=self.remove_multiply_cb.isChecked(),
 					similarity_confidence=self.similarity_slider.value()
 				)
 
@@ -9189,6 +9437,13 @@ class MainWindow(QMainWindow):
 				for w in jpeg_forced_png_warnings:
 					report_lines.append(f" - {w}")
 
+			# Multiply blend removal notes
+			_mult_removed = [(st.get('name'), st.get('multiply_blend_removed')) for st in all_file_stats if st.get('multiply_blend_removed')]
+			if _mult_removed:
+				report_lines.append("\nNOTE: Multiply blend mode removed (set to normal):")
+				for _n, _slots in _mult_removed:
+					report_lines.append(f" - [{_n}] {len(_slots)} slot(s): {', '.join(_slots)}")
+
 			# Aggregate naming recommendations across files (always reported under RECOMMENDATIONS)
 			naming_by_file = {}
 			for stats in all_file_stats:
@@ -9292,10 +9547,28 @@ class MainWindow(QMainWindow):
 				self.info_panel.append(f"Warning: Could not generate PNG atlas preview: {e}")
 			
 			dlg = ReportDialog(self, report_content, preview_image_path=preview_image_path)
+			preview_tmp_path = preview_image_path
 			dlg.exec()
 
 		except Exception as e:
 			self.info_panel.append(f"Could not generate report: {e}")
+
+		# Final cleanup of ALL temp export folders created during this run.
+		# Covers: preview-enabled runs (folders were kept for the preview), failed/errored exports,
+		# and runs stopped by the user. Skipped only when 'Keep temporary files' is checked.
+		try:
+			if not self.keep_temp_cb.isChecked():
+				for _d in processed_result_dirs:
+					if _d and os.path.isdir(_d) and 'spine_temp_' in os.path.basename(_d):
+						self._remove_temp_dir(_d, reason='end-of-run cleanup')
+			# The composite preview image is written to the home folder; remove it once the dialog is closed.
+			if preview_tmp_path and os.path.isfile(preview_tmp_path):
+				try:
+					os.remove(preview_tmp_path)
+				except Exception:
+					pass
+		except Exception as e:
+			self.info_panel.append(f"<font color='yellow'>End-of-run cleanup warning: {e}</font>")
 
 		# Check for critical errors (missing files) in stats
 		any_critical = False
