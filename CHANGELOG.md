@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.88] - 2026-10-13
+### Changed
+- **Multiply Checkboxes Are Now Mutually Exclusive:** Only one of the two Multiply options can be active at a time (or neither). Ticking one unticks the other.
+- **"Remove it" Also Sorts to PNG:** "Multiply blend: remove it (set slots to normal) + sort its images to png" now also moves the images of those slots to the PNG folder.
+- **Clearer Labels:** The PNG option reads "Multiply blend: sort its images to png (without changing blend mode)".
+
+### Added
+- **Multiply Info Note:** Short orange note above the two Multiply checkboxes: if neither is checked, Multiply images go to jpeg and may break in the engine.
+
 ## [v5.87] - 2026-10-13
 ### Added
 - **Multiply Blend: Sort Images to PNG:** New checkbox. Every image used by a slot with Multiply blend mode is forced into the PNG folder (JPEG images on a Multiply slot rendered as black squares). The blend mode itself is left unchanged.

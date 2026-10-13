@@ -842,7 +842,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.87"
+	APP_VERSION = "5.88"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -1160,8 +1160,17 @@ class MainWindow(QMainWindow):
 		self.optimization_cb.stateChanged.connect(lambda v: self._save_optimization_config(v))
 		actions_layout.addWidget(self.optimization_cb)
 
+		# Explanatory note shown above the two Multiply options
+		self.multiply_info_label = QLabel("If neither is checked, Multiply images go to jpeg (may break in engine)")
+		self.multiply_info_label.setStyleSheet("color: #FF8C00; font-size: 11px;")
+		multiply_group = QWidget()
+		multiply_group_layout = QVBoxLayout(multiply_group)
+		multiply_group_layout.setContentsMargins(0, 0, 0, 0)
+		multiply_group_layout.setSpacing(2)
+		multiply_group_layout.addWidget(self.multiply_info_label)
+
 		# Optional: send images used by Multiply-blend slots to PNG instead of JPEG (blend mode is kept)
-		self.multiply_png_cb = QCheckBox("Multiply blend: sort its images to png")
+		self.multiply_png_cb = QCheckBox("Multiply blend: sort its images to png (without changing blend mode)")
 		self.multiply_png_cb.setToolTip(
 			"If checked, every image used by a slot with 'Multiply' blend mode is forced into the PNG folder.\n"
 			"The Multiply blend mode itself is NOT changed (use the option below to remove it).\n"
@@ -1170,19 +1179,24 @@ class MainWindow(QMainWindow):
 		)
 		self.multiply_png_cb.setChecked(bool(self.config.get("multiply_to_png", False)))
 		self.multiply_png_cb.stateChanged.connect(lambda v: self._save_multiply_png_config(v))
-		actions_layout.addWidget(self.multiply_png_cb)
+		self.multiply_png_cb.toggled.connect(lambda on: on and self.remove_multiply_cb.setChecked(False))
+		multiply_group_layout.addWidget(self.multiply_png_cb)
 
 		# Optional: remove Multiply blend mode entirely (set to normal)
-		self.remove_multiply_cb = QCheckBox("Multiply blend: remove it (set slots to normal)")
+		self.remove_multiply_cb = QCheckBox("Multiply blend: remove it (set slots to normal) + sort its images to png")
 		self.remove_multiply_cb.setToolTip(
 			"If checked, every slot using 'Multiply' blend mode is set to 'normal' in the exported skeleton.\n"
 			"This is noted in the log and report. The look of those slots will change (no darkening of what is behind).\n"
-			"Images of these slots are then sorted like any normal-blend image (opaque -> jpeg if enabled, else png),\n"
-			"unless the 'sort its images to png' option above is also checked."
+			"The images of these slots are also moved to the PNG folder (this includes the 'sort its images to png' option)."
 		)
 		self.remove_multiply_cb.setChecked(bool(self.config.get("remove_multiply", False)))
 		self.remove_multiply_cb.stateChanged.connect(lambda v: self._save_remove_multiply_config(v))
-		actions_layout.addWidget(self.remove_multiply_cb)
+		self.remove_multiply_cb.toggled.connect(lambda on: on and self.multiply_png_cb.setChecked(False))
+		# Only one option at a time: if config had both on, keep 'remove'
+		if self.remove_multiply_cb.isChecked():
+			self.multiply_png_cb.setChecked(False)
+		multiply_group_layout.addWidget(self.remove_multiply_cb)
+		actions_layout.addWidget(multiply_group)
 
 		# Optional: Force local sorting (treat all assets as local to the skeleton)
 		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
@@ -3122,6 +3136,10 @@ class MainWindow(QMainWindow):
 
 	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False, multiply_to_png=False, remove_multiply=False):
 		
+		# Removing Multiply also sends its images to PNG
+		if remove_multiply:
+			multiply_to_png = True
+		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
 		ui_label_text = f"{name} -> {cur_skel_name}"
@@ -3412,10 +3430,8 @@ class MainWindow(QMainWindow):
 						if 'multiply_blend_slots' in stats and stats['multiply_blend_slots']:
 							self.info_panel.append("<br>")
 							n_blend = len(stats['multiply_blend_slots'])
-							if multiply_to_png and remove_multiply:
+							if remove_multiply:
 								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — it will be REMOVED (set to normal) and their images sorted to PNG:</span>")
-							elif remove_multiply:
-								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — it will be REMOVED (set to normal):</span>")
 							elif multiply_to_png:
 								self.info_panel.append(f"  <span style='color:#FF8C00; font-weight:bold;'>NOTE:</span> <span style='color:#FF8C00;'>{n_blend} slot(s) use MULTIPLY blend mode — blend mode is kept, but their images will be sorted to PNG:</span>")
 							else:
@@ -7758,7 +7774,7 @@ class MainWindow(QMainWindow):
 						if removed_slots:
 							if all_file_stats:
 								all_file_stats[-1].setdefault('multiply_blend_removed', []).extend(removed_slots)
-							_png_note = "Their images were sorted to PNG." if multiply_to_png else "Their images were sorted like normal-blend images."
+							_png_note = "Their images were sorted to PNG."
 							self.info_panel.append(
 								f"<font color='#FF8C00'><b>NOTE:</b> Multiply blend mode REMOVED (set to normal) on {len(removed_slots)} slot(s): "
 								f"{', '.join(removed_slots[:15])}{' ...' if len(removed_slots) > 15 else ''}. "

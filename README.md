@@ -40,6 +40,11 @@ Click the **`?`** button in the app to open the full manual.
 
 ## Changelog
 
+### v5.88
+- Changed: the two Multiply checkboxes are now mutually exclusive (one or neither)
+- Changed: "Multiply blend: remove it" now also sorts the images of those slots to PNG
+- New: short note above the Multiply checkboxes explaining what happens when neither is checked
+
 ### v5.87
 - New: "Multiply blend: sort its images to png" — images used by Multiply-blend slots always go to the PNG folder (blend mode unchanged)
 - New: "Multiply blend: remove it" — sets Multiply slots to normal blend; noted in the log and report (independent from the PNG option)

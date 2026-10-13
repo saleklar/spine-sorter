@@ -1,10 +1,17 @@
-SPINE SORTER v5.87 - ARTIST GUIDE
+SPINE SORTER v5.88 - ARTIST GUIDE
 ========================================
 
-LATEST UPDATES (v5.87)
+LATEST UPDATES (v5.88)
+----------------------------------------
+- Changed: The two Multiply checkboxes are now mutually exclusive - only one can be on at a time (or neither). Ticking one unticks the other.
+- Changed: "Multiply blend: remove it (set slots to normal) + sort its images to png" now also moves the images of those slots to the PNG folder.
+- Changed: "Multiply blend: sort its images to png (without changing blend mode)" keeps the Multiply blend mode as it is and only sorts the images to PNG.
+- New: A short orange note above the Multiply checkboxes: if neither option is checked, Multiply images end up in the jpeg folder and may cause problems in the engine.
+
+PREVIOUS UPDATES (v5.87)
 ----------------------------------------
 - New: "Multiply blend: sort its images to png" checkbox. Images used by a Multiply-blend slot are always put in the PNG folder (JPEG images on a Multiply slot can render as black squares). The Multiply blend mode itself is NOT changed by this option.
-- New: "Multiply blend: remove it (set slots to normal)" checkbox. Changes every Multiply slot to normal blend in the exported skeleton. The look of those slots will change (they no longer darken what is behind them), so check the result in Spine. The change is listed in the Info log and in the full report. The two Multiply checkboxes are independent - use either one or both.
+- New: "Multiply blend: remove it (set slots to normal)" checkbox. Changes every Multiply slot to normal blend in the exported skeleton. The look of those slots will change (they no longer darken what is behind them), so check the result in Spine. The change is listed in the Info log and in the full report. The two Multiply checkboxes are mutually exclusive - use one or neither.
 - New: "Lowercase bone and slot names" checkbox (Settings, on by default). All bone and slot names are converted to lowercase and every reference to them (parents, skins, constraints, animations, draw order) is updated automatically. If two names would become identical after lowercasing (for example "Arm" and "arm"), they are left unchanged and a warning is shown.
 - New: "Preview exported PNG atlas" checkbox shows a preview image of the exported images in the report window.
 - Fixed: Temporary export folders (spine_temp_...) were sometimes left in the output folder. They are now removed at the end of every run, including runs with errors, stopped runs and runs with the preview enabled (unless "Keep temporary files" is checked).
