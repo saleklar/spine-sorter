@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.89] - 2026-10-23
+### Added
+- **No File Extensions in Names:** `.png`, `.jpg`, `.jpeg`, `.webp` and `.psd` are removed from bone, slot, skin, attachment, animation, event and constraint names in the exported skeleton, and every reference is updated. A name is left as it is if the clean name is already taken. Image references are only changed when the image without the extension exists in the sorted images folder, so images whose file name really contains the extension keep working. Asset files are never renamed. All fixes are listed in the Info log and the report.
+
+### Fixed
+- **Sorting Could Abort on Some Image Names:** A leftover debug check for images named `clubs.png`, `flipy.png`, `rotator.png` or `ddd.png` used an undefined variable and could stop the sorting step. Removed.
+
 ## [v5.88] - 2026-10-13
 ### Changed
 - **Multiply Checkboxes Are Now Mutually Exclusive:** Only one of the two Multiply options can be active at a time (or neither). Ticking one unticks the other.

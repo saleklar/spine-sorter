@@ -48,6 +48,7 @@ import ssl
 import urllib.request
 import urllib.parse
 from pathlib import Path
+from name_extensions import strip_name_extensions
 
 # --- Configuration Constants ---
 # Default Spine versions for the version selector dropdown.
@@ -842,7 +843,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.88"
+	APP_VERSION = "5.89"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -6456,23 +6457,6 @@ class MainWindow(QMainWindow):
 									except Exception:
 										pass
 
-							# DEBUG: Trace consolidation
-							if src and isinstance(src, str):
-								fname = os.path.basename(src)
-								if fname in ['clubs.png', 'flipy.png', 'rotator.png', 'ddd.png']:
-									norm_src = os.path.normcase(os.path.abspath(src))
-									in_mirror = norm_src in consolidation_map_mirror
-									if not in_mirror and consolidated_mirrored:
-										# If not found, check if keys exist with different case?
-										self.info_panel.append(f"<font color='orange'>DEBUG: {fname} found at {src}</font>")
-										self.info_panel.append(f"&nbsp;&nbsp;Key: {norm_src}")
-										self.info_panel.append(f"&nbsp;&nbsp;In Map: {norm_src in consolidation_map}, In Mirror: {norm_src in consolidation_map_mirror}")
-										# Check if ANY key ends with this filename
-										for k in consolidation_map_mirror:
-											if k.endswith(os.path.normcase(fname)):
-												self.info_panel.append(f"&nbsp;&nbsp;Partial match found in keys: {k}")
-
-							
 							# Consolidation State
 							consolidation_occurred = False
 							
@@ -7796,6 +7780,39 @@ class MainWindow(QMainWindow):
 					self.log_warning("WARNING: The exported JSON has NO animations! Resulting Spine file will be empty of animations.")
 				else:
 					self.info_panel.append(f"Verifying animations: {len(anims_check)} animations present in data.")
+
+				# No file extensions in names: "coin.png" as a bone/slot/skin/attachment/animation/event/constraint
+				# name or in an attachment path is renamed to "coin", with every reference updated
+				try:
+					# image references are only changed when the image without the extension really exists in the
+					# sorted images folder; asset files themselves are never renamed
+					_img_root = os.path.join(output_root, 'images')
+					def _image_exists(ref, _root=_img_root):
+						base = os.path.join(_root, *str(ref).replace('\\', '/').split('/'))
+						return any(os.path.isfile(base + e) for e in ('.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'))
+					ext_fixes = strip_name_extensions(j, image_exists=_image_exists)
+					if ext_fixes:
+						renamed = [f for f in ext_fixes if f['new']]
+						kept = [f for f in ext_fixes if not f['new']]
+						self.info_panel.append(f"<font color='#FFB81C'>File extensions removed from names: {len(renamed)}"
+											   + (f", {len(kept)} left (name without extension already exists — rename by hand)" if kept else "") + "</font>")
+						for f in ext_fixes[:40]:
+							self.info_panel.append(f"&nbsp;&nbsp;{f['kind']}: '{f['old']}' → " + (f"'{f['new']}'" if f['new'] else "<font color='orange'>kept (name taken)</font>"))
+						if len(ext_fixes) > 40:
+							self.info_panel.append(f"&nbsp;&nbsp;… and {len(ext_fixes) - 40} more")
+						viol = all_file_stats[-1].setdefault('naming_violations', [])
+						for f in ext_fixes:
+							if f['kind'] == 'attachment path':
+								continue                   # paths are listed with their attachments
+							if f['kind'].startswith('image reference'):
+								reason = "the image file itself has the extension in its name — reference kept, rename the file by hand"
+							elif f['new']:
+								reason = "file extension in name — renamed to '" + f['new'] + "'"
+							else:
+								reason = "file extension in name — not renamed, '" + os.path.splitext(f['old'])[0] + "' already exists"
+							viol.append({'file': found_json, 'basename': f"{f['kind']}:{f['old']}", 'reasons': [reason]})
+				except Exception as e:
+					self.info_panel.append(f"<font color='orange'>Extension check failed: {e}</font>")
 
 				# save modified json into the output root
 				if hasattr(self, 'status_label'): self.status_label.setText(f"Writing JSON: {ui_label_text}")
