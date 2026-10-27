@@ -4045,6 +4045,23 @@ class MainWindow(QMainWindow):
 				# Rows swap order; left/right comparisons within each row are unchanged
 				return _flip_hash_v_64(h)
 
+			def _imread_unchanged(path):
+				# cv2.imread fails on non-ASCII paths and on PNGs with huge metadata chunks (Photoshop XMP of
+				# 80+ MB on large backgrounds): retry from bytes, then through PIL (text limits raised above).
+				img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+				if img is None:
+					try:
+						img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+					except Exception:
+						img = None
+				if img is None:
+					try:
+						with Image.open(path) as im_pil:
+							img = cv2.cvtColor(np.asarray(im_pil.convert('RGBA')), cv2.COLOR_RGBA2BGRA)
+					except Exception:
+						img = None
+				return img
+
 			def _is_near_duplicate(sig_a, sig_b, th, flip_mode=None):
 				# Advanced OpenCV check for robust validation
 				# If basic criteria are met, we verify with histogram/SSIM if available
@@ -4104,11 +4121,13 @@ class MainWindow(QMainWindow):
 						try:
 							# Load images with Alpha to mask transparency (Fix for 'forgot to check colors')
 							# We need to mask transparent areas so they don't dominate the histogram
-							img1_raw = cv2.imread(sig_a['path'], cv2.IMREAD_UNCHANGED)
-							img2_raw = cv2.imread(sig_b['path'], cv2.IMREAD_UNCHANGED)
-							
+							img1_raw = _imread_unchanged(sig_a['path'])
+							img2_raw = _imread_unchanged(sig_b['path'])
+
+							# Unreadable image: never accept on the loose hash pre-filter alone (that merged
+							# different backgrounds of the same size); fall to the strict hash+color check below.
 							if img1_raw is None or img2_raw is None:
-								return is_hash_candidate 
+								raise ValueError("image not decodable for OpenCV check")
 							
 							# Apply Flip if requested
 							if flip_mode == 'x':
@@ -4132,7 +4151,7 @@ class MainWindow(QMainWindow):
 							bgr1, mask1 = _get_bgr_mask(img1_raw)
 							bgr2, mask2 = _get_bgr_mask(img2_raw)
 
-							if bgr1 is None or bgr2 is None: return is_hash_candidate
+							if bgr1 is None or bgr2 is None: raise ValueError("unsupported image layout")
 
 							# Crop both to content bbox: mirrored/duplicate assets are often
 							# positioned differently within their canvases, which would misalign
