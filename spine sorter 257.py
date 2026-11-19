@@ -111,6 +111,82 @@ except ModuleNotFoundError:
 	sys.exit(1)
 
 
+# ── Placeholder PNGs → bounding boxes ──────────────────────────────────────────────────────────────
+# A "placeholder" is an image attachment whose name or image path contains "placeholder" (value_placeholder,
+# placeholder_side, pop_ups/png/placeholder ...). The front end puts its dynamic text / value there, so it must be a
+# bounding box (the container), not a PNG that ends up in the atlas.
+
+def _iter_skin_attachments(j):
+	"""Yield (skin name, slot name, attachment name, attachment dict) for every skin (3.x dict and 4.x list form)."""
+	skins = j.get('skins', [])
+	if isinstance(skins, dict):
+		skins = [{'name': k, 'attachments': v} for k, v in skins.items()]
+	for sk in skins if isinstance(skins, list) else []:
+		if not isinstance(sk, dict):
+			continue
+		for slot_name, atts in (sk.get('attachments') or {}).items():
+			if not isinstance(atts, dict):
+				continue
+			for att_name, att in atts.items():
+				if isinstance(att, dict):
+					yield sk.get('name', 'default'), slot_name, att_name, att
+
+
+def find_placeholder_pngs(j):
+	"""Image attachments (region / mesh) used as placeholders: [{skin, slot, attachment, path, type, width, height}]."""
+	out = []
+	for skin, slot, name, att in _iter_skin_attachments(j):
+		typ = str(att.get('type', 'region')).lower()
+		if typ not in ('region', 'mesh', 'linkedmesh'):
+			continue
+		path = att.get('path') or att.get('name') or name
+		if 'placeholder' in os.path.basename(str(name)).lower() or 'placeholder' in os.path.basename(str(path)).lower():
+			out.append({'skin': skin, 'slot': slot, 'attachment': name, 'path': path, 'type': typ,
+						'width': att.get('width'), 'height': att.get('height')})
+	return out
+
+
+def convert_placeholders_to_bounding_boxes(j):
+	"""Replace placeholder REGION attachments with a bounding box of the same size, position and rotation.
+
+	The attachment keeps its name, so setup pose and attachment keys still switch it on and off. Meshes, sequences and
+	regions that a linked mesh uses as parent are left alone (returned in 'skipped' with the reason).
+	Returns {'converted': [...], 'skipped': [...]} (dicts like find_placeholder_pngs)."""
+	converted, skipped = [], []
+	parent_names = {a.get('parent') for _sk, _sl, _n, a in _iter_skin_attachments(j)
+					if str(a.get('type', '')).lower() == 'linkedmesh' and a.get('parent')}
+	for item in find_placeholder_pngs(j):
+		skins = j.get('skins', [])
+		if isinstance(skins, dict):
+			att_map = skins.get(item['skin'], {}).get(item['slot'], {})
+		else:
+			sk = next((s for s in skins if isinstance(s, dict) and s.get('name', 'default') == item['skin']), {})
+			att_map = (sk.get('attachments') or {}).get(item['slot'], {})
+		att = att_map.get(item['attachment'])
+		if not isinstance(att, dict):
+			continue
+		if item['type'] != 'region':
+			skipped.append(dict(item, reason=f"{item['type']} — change it to a bounding box by hand"))
+			continue
+		if att.get('sequence'):
+			skipped.append(dict(item, reason='image sequence — change it to a bounding box by hand'))
+			continue
+		if item['attachment'] in parent_names:
+			skipped.append(dict(item, reason='a linked mesh uses it as parent — change it by hand'))
+			continue
+		w = float(att.get('width', 0) or 0) * float(att.get('scaleX', 1))
+		h = float(att.get('height', 0) or 0) * float(att.get('scaleY', 1))
+		rot = math.radians(float(att.get('rotation', 0)))
+		cx, cy = float(att.get('x', 0)), float(att.get('y', 0))
+		c, s = math.cos(rot), math.sin(rot)
+		verts = []
+		for lx, ly in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)):	# counter-clockwise
+			verts += [round(cx + lx * c - ly * s, 2), round(cy + lx * s + ly * c, 2)]
+		att_map[item['attachment']] = {'type': 'boundingbox', 'vertexCount': 4, 'vertices': verts, 'color': '60f000ff'}
+		converted.append(dict(item, box=(round(w, 2), round(h, 2))))
+	return {'converted': converted, 'skipped': skipped}
+
+
 class SpineFileWidget(QWidget):
 	"""
 	Custom widget for the file list: [CheckBox] [Filename]
@@ -843,7 +919,7 @@ class SpinePackageValidator:
 
 class MainWindow(QMainWindow):
 	# Version Configuration for "Version Locking"
-	APP_VERSION = "5.89"
+	APP_VERSION = "5.90"
 	# Update URL: Points to the raw version.txt on GitHub Main branch.
 	# This acts as the "Gatekeeper". Users check this URL on launch.
 	MASTER_VERSION_URL = "https://raw.githubusercontent.com/saleklar/spine-sorter/main/version.txt"
@@ -1198,6 +1274,21 @@ class MainWindow(QMainWindow):
 			self.multiply_png_cb.setChecked(False)
 		multiply_group_layout.addWidget(self.remove_multiply_cb)
 		actions_layout.addWidget(multiply_group)
+
+		# Optional: placeholder PNGs (attachments named/pathed '*placeholder*') -> bounding boxes
+		self.placeholder_bbox_cb = QCheckBox("Placeholders: replace placeholder PNGs with bounding boxes")
+		self.placeholder_bbox_cb.setToolTip(
+			"Placeholder = an image attachment whose name or image path contains 'placeholder'\n"
+			"(value_placeholder, placeholder_side, pop_ups/png/placeholder ...). The front end puts its text/value there,\n"
+			"so it should be a BOUNDING BOX (container), not a PNG in the atlas.\n\n"
+			"If checked, every placeholder REGION is replaced in the exported skeleton by a bounding box with the same\n"
+			"name, size, position and rotation (setup pose and attachment keys keep working), and its PNG is not exported.\n"
+			"Meshes and image sequences named placeholder are only reported - change those by hand.\n"
+			"If unchecked, placeholder PNGs are kept and reported as a WARNING."
+		)
+		self.placeholder_bbox_cb.setChecked(bool(self.config.get("placeholder_to_bbox", False)))
+		self.placeholder_bbox_cb.stateChanged.connect(lambda v: self._save_placeholder_bbox_config(v))
+		actions_layout.addWidget(self.placeholder_bbox_cb)
 
 		# Optional: Force local sorting (treat all assets as local to the skeleton)
 		self.force_local_cb = QCheckBox("Force local sorting (Old projects)")
@@ -2126,6 +2217,13 @@ class MainWindow(QMainWindow):
 	def _save_remove_multiply_config(self, state):
 		try:
 			self.config['remove_multiply'] = bool(state)
+			self._save_config()
+		except Exception:
+			pass
+
+	def _save_placeholder_bbox_config(self, state):
+		try:
+			self.config['placeholder_to_bbox'] = bool(state)
 			self._save_config()
 		except Exception:
 			pass
@@ -3135,11 +3233,31 @@ class MainWindow(QMainWindow):
 	def log_error(self, message):
 		self.info_panel.append(f"<b><font color='#FFD700'>{message}</font></b>")
 
-	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False, multiply_to_png=False, remove_multiply=False):
-		
+	def _process_single_skeleton(self, found_json, found_info, result_dir, folder, input_path, file_scanner, base_output_root, spine_exe, base_progress, name, errors, results, all_file_stats, jpeg_forced_png_warnings, all_skeleton_names=None, is_first=True, is_last=True, optimization_enabled=True, spine_export_unchecked=None, spine_export_unchecked_anims=None, extra_cli_args=None, spine_export_missing=None, spine_export_log_warnings=None, consolidate_duplicates=False, consolidate_mirrored=False, similarity_confidence=95, consolidate_scaled=False, multiply_to_png=False, remove_multiply=False, placeholder_to_bbox=False):
+
 		# Removing Multiply also sends its images to PNG
 		if remove_multiply:
 			multiply_to_png = True
+
+		# Placeholder PNGs: find them; with the option on (and not check-only) turn them into bounding boxes in the
+		# exported temp JSON first, so every later step (image sorting, atlas, report, import) sees bounding boxes.
+		try:
+			if found_json and os.path.exists(found_json) and all_file_stats:
+				with open(found_json, 'r', encoding='utf-8', errors='ignore') as fh:
+					_pj = json.load(fh)
+				_ph = find_placeholder_pngs(_pj)
+				if _ph:
+					if placeholder_to_bbox and not self.config.get("validate_only", False):
+						_res = convert_placeholders_to_bounding_boxes(_pj)
+						if _res['converted']:
+							with open(found_json, 'w', encoding='utf-8') as fh:
+								json.dump(_pj, fh, indent=2 if self.config.get("pretty_print_json", False) else None)
+						all_file_stats[-1]['placeholder_converted'] = _res['converted']
+						all_file_stats[-1]['placeholder_pngs'] = _res['skipped']
+					else:
+						all_file_stats[-1]['placeholder_pngs'] = _ph
+		except Exception as e:
+			self.log_warning(f"Placeholder check failed: {e}")
 		
 		# Identify current skeleton being processed (for UI/Logs)
 		cur_skel_name = os.path.splitext(os.path.basename(found_json))[0] if found_json else "?"
@@ -3443,6 +3561,29 @@ class MainWindow(QMainWindow):
 								else:
 									self.info_panel.append(f"<font color='#FF8C00'>    - ... and {n_blend - 15} more</font>")
 									break
+
+						# Report placeholders: converted to bounding boxes (note) / still PNG (warning)
+						if stats.get('placeholder_converted'):
+							_pc = stats['placeholder_converted']
+							self.info_panel.append("<br>")
+							self.info_panel.append(f"  <span style='color:#32CD32; font-weight:bold;'>NOTE:</span> <span style='color:#32CD32;'>{len(_pc)} placeholder PNG(s) REPLACED with bounding boxes (same name, size and position; PNG not exported):</span>")
+							for i, it in enumerate(_pc):
+								if i >= 15:
+									self.info_panel.append(f"<font color='#32CD32'>    - ... and {len(_pc) - 15} more</font>")
+									break
+								_tiny = " — tiny box: resize it to the text area in Spine" if min(it['box']) < 10 else ""
+								self.info_panel.append(f"<font color='#32CD32'>    - slot '{it['slot']}': '{it['attachment']}' → bounding box {it['box'][0]:g}x{it['box'][1]:g}{_tiny}</font>")
+						if stats.get('placeholder_pngs'):
+							_pp = stats['placeholder_pngs']
+							self.info_panel.append("<br>")
+							_how = "" if placeholder_to_bbox else " Tick 'Placeholders: replace placeholder PNGs with bounding boxes' or change them in Spine."
+							self.info_panel.append(f"  <span style='color:#FF0000; font-weight:bold;'>WARNING:</span> <span style='color:#FF8C00;'>{len(_pp)} PLACEHOLDER{' is a PNG' if len(_pp) == 1 else 'S are PNGs'} instead of a BOUNDING BOX — {'it' if len(_pp) == 1 else 'they'} should be changed to a bounding box.{_how}</span>")
+							for i, it in enumerate(_pp):
+								if i >= 15:
+									self.info_panel.append(f"<font color='#FF8C00'>    - ... and {len(_pp) - 15} more</font>")
+									break
+								_why = f" ({it['reason']})" if it.get('reason') else ""
+								self.info_panel.append(f"<font color='#FF8C00'>    - slot '{it['slot']}': '{it['attachment']}' ({it['type']}, image {it['path']}){_why}</font>")
 
 						QApplication.processEvents()
 
@@ -6435,6 +6576,11 @@ class MainWindow(QMainWindow):
 							if not scan_mode:
 								TOTAL_ATTACHMENTS_COUNT += 1
 
+							# Attachments without an image (bounding boxes - e.g. converted placeholders - paths, points,
+							# clippings) must not pick up a PNG that happens to share their name.
+							if isinstance(attach_val, dict) and str(attach_val.get('type', 'region')).lower() in ('boundingbox', 'path', 'point', 'clipping'):
+								continue
+
 							# determine referenced image name
 							if isinstance(attach_val, dict):
 								# prefer explicit path in attachment value; otherwise use the attachment name
@@ -9009,6 +9155,7 @@ class MainWindow(QMainWindow):
 					consolidate_scaled=self.consolidate_scaled_cb.isChecked(),
 					multiply_to_png=self.multiply_png_cb.isChecked(),
 					remove_multiply=self.remove_multiply_cb.isChecked(),
+					placeholder_to_bbox=self.placeholder_bbox_cb.isChecked(),
 					similarity_confidence=self.similarity_slider.value()
 				)
 
@@ -9476,6 +9623,21 @@ class MainWindow(QMainWindow):
 				report_lines.append("\nNOTE: Multiply blend mode removed (set to normal):")
 				for _n, _slots in _mult_removed:
 					report_lines.append(f" - [{_n}] {len(_slots)} slot(s): {', '.join(_slots)}")
+
+			# Placeholders: still PNG (warning) / replaced with bounding boxes (note)
+			_ph_png = [(st.get('name'), st.get('placeholder_pngs')) for st in all_file_stats if st.get('placeholder_pngs')]
+			if _ph_png:
+				report_lines.append("\nWARNING: PLACEHOLDER present as PNG instead of BOUNDING BOX — should be changed to a bounding box:")
+				for _n, _items in _ph_png:
+					for it in _items:
+						_why = f" ({it['reason']})" if it.get('reason') else ""
+						report_lines.append(f" - [{_n}] slot '{it['slot']}': '{it['attachment']}' ({it['type']}, image {it['path']}){_why}")
+			_ph_conv = [(st.get('name'), st.get('placeholder_converted')) for st in all_file_stats if st.get('placeholder_converted')]
+			if _ph_conv:
+				report_lines.append("\nNOTE: Placeholder PNGs replaced with bounding boxes:")
+				for _n, _items in _ph_conv:
+					for it in _items:
+						report_lines.append(f" - [{_n}] slot '{it['slot']}': '{it['attachment']}' → bounding box {it['box'][0]:g}x{it['box'][1]:g}")
 
 			# Aggregate naming recommendations across files (always reported under RECOMMENDATIONS)
 			naming_by_file = {}

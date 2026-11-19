@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.90] - 2026-11-19
+### Added
+- **Placeholder Check:** A placeholder is an image attachment with `placeholder` in its name or image path (`value_placeholder`, `placeholder_side`, `pop_ups/png/placeholder` ...). The front end puts its text or value there, so it must be a bounding box, not a PNG in the atlas. Every placeholder that is still a PNG is now reported as a WARNING in the Info log and in the full report.
+- **Placeholders: Replace Placeholder PNGs with Bounding Boxes:** New checkbox (off by default). Replaces every placeholder region in the exported skeleton with a bounding box of the same name, size, position and rotation, so the setup pose and attachment keys keep working; the PNG is no longer exported. Tiny boxes (under 10 px) are marked in the log so they can be resized to the text area in Spine. Meshes, image sequences and regions used as a linked-mesh parent are only reported - change those by hand. Not applied in "Check for Errors Only" mode.
+
+### Fixed
+- **Bounding Boxes Could Pick Up a PNG:** A bounding box, path, point or clipping attachment whose name matched an image file could have that image copied into the sorted images folder. These attachments are now skipped by the image sorting step.
+
 ## [v5.89] - 2026-10-23
 ### Added
 - **No File Extensions in Names:** `.png`, `.jpg`, `.jpeg`, `.webp` and `.psd` are removed from bone, slot, skin, attachment, animation, event and constraint names in the exported skeleton, and every reference is updated. A name is left as it is if the clean name is already taken. Image references are only changed when the image without the extension exists in the sorted images folder, so images whose file name really contains the extension keep working. Asset files are never renamed. All fixes are listed in the Info log and the report.
